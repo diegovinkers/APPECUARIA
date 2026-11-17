@@ -1,0 +1,59 @@
+# Blueprint de Render: un Web Service (Node 24) que sirve la API y el front en
+# la misma dirección, y un PostgreSQL. Los dos en Virginia (este de EE. UU.).
+# Arranca en el plan gratis; para pasar a pago se cambia el plan desde el panel.
+#
+# Los valores secretos NO van acá: los que dicen `sync: false` los pide Render
+# al crear el Blueprint, y se cargan en el panel.
+
+databases:
+  - name: sapsa-db
+    plan: free
+    region: virginia
+    databaseName: sapsa
+    user: sapsa_app
+    # Sin acceso desde internet: solo el servicio, por la red interna. Para
+    # bajar una copia o cargar datos desde la PC, se agrega la IP propia en el
+    # panel (Networking → Access Control) y se saca al terminar.
+    ipAllowList: []
+
+services:
+  - type: web
+    name: sapsa-app
+    runtime: node
+    plan: free
+    region: virginia
+    # --include=dev: vite (para compilar el front) y el CLI de prisma (para las
+    # migraciones al arrancar) son dependencias de desarrollo.
+    buildCommand: >-
+      cd client && npm ci --include=dev && npm run build &&
+      cd ../server && npm ci --include=dev && npx prisma generate
+    # En el plan gratis no hay "pre-deploy command": las migraciones y el seed
+    # (idempotente, sin usuarios de ejemplo en producción) corren al arrancar.
+    startCommand: cd server && npm run start:render
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      # Render pone un proxy delante: sin esto, la API ve a todos con la IP
+      # del proxy (límite por IP y auditoría).
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sapsa-db
+          property: connectionString
+      # CLIENT_URL vacía = la dirección de Render (RENDER_EXTERNAL_URL). Se
+      # carga solo si se agrega un dominio propio.
+      - key: CLIENT_URL
+        sync: false
+      - key: SUPERADMIN_USUARIO
+        sync: false
+      - key: SUPERADMIN_NOMBRE
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      - key: SUPERADMIN_EMAIL
+        sync: false

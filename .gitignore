@@ -1,0 +1,18 @@
+node_modules
+dist
+
+# Secretos: nunca a git. Solo las plantillas.
+.env
+.env.*
+!.env.example
+!.env.test.example
+
+# Grabaciones de CIGAM: tienen datos reales de la empresa. Nunca a git.
+video capturas/
+
+# Archivos reales del campo (planillas, DICOSE, bastón, fotos): nunca a git.
+docs/info santi/
+docs/img/
+
+# Cliente de Prisma generado (se regenera con npm run db:generate)
+server/src/generated/

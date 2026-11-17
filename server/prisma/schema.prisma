@@ -1,0 +1,664 @@
+// Esquema de la base de la app interna.
+// Los modelos tienen nombres en español; en PostgreSQL las tablas y columnas
+// quedan en snake_case (@@map / @map), cómodas para consultar con SQL.
+//
+// Después de cambiar este archivo: npm run db:migrate -- --name <descripcion>
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Acciones que se pueden permitir sobre un módulo.
+enum Accion {
+  VER
+  CREAR
+  EDITAR
+  APROBAR
+  ANULAR
+}
+
+model Usuario {
+  id                  Int       @id @default(autoincrement())
+  /// Con lo que inicia sesión. Se guarda en minúsculas.
+  usuario             String    @unique @db.VarChar(50)
+  nombre              String    @db.VarChar(100)
+  /// Opcional: no todo el personal tiene email. En minúsculas.
+  email               String?   @unique @db.VarChar(254)
+  /// Código del usuario en CIGAM, para vincularlo más adelante. Opcional.
+  codigoCigam         String?   @unique @map("codigo_cigam") @db.VarChar(30)
+  passwordHash        String    @map("password_hash") @db.VarChar(100)
+  /// Acceso total. Es un indicador y no un rol: editar roles no lo puede quitar.
+  esSuperadmin        Boolean   @default(false) @map("es_superadmin")
+  /// Los usuarios no se borran (la auditoría los referencia): se desactivan.
+  activo              Boolean   @default(true)
+  /// Obliga a cambiar la contraseña en el próximo ingreso (fase 3).
+  debeCambiarPassword Boolean   @default(false) @map("debe_cambiar_password")
+  /// Bloqueo por intentos fallidos (fase 3).
+  intentosFallidos    Int       @default(0) @map("intentos_fallidos")
+  bloqueadoHasta      DateTime? @map("bloqueado_hasta") @db.Timestamptz(3)
+  ultimoAcceso        DateTime? @map("ultimo_acceso") @db.Timestamptz(3)
+  creadoEn            DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn       DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  roles     UsuarioRol[]
+  sesiones  Sesion[]
+  auditoria Auditoria[]
+
+  potreroUsos    PotreroUso[]
+  versionesStock VersionStock[]
+  importaciones  Importacion[]
+  movimientos    Movimiento[]
+
+  @@map("usuario")
+}
+
+/// Agrupa permisos. Se crean y editan desde la app.
+model Rol {
+  id            Int      @id @default(autoincrement())
+  nombre        String   @unique @db.VarChar(60)
+  descripcion   String?  @db.VarChar(255)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  usuarios UsuarioRol[]
+  permisos RolPermiso[]
+
+  @@map("rol")
+}
+
+/// Una sección de la app (y una entrada del menú lateral).
+model Modulo {
+  id               Int     @id @default(autoincrement())
+  /// Identificador estable que usa el código: requirePermission('compras', 'APROBAR').
+  clave            String  @unique @db.VarChar(50)
+  /// Nombre visible. Se puede cambiar sin tocar código.
+  nombre           String  @db.VarChar(100)
+  /// Orden en el menú lateral.
+  orden            Int     @default(0)
+  /// Usuarios, Roles, Auditoría: solo el superadmin puede asignar roles con
+  /// permisos sobre estos módulos (fase 4).
+  esAdministracion Boolean @default(false) @map("es_administracion")
+  activo           Boolean @default(true)
+
+  permisos Permiso[]
+
+  @@map("modulo")
+}
+
+/// Un par módulo + acción, por ejemplo "Compras / APROBAR".
+model Permiso {
+  id       Int    @id @default(autoincrement())
+  moduloId Int    @map("modulo_id")
+  accion   Accion
+
+  modulo Modulo       @relation(fields: [moduloId], references: [id], onDelete: Cascade)
+  roles  RolPermiso[]
+
+  @@unique([moduloId, accion])
+  @@map("permiso")
+}
+
+model UsuarioRol {
+  usuarioId  Int      @map("usuario_id")
+  rolId      Int      @map("rol_id")
+  asignadoEn DateTime @default(now()) @map("asignado_en") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, rolId])
+  @@index([rolId])
+  @@map("usuario_rol")
+}
+
+model RolPermiso {
+  rolId     Int @map("rol_id")
+  permisoId Int @map("permiso_id")
+
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: Cascade)
+
+  @@id([rolId, permisoId])
+  @@index([permisoId])
+  @@map("rol_permiso")
+}
+
+/// Sesiones abiertas (fase 3). El token solo existe en la cookie del
+/// navegador; acá se guarda su SHA-256, así una copia de la base no sirve
+/// para entrar.
+model Sesion {
+  id        String   @id @db.Char(64)
+  usuarioId Int      @map("usuario_id")
+  creadaEn  DateTime @default(now()) @map("creada_en") @db.Timestamptz(3)
+  /// Para el vencimiento por inactividad.
+  ultimoUso DateTime @default(now()) @map("ultimo_uso") @db.Timestamptz(3)
+  /// Vencimiento absoluto, sin importar la actividad.
+  venceEn   DateTime @map("vence_en") @db.Timestamptz(3)
+  ip        String?  @db.VarChar(45)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@index([venceEn])
+  @@map("sesion")
+}
+
+/// Registro de quién hizo qué y cuándo. Solo se agregan filas.
+model Auditoria {
+  id        Int      @id @default(autoincrement())
+  /// Cuándo.
+  fecha     DateTime @default(now()) @db.Timestamptz(3)
+  /// Quién. Nulo si no hay un usuario identificado (por ejemplo, un login
+  /// con un nombre de usuario que no existe).
+  usuarioId Int?     @map("usuario_id")
+  /// Qué, como código: LOGIN_OK, USUARIO_CREADO, ROL_EDITADO...
+  accion    String   @db.VarChar(50)
+  /// Sobre qué registro, si aplica (tabla e id).
+  entidad   String?  @db.VarChar(50)
+  entidadId String?  @map("entidad_id") @db.VarChar(50)
+  /// Detalle: valores anteriores y nuevos, motivo, etc.
+  detalle   Json?
+  ip        String?  @db.VarChar(45)
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([fecha])
+  @@index([usuarioId])
+  @@index([entidad, entidadId])
+  @@map("auditoria")
+}
+
+// ============================================================================
+// Pecuaria (DECISIONES §10). Las columnas id_*_cigam son las claves para unir
+// con CIGAM más adelante: quedan vacías hasta que haya conexión.
+// Nada del historial se pisa ni se borra: cada cambio agrega filas.
+// ============================================================================
+
+enum TipoCampo {
+  ESTANCIA
+  GRANJA
+  CONFINAMIENTO
+}
+
+/// CORRAL: el feedlot como un solo "potrero", con el stock cargado a mano.
+enum TipoPotrero {
+  POTRERO
+  CORRAL
+}
+
+/// Columna del resumen por campo (CN / Verdeos / Corral). OTRO solo suma al total.
+enum GrupoUsoSuelo {
+  CN
+  VERDEO
+  CORRAL
+  OTRO
+}
+
+enum Especie {
+  VACUNO
+  OVINO
+}
+
+/// Sexo de una categoría. Vacío (null): mixta o sin definir.
+enum Sexo {
+  MACHO
+  HEMBRA
+}
+
+/// A qué sexo se le puede aplicar un tipo de movimiento (la ecografía, solo a hembras).
+enum SexoAplica {
+  CUALQUIERA
+  HEMBRA
+  MACHO
+}
+
+/// Qué le hace un tipo de movimiento al rodeo: ENTRA y SALE cambian cuántos
+/// hay, MUEVE dónde están o con quién, CATEGORIA qué son, y REGISTRO anota un
+/// dato sin mover nada (pesada, ecografía, vacuna...).
+enum EfectoMovimiento {
+  ENTRA
+  SALE
+  MUEVE
+  CATEGORIA
+  REGISTRO
+}
+
+/// A qué se le puede aplicar un movimiento (PROPUESTA_MOVIMIENTOS §5). Los
+/// niveles grandes son atajos: por dentro se registra lote por lote.
+enum NivelMovimiento {
+  CAMPO
+  POTRERO
+  CATEGORIA
+  LOTE
+  PARTE_LOTE
+}
+
+enum OrigenStock {
+  PLANILLA
+  MANUAL
+  MOVIMIENTO
+}
+
+enum TipoImportacion {
+  PLANILLA
+  BASTON
+}
+
+/// PENDIENTE = vista previa todavía sin confirmar.
+enum EstadoImportacion {
+  PENDIENTE
+  CONFIRMADA
+  DESCARTADA
+}
+
+/// Un campo (estancia, granja o confinamiento). En CIGAM: TEA3FAZENDA.
+model Campo {
+  id             Int       @id @default(autoincrement())
+  /// Como en la planilla: EG, ES, ER...
+  sigla          String    @unique @db.VarChar(10)
+  nombre         String    @db.VarChar(100)
+  tipo           TipoCampo @default(ESTANCIA)
+  idFazendaCigam String?   @unique @map("id_fazenda_cigam") @db.VarChar(30)
+  activo         Boolean   @default(true)
+  orden          Int       @default(0)
+  creadoEn       DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn  DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  potreros       Potrero[]
+  lotes          Lote[]
+  sesionesBaston SesionBaston[]
+  movimientos    Movimiento[]   @relation("MovimientoCampo")
+  trasladosOtro  Movimiento[]   @relation("MovimientoCampoOtro")
+
+  @@map("campo")
+}
+
+/// La unidad que usa la planilla: un potrero o un grupo ("8.2/3/4/5").
+/// En CIGAM equivale a un área de manejo (TEA4AREAMANEJO).
+model Potrero {
+  id                  Int         @id @default(autoincrement())
+  campoId             Int         @map("campo_id")
+  /// Como en la planilla: "42.1", "8.2/3/4/5", "Frente A".
+  nombre              String      @db.VarChar(60)
+  tipo                TipoPotrero @default(POTRERO)
+  hectareas           Decimal?    @db.Decimal(10, 2)
+  /// Hectáreas de relleno (la planilla pone 1): no se calcula nada por hectárea.
+  hectareasAConfirmar Boolean     @default(false) @map("hectareas_a_confirmar")
+  idAreaManejoCigam   String?     @map("id_area_manejo_cigam") @db.VarChar(30)
+  activo              Boolean     @default(true)
+  orden               Int         @default(0)
+  creadoEn            DateTime    @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn       DateTime    @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  campo              Campo          @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  subdivisiones      Subdivision[]
+  usos               PotreroUso[]
+  versionesStock     VersionStock[]
+  lotes              Lote[]
+  movimientosOrigen  Movimiento[]   @relation("MovimientoPotreroOrigen")
+  movimientosDestino Movimiento[]   @relation("MovimientoPotreroDestino")
+  sesionesBaston     SesionBaston[]
+
+  @@unique([campoId, nombre])
+  @@map("potrero")
+}
+
+/// Cada parte física de un potrero agrupado ("8.2", "8.3"...). En CIGAM: TEA3TALHAO.
+model Subdivision {
+  id            Int     @id @default(autoincrement())
+  potreroId     Int     @map("potrero_id")
+  codigo        String  @db.VarChar(20)
+  idTalhaoCigam String? @map("id_talhao_cigam") @db.VarChar(30)
+
+  potrero Potrero @relation(fields: [potreroId], references: [id], onDelete: Cascade)
+
+  @@unique([potreroId, codigo])
+  @@map("potrero_subdivision")
+}
+
+/// Catálogo editable de usos de suelo (sale de la planilla del encargado).
+model UsoSuelo {
+  id     Int           @id @default(autoincrement())
+  nombre String        @unique @db.VarChar(60)
+  grupo  GrupoUsoSuelo @default(OTRO)
+  activo Boolean       @default(true)
+  orden  Int           @default(0)
+
+  alias UsoSueloAlias[]
+  usos  PotreroUso[]
+
+  @@map("uso_suelo")
+}
+
+/// Cómo puede aparecer escrito en la planilla, normalizado (minúsculas, sin
+/// tildes ni espacios de más). Incluye siempre el nombre del uso.
+model UsoSueloAlias {
+  id         Int    @id @default(autoincrement())
+  usoSueloId Int    @map("uso_suelo_id")
+  texto      String @unique @db.VarChar(60)
+
+  usoSuelo UsoSuelo @relation(fields: [usoSueloId], references: [id], onDelete: Cascade)
+
+  @@map("uso_suelo_alias")
+}
+
+/// Catálogo editable de categorías de animales. En CIGAM: TEA4CATANIMAIS.
+model Categoria {
+  id               Int     @id @default(autoincrement())
+  nombre           String  @unique @db.VarChar(60)
+  especie          Especie @default(VACUNO)
+  /// En CIGAM está vacío: al crearla se deduce del nombre, y se puede editar.
+  sexo             Sexo?
+  idCategoriaCigam String? @unique @map("id_categoria_cigam") @db.VarChar(30)
+  activo           Boolean @default(true)
+  orden            Int     @default(0)
+
+  alias          CategoriaAlias[]
+  lineasStock    VersionStockLinea[]
+  lotes          Lote[]
+  sesionesBaston SesionBaston[]
+
+  @@map("categoria")
+}
+
+/// Igual que UsoSueloAlias, para las categorías.
+model CategoriaAlias {
+  id          Int    @id @default(autoincrement())
+  categoriaId Int    @map("categoria_id")
+  texto       String @unique @db.VarChar(60)
+
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+
+  @@map("categoria_alias")
+}
+
+/// Parámetros configurables desde la app (por ejemplo, kg de peso vivo por UG).
+model Parametro {
+  clave         String   @id @db.VarChar(50)
+  valor         Decimal  @db.Decimal(12, 4)
+  descripcion   String?  @db.VarChar(255)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  @@map("parametro")
+}
+
+/// Historial del uso de suelo de cada potrero. hasta = null: es el vigente.
+model PotreroUso {
+  id         Int       @id @default(autoincrement())
+  potreroId  Int       @map("potrero_id")
+  usoSueloId Int       @map("uso_suelo_id")
+  desde      DateTime  @db.Date
+  hasta      DateTime? @db.Date
+  usuarioId  Int?      @map("usuario_id")
+  creadoEn   DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  potrero  Potrero  @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  usoSuelo UsoSuelo @relation(fields: [usoSueloId], references: [id], onDelete: Restrict)
+  usuario  Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@index([potreroId, desde])
+  @@map("potrero_uso")
+}
+
+/// Una foto del stock de un potrero en una fecha. El stock actual es la
+/// última versión (por fecha y, a igual fecha, la cargada después).
+/// Un potrero vacío es una versión sin líneas.
+model VersionStock {
+  id            Int         @id @default(autoincrement())
+  potreroId     Int         @map("potrero_id")
+  /// La fecha real del dato (editable al cargar; por defecto, hoy).
+  fecha         DateTime    @db.Date
+  origen        OrigenStock
+  importacionId Int?        @map("importacion_id")
+  usuarioId     Int?        @map("usuario_id")
+  nota          String?     @db.VarChar(255)
+  creadoEn      DateTime    @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  potrero            Potrero             @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  importacion        Importacion?        @relation(fields: [importacionId], references: [id], onDelete: Restrict)
+  usuario            Usuario?            @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  lineas             VersionStockLinea[]
+  movimientosOrigen  Movimiento[]        @relation("MovimientoVersionOrigen")
+  movimientosDestino Movimiento[]        @relation("MovimientoVersionDestino")
+
+  @@index([potreroId, fecha])
+  @@map("version_stock")
+}
+
+/// Un lote dentro de la foto del potrero: sus cabezas, su peso y la
+/// categoría que tenía en esa fecha.
+model VersionStockLinea {
+  id             Int      @id @default(autoincrement())
+  versionId      Int      @map("version_id")
+  loteId         Int      @map("lote_id")
+  categoriaId    Int      @map("categoria_id")
+  cabezas        Int
+  /// Peso promedio en kg. Puede faltar (la planilla a veces no lo tiene).
+  pesoPromedioKg Decimal? @map("peso_promedio_kg") @db.Decimal(7, 2)
+
+  version   VersionStock @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  lote      Lote         @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  categoria Categoria    @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+
+  @@unique([versionId, loteId])
+  @@index([loteId])
+  @@map("version_stock_linea")
+}
+
+/// Grupo de animales que el encargado identifica (DECISIONES §10): una sola
+/// categoría, un solo potrero a la vez. Un potrero puede tener varios lotes.
+/// Sus cabezas y su peso están en la última versión de stock de su potrero.
+/// activo = false: se vació (se movió todo o se juntó con otro).
+/// En CIGAM equivale a un lote de manejo.
+model Lote {
+  id            Int      @id @default(autoincrement())
+  campoId       Int      @map("campo_id")
+  /// Dónde está ahora (o dónde estuvo por última vez, si está cerrado).
+  potreroId     Int      @map("potrero_id")
+  categoriaId   Int      @map("categoria_id")
+  nombre        String   @db.VarChar(80)
+  activo        Boolean  @default(true)
+  idLoteCigam   String?  @map("id_lote_cigam") @db.VarChar(30)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  campo              Campo               @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  potrero            Potrero             @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  categoria          Categoria           @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  lineas             VersionStockLinea[]
+  movimientosOrigen  Movimiento[]        @relation("MovimientoLoteOrigen")
+  movimientosDestino Movimiento[]        @relation("MovimientoLoteDestino")
+  nacimientos        Movimiento[]        @relation("MovimientoLoteMadres")
+
+  @@unique([campoId, nombre])
+  @@index([potreroId])
+  @@map("lote")
+}
+
+/// Una línea del "libro del rodeo": animales que pasan de un lote a otro (o
+/// un lote entero que cambia de potrero), que entran al campo o que salen.
+/// Genera una versión de stock en cada potrero involucrado. Las entradas no
+/// tienen origen y las salidas no tienen destino.
+model Movimiento {
+  id                 Int      @id @default(autoincrement())
+  campoId            Int      @map("campo_id")
+  fecha              DateTime @db.Date
+  loteOrigenId       Int?     @map("lote_origen_id")
+  loteDestinoId      Int?     @map("lote_destino_id")
+  potreroOrigenId    Int?     @map("potrero_origen_id")
+  potreroDestinoId   Int?     @map("potrero_destino_id")
+  cabezas            Int
+  /// Peso promedio de los que se mueven (si se cargó).
+  pesoPromedioKg     Decimal? @map("peso_promedio_kg") @db.Decimal(7, 2)
+  categoriaOrigenId  Int?     @map("categoria_origen_id")
+  categoriaDestinoId Int?     @map("categoria_destino_id")
+  /// SUMAR (a un lote que ya estaba), NUEVO (lote nuevo), ENTERO (el lote
+  /// cambia de potrero), CATEGORIA (el lote cambia de categoría, en el mismo
+  /// potrero), ENTRADA, SALIDA o REVERSION (deshace el movimiento `revierteAId`).
+  modo               String   @db.VarChar(10)
+  /// El tipo del catálogo ("libro del rodeo"). Cada modo tiene el suyo; las
+  /// entradas y salidas, el que se eligió (muerte, compra...).
+  tipoId             Int      @map("tipo_movimiento_id")
+  /// Si el tipo pide causa (muerte, consumo).
+  causaId            Int?     @map("causa_id")
+  /// Número de guía (compras, ventas y traslados).
+  guia               String?  @db.VarChar(30)
+  /// Traslados: el campo del que vienen o al que van.
+  campoOtroId        Int?     @map("campo_otro_id")
+  /// Nacimientos: el lote de las madres.
+  loteMadresId       Int?     @map("lote_madres_id")
+  /// Si es una reversión: el movimiento que deshace (uno solo por movimiento).
+  revierteAId        Int?     @unique @map("revierte_a_id")
+  nota               String?  @db.VarChar(255)
+  versionOrigenId    Int?     @map("version_origen_id")
+  versionDestinoId   Int?     @map("version_destino_id")
+  usuarioId          Int?     @map("usuario_id")
+  creadoEn           DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  campo          Campo            @relation("MovimientoCampo", fields: [campoId], references: [id], onDelete: Restrict)
+  loteOrigen     Lote?            @relation("MovimientoLoteOrigen", fields: [loteOrigenId], references: [id], onDelete: Restrict)
+  loteDestino    Lote?            @relation("MovimientoLoteDestino", fields: [loteDestinoId], references: [id], onDelete: Restrict)
+  potreroOrigen  Potrero?         @relation("MovimientoPotreroOrigen", fields: [potreroOrigenId], references: [id], onDelete: Restrict)
+  potreroDestino Potrero?         @relation("MovimientoPotreroDestino", fields: [potreroDestinoId], references: [id], onDelete: Restrict)
+  versionOrigen  VersionStock?    @relation("MovimientoVersionOrigen", fields: [versionOrigenId], references: [id], onDelete: Restrict)
+  versionDestino VersionStock?    @relation("MovimientoVersionDestino", fields: [versionDestinoId], references: [id], onDelete: Restrict)
+  usuario        Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  tipo           TipoMovimiento   @relation(fields: [tipoId], references: [id], onDelete: Restrict)
+  causa          CausaMovimiento? @relation(fields: [causaId], references: [id], onDelete: Restrict)
+  campoOtro      Campo?           @relation("MovimientoCampoOtro", fields: [campoOtroId], references: [id], onDelete: Restrict)
+  loteMadres     Lote?            @relation("MovimientoLoteMadres", fields: [loteMadresId], references: [id], onDelete: Restrict)
+  revierteA      Movimiento?      @relation("Reversion", fields: [revierteAId], references: [id], onDelete: Restrict)
+  revertidoPor   Movimiento?      @relation("Reversion")
+
+  @@index([campoId, fecha])
+  @@index([loteOrigenId])
+  @@index([loteDestinoId])
+  @@index([potreroOrigenId, fecha])
+  @@index([potreroDestinoId, fecha])
+  @@index([tipoId])
+  @@map("movimiento")
+}
+
+/// Catálogo de tipos de movimiento y evento: el "libro del rodeo". Sigue los
+/// eventos de CIGAM (TEA4TIPOEVENTO) donde los hay.
+model TipoMovimiento {
+  id                Int               @id @default(autoincrement())
+  /// Fija: la usa el código (SUMAR_LOTE, MUERTE...). No se edita.
+  clave             String            @unique @db.VarChar(30)
+  nombre            String            @unique @db.VarChar(60)
+  efecto            EfectoMovimiento
+  pideCausa         Boolean           @default(false) @map("pide_causa")
+  /// Guía de propiedad y tránsito (MGAP): compras, ventas y traslados.
+  pideGuia          Boolean           @default(false) @map("pide_guia")
+  sexo              SexoAplica        @default(CUALQUIERA)
+  niveles           NivelMovimiento[]
+  idTipoEventoCigam String?           @map("id_tipo_evento_cigam") @db.VarChar(30)
+  activo            Boolean           @default(true)
+  orden             Int               @default(0)
+
+  causas      CausaTipoMovimiento[]
+  movimientos Movimiento[]
+
+  @@map("tipo_movimiento")
+}
+
+/// Causas o motivos (de muerte, de consumo...). En CIGAM: TEA4CAUSAMOTIVOCONSTACAO.
+model CausaMovimiento {
+  id     Int     @id @default(autoincrement())
+  /// Como en CIGAM: CA-001, MO-001...
+  codigo String  @unique @db.VarChar(20)
+  nombre String  @db.VarChar(80)
+  activo Boolean @default(true)
+  orden  Int     @default(0)
+
+  tipos       CausaTipoMovimiento[]
+  movimientos Movimiento[]
+
+  @@map("causa_movimiento")
+}
+
+/// A qué tipos de movimiento se aplica cada causa.
+model CausaTipoMovimiento {
+  causaId Int @map("causa_id")
+  tipoId  Int @map("tipo_movimiento_id")
+
+  causa CausaMovimiento @relation(fields: [causaId], references: [id], onDelete: Cascade)
+  tipo  TipoMovimiento  @relation(fields: [tipoId], references: [id], onDelete: Cascade)
+
+  @@id([causaId, tipoId])
+  @@index([tipoId])
+  @@map("causa_tipo_movimiento")
+}
+
+/// Un archivo subido (planilla o bastón). Mientras está PENDIENTE es la vista
+/// previa; al confirmarla se crean las versiones de stock o la sesión.
+model Importacion {
+  id           Int               @id @default(autoincrement())
+  tipo         TipoImportacion
+  archivo      String            @db.VarChar(255)
+  /// SHA-256 del archivo: avisa si el mismo archivo se sube dos veces.
+  hashArchivo  String            @map("hash_archivo") @db.Char(64)
+  hoja         String?           @db.VarChar(60)
+  fechaDatos   DateTime?         @map("fecha_datos") @db.Date
+  estado       EstadoImportacion @default(PENDIENTE)
+  /// Lo leído del archivo, ya normalizado (lo que muestra la vista previa).
+  datos        Json
+  advertencias Json?
+  usuarioId    Int?              @map("usuario_id")
+  creadoEn     DateTime          @default(now()) @map("creado_en") @db.Timestamptz(3)
+  confirmadaEn DateTime?         @map("confirmada_en") @db.Timestamptz(3)
+
+  usuario        Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  versionesStock VersionStock[]
+  sesionBaston   SesionBaston?
+
+  @@index([hashArchivo])
+  @@map("importacion")
+}
+
+/// Una sesión de lectura del bastón (un archivo de Data Link).
+model SesionBaston {
+  id            Int       @id @default(autoincrement())
+  importacionId Int       @unique @map("importacion_id")
+  campoId       Int?      @map("campo_id")
+  potreroId     Int?      @map("potrero_id")
+  categoriaId   Int?      @map("categoria_id")
+  fecha         DateTime  @db.Date
+  inicio        DateTime? @db.Timestamptz(3)
+  fin           DateTime? @db.Timestamptz(3)
+  cantidad      Int
+  creadoEn      DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  importacion Importacion     @relation(fields: [importacionId], references: [id], onDelete: Restrict)
+  campo       Campo?          @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  potrero     Potrero?        @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  categoria   Categoria?      @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  lecturas    LecturaBaston[]
+
+  @@map("sesion_baston")
+}
+
+/// Una caravana leída. No se repite dentro de la misma sesión.
+model LecturaBaston {
+  id       Int      @id @default(autoincrement())
+  sesionId Int      @map("sesion_id")
+  /// Caravana electrónica, por ejemplo A0000000858000066574797.
+  eid      String   @db.VarChar(32)
+  leidoEn  DateTime @map("leido_en") @db.Timestamptz(3)
+
+  sesion SesionBaston @relation(fields: [sesionId], references: [id], onDelete: Cascade)
+
+  @@unique([sesionId, eid])
+  @@index([eid])
+  @@map("lectura_baston")
+}

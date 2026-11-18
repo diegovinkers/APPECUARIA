@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { VitePWA } from 'vite-plugin-pwa';
+import { pwaOptions } from './pwa.config.js';
 
 // En desarrollo, Vite le pasa /api a la API (puerto 4000), así el front usa
 // /api igual que en producción. El Origin del navegador no se cambia: la API
@@ -8,7 +10,7 @@ import tailwindcss from '@tailwindcss/vite';
 const API_DEV = process.env.API_DEV_URL || 'http://localhost:4000';
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), VitePWA(pwaOptions)],
   server: {
     proxy: {
       '/api': { target: API_DEV },

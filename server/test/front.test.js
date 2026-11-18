@@ -60,6 +60,27 @@ describe('front compilado', () => {
     expect(res.headers['x-powered-by']).toBeUndefined();
   });
 
+  // PWA: el service worker y el manifiesto se revisan cada vez. Con caché larga,
+  // un celular podría quedar pegado a una versión vieja de la app.
+  it('el service worker (sw.js) se sirve y se revisa cada vez', async () => {
+    const res = await request(app).get('/sw.js').expect(200);
+    expect(res.headers['content-type']).toMatch(/javascript/);
+    expect(res.headers['cache-control']).toBe('no-cache');
+  });
+
+  it('el manifiesto de la PWA se sirve con su tipo y se revisa cada vez', async () => {
+    const res = await request(app).get('/manifest.webmanifest').expect(200);
+    expect(res.headers['content-type']).toMatch(/application\/manifest\+json/);
+    expect(res.headers['cache-control']).toBe('no-cache');
+  });
+
+  it('la CSP deja usar el manifiesto y el service worker del mismo sitio', async () => {
+    const csp = (await request(app).get('/pecuaria').expect(200)).headers['content-security-policy'];
+    expect(csp).toMatch(/default-src 'self'/);
+    expect(csp).not.toMatch(/manifest-src 'none'/);
+    expect(csp).not.toMatch(/worker-src 'none'/);
+  });
+
   it('/health sigue respondiendo', async () => {
     await request(app).get('/health').expect(200, { status: 'ok' });
   });

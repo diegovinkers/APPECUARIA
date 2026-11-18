@@ -80,6 +80,30 @@ dirección con `API_DEV_URL`). En producción, la misma API sirve el front
 compilado (`client/dist`, o la carpeta de `FRONT_DIR`): una sola dirección,
 como exige la cookie `SameSite=Strict`. Ver `render.yaml`.
 
+Tests del front: `npm test` en `client/` (Vitest).
+
+### 5. App en el celular (PWA)
+
+La app se puede instalar en el celular (ícono, pantalla completa). Diseño:
+`docs/superpowers/specs/2026-11-18-pwa-design.md`.
+
+- **Android (Chrome):** abrir la dirección de la app → "Instalar app" (o ⋮ → Instalar app).
+- **iPhone (Safari):** abrir la dirección → Compartir → "Agregar a inicio".
+
+Cómo funciona:
+- El service worker (`vite-plugin-pwa`, config en `client/pwa.config.js`) guarda
+  solo las pantallas de la app. **Nunca guarda ni contesta `/api`**: los datos y
+  la sesión siempre vienen de la API.
+- Cuando se publica una versión nueva, aparece "Hay una versión nueva" con el
+  botón "Actualizar" (`client/src/components/AvisosApp.jsx`). Nunca se recarga
+  sola. Se revisa cada hora y cada vez que se vuelve a la app.
+- Sin señal, la app abre y muestra "Sin conexión"; lo que se cargue no se guarda.
+  Trabajar sin señal (guardar en el celular y sincronizar) es otro proyecto.
+- Apagada en `npm run dev`: para probarla, `npm run build` y abrir la API que
+  sirve `client/dist`.
+- Íconos: `client/public/icono.svg` es la fuente; los PNG se regeneran con los
+  pasos de `client/pwa-assets.config.js`.
+
 ## Seguridad
 
 | Tema | Cómo funciona | Configurable en `.env` |

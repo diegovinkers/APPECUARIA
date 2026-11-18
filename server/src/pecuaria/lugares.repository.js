@@ -1,7 +1,7 @@
 // Campos y potreros. Las hectáreas se guardan como decimal y salen como número.
 import { prisma } from '../db.js';
 import { Prisma } from '../generated/prisma/client.ts';
-import { conflict, parseId } from '../errors.js';
+import { badRequest, conflict, parseId } from '../errors.js';
 import { calcularPotrero } from './calculos.js';
 
 const isPrismaError = (error, code) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -98,8 +98,10 @@ export async function findPotrero(id) {
 export async function listPotreros(campoId) {
   const campo = await findCampo(campoId);
   if (!campo) return null;
+  // Los dados de baja (activo: false: un potrero que ya no se usa) no se
+  // listan; su historial queda y se pueden reactivar por la API.
   const rows = await prisma.potrero.findMany({
-    where: { campoId: campo.id },
+    where: { campoId: campo.id, activo: true },
     select: {
       ...potreroSelect,
       usos: {
@@ -173,6 +175,16 @@ export async function createPotrero(campoId, { subdivisiones = [], ...data }) {
 export async function updatePotrero(id, { subdivisiones, ...data }) {
   const antes = await findPotrero(id);
   if (!antes) return null;
+  // Un potrero con animales no se da de baja: primero hay que sacarlos.
+  if (data.activo === false && antes.activo) {
+    const ultima = await prisma.versionStock.findFirst({
+      where: { potreroId: antes.id },
+      orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+      select: { lineas: { select: { cabezas: true } } },
+    });
+    const cabezas = (ultima?.lineas ?? []).reduce((s, l) => s + l.cabezas, 0);
+    if (cabezas > 0) throw badRequest(`${antes.nombre} tiene ${cabezas} cabezas: movelas antes de darlo de baja`);
+  }
   const despues = await guardarPotrero(
     () =>
       prisma.potrero.update({

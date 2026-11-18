@@ -13,14 +13,14 @@ const GRUPOS = [
   ['OTRO', 'Otros'],
 ];
 const ANIMALES = [
-  ['', 'Con y sin animales'],
+  ['', 'Todos'],
   ['con', 'Con animales'],
   ['vacios', 'Vacíos'],
 ];
 const ORDEN = [
-  ['nombre', 'Ordenar: nombre'],
-  ['cabezas', 'Ordenar: más cabezas'],
-  ['carga', 'Ordenar: más carga'],
+  ['nombre', 'Nombre'],
+  ['cabezas', 'Más cabezas'],
+  ['carga', 'Más carga'],
 ];
 
 const grupoDe = (p) => (p.tipo === 'CORRAL' ? 'CORRAL' : (p.usoActual?.grupo ?? 'OTRO'));
@@ -99,27 +99,30 @@ export default function PotrerosLista({ potreros }) {
           aria-label="Buscar potrero o lote"
           className="w-full rounded-md border border-suelo-300 bg-white px-3 py-2 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
         />
-        <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Grupo de uso de suelo">
+        {/* Los grupos bajan de renglón si no entran (nada de scroll de costado). */}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Grupo de uso de suelo">
           {GRUPOS.map(([valor, texto]) => (
             <Chip key={texto} activo={f.grupo === valor} onClick={() => poner('grupo', valor)}>
               {texto}
             </Chip>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr]">
+          <div className="col-span-2 sm:col-span-1">
+            <Select
+              etiqueta="Categoría"
+              valor={f.categoria}
+              onChange={(v) => poner('categoria', v)}
+              opciones={[['', 'Todas'], ...categorias]}
+            />
+          </div>
           <Select etiqueta="Animales" valor={f.animales} onChange={(v) => poner('animales', v)} opciones={ANIMALES} />
-          <Select
-            etiqueta="Categoría"
-            valor={f.categoria}
-            onChange={(v) => poner('categoria', v)}
-            opciones={[['', 'Todas las categorías'], ...categorias]}
-          />
-          <Select etiqueta="Ordenar" valor={f.orden} onChange={(v) => poner('orden', v === 'nombre' ? '' : v)} opciones={ORDEN} />
-          <label className="flex items-center gap-2 rounded-md bg-suelo-200/70 px-3 py-2 text-sm text-suelo-700">
-            <input type="checkbox" checked={f.incompletos} onChange={(e) => poner('incompletos', e.target.checked ? '1' : '')} />
-            Datos incompletos
-          </label>
+          <Select etiqueta="Ordenar por" valor={f.orden} onChange={(v) => poner('orden', v === 'nombre' ? '' : v)} opciones={ORDEN} />
         </div>
+        <label className="flex items-center gap-2 text-sm text-suelo-700">
+          <input type="checkbox" checked={f.incompletos} onChange={(e) => poner('incompletos', e.target.checked ? '1' : '')} />
+          Solo con datos incompletos (sin hectáreas o sin peso)
+        </label>
       </div>
 
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -163,18 +166,20 @@ function Chip({ activo, onClick, children }) {
 
 function Select({ etiqueta, valor, onChange, opciones }) {
   return (
-    <select
-      value={valor}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label={etiqueta}
-      className="min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-800"
-    >
-      {opciones.map(([v, t]) => (
-        <option key={v} value={v}>
-          {t}
-        </option>
-      ))}
-    </select>
+    <label className="block min-w-0 text-xs text-suelo-500">
+      {etiqueta}
+      <select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        className="mt-0.5 block w-full min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-800"
+      >
+        {opciones.map(([v, t]) => (
+          <option key={v} value={v}>
+            {t}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

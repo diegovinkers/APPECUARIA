@@ -20,20 +20,20 @@ export default function ResumenCampo({ campoId }) {
   }, [campoId]);
 
   if (errors.length) return <ErrorList errors={errors} />;
-  if (!resumen) return <p className="text-zinc-400">Cargando…</p>;
-  if (!resumen.filas.length) return <p className="text-zinc-400">Todavía no hay animales cargados en este campo.</p>;
+  if (!resumen) return <p className="text-suelo-600">Cargando…</p>;
+  if (!resumen.filas.length) return <p className="text-suelo-600">Todavía no hay animales cargados en este campo.</p>;
 
   // CN y Verdeos siempre; Corral y Otro, solo si tienen animales (en el celular no sobra lugar).
   const columnas = ['CN', 'VERDEO', ...['CORRAL', 'OTRO'].filter((g) => resumen.totales[g] > 0)];
-  const celda = (n) => (n ? formatNumero(n) : <span className="text-zinc-600">—</span>);
+  const celda = (n) => (n ? formatNumero(n) : <span className="text-suelo-400">—</span>);
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-zinc-400">Último dato: {formatFecha(resumen.fecha)}</p>
+      <p className="text-sm text-suelo-600">Último dato: {formatFecha(resumen.fecha)}</p>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-800">
+      <div className="overflow-x-auto rounded-lg border border-suelo-200">
         <table className="w-full text-right text-xs tabular-nums sm:text-sm">
-          <thead className="bg-zinc-800 text-zinc-400">
+          <thead className="bg-suelo-200/70 text-suelo-600">
             <tr>
               <th className="px-2 py-2 sm:px-3 text-left">Categoría</th>
               {columnas.map((g) => (
@@ -41,10 +41,10 @@ export default function ResumenCampo({ campoId }) {
                   {NOMBRE_GRUPO[g]}
                 </th>
               ))}
-              <th className="px-2 py-2 sm:px-3 text-white">Total</th>
+              <th className="px-2 py-2 sm:px-3 text-suelo-900">Total</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800">
+          <tbody className="divide-y divide-suelo-200">
             {resumen.filas.map((f) => (
               <tr key={f.categoriaId}>
                 <td className="px-2 py-2 sm:px-3 text-left font-medium">{f.categoria}</td>
@@ -57,7 +57,7 @@ export default function ResumenCampo({ campoId }) {
               </tr>
             ))}
           </tbody>
-          <tfoot className="border-t-2 border-zinc-700 bg-zinc-800/60 font-bold">
+          <tfoot className="border-t-2 border-suelo-300 bg-suelo-50 font-bold">
             <tr>
               <td className="px-2 py-2 sm:px-3 text-left">Total</td>
               {columnas.map((g) => (
@@ -77,28 +77,28 @@ export default function ResumenCampo({ campoId }) {
           {resumen.porGrupo
             .filter((g) => g.potreros > 0)
             .map((g) => (
-              <div key={g.grupo} className="rounded-lg bg-zinc-800 px-4 py-3">
+              <div key={g.grupo} className="rounded-lg border border-suelo-200 bg-white px-4 py-3">
                 <div className="flex items-baseline justify-between">
                   <p className="font-semibold">{NOMBRE_GRUPO[g.grupo]}</p>
                   <p className="text-xl font-bold">{formatNumero(g.cabezas)} cab</p>
                 </div>
-                <p className="mt-1 text-sm text-zinc-400">
+                <p className="mt-1 text-sm text-suelo-600">
                   {g.potreros} {g.potreros === 1 ? 'potrero' : 'potreros'} · {formatNumero(g.hectareas)} ha conocidas
                 </p>
                 <p className="mt-1 text-sm">
                   {g.cabHa == null ? (
-                    <span className="text-zinc-500">Sin hectáreas: no se calcula la carga</span>
+                    <span className="text-suelo-500">Sin hectáreas: no se calcula la carga</span>
                   ) : (
                     <>
                       {formatNumero(g.cabHa, 2)} cab/ha ·{' '}
-                      {g.kilosCompletos ? `${formatNumero(g.ugHa, 2)} UG/ha` : <span className="text-amber-300">UG incompletas (faltan pesos)</span>}
+                      {g.kilosCompletos ? `${formatNumero(g.ugHa, 2)} UG/ha` : <span className="text-amber-800">UG incompletas (faltan pesos)</span>}
                     </>
                   )}
                 </p>
               </div>
             ))}
         </div>
-        <p className="mt-2 text-xs text-zinc-500">
+        <p className="mt-2 text-xs text-suelo-500">
           La carga se calcula solo con los potreros que tienen hectáreas confirmadas. 1 UG = {formatNumero(resumen.kgPorUg)} kg de peso vivo.
         </p>
       </section>

@@ -19,7 +19,7 @@ const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
 const ORIGEN = { PLANILLA: 'Planilla', MANUAL: 'A mano', MOVIMIENTO: 'Movimiento' };
 const botonSecundario =
-  'rounded-md border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-200 hover:border-sky-500 hover:text-white';
+  'rounded-md border border-suelo-300 px-3 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500 hover:text-suelo-900';
 
 // Detalle de un potrero: stock por categoría con los cálculos, y los cambios
 // (stock, uso de suelo, hectáreas). Cada cambio queda en el historial.
@@ -59,7 +59,7 @@ export default function PotreroPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-zinc-400">Cargando…</p>}
+        {!errors.length && <p className="text-suelo-600">Cargando…</p>}
       </main>
     );
   }
@@ -67,20 +67,20 @@ export default function PotreroPage() {
   const { stock } = potrero;
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link to="/pecuaria" className="text-sm text-sky-400 hover:underline">
-        ← Pecuaria
+      <Link to="/pecuaria/potreros" className="text-sm text-campo-600 hover:underline">
+        ← Potreros
       </Link>
       <h1 className="mt-2 text-3xl font-bold">
         {potrero.nombre}
-        {potrero.tipo === 'CORRAL' && <span className="ml-2 align-middle text-sm font-medium text-amber-300">corral</span>}
+        {potrero.tipo === 'CORRAL' && <span className="ml-2 align-middle text-sm font-medium text-amber-800">corral</span>}
       </h1>
-      <p className="text-sm text-zinc-400">{potrero.campo.nombre}</p>
+      <p className="text-sm text-suelo-600">{potrero.campo.nombre}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <UsoBadge uso={potrero.usoActual} />
-        {potrero.usoActual && <span className="text-xs text-zinc-500">desde {formatFecha(potrero.usoActual.desde)}</span>}
+        {potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}
         <Hectareas hectareas={potrero.hectareas} aConfirmar={potrero.hectareasAConfirmar} />
         {potrero.subdivisiones.length > 0 && (
-          <span className="text-xs text-zinc-500">{potrero.subdivisiones.map((s) => s.codigo).join(' · ')}</span>
+          <span className="text-xs text-suelo-500">{potrero.subdivisiones.map((s) => s.codigo).join(' · ')}</span>
         )}
       </div>
 
@@ -89,8 +89,8 @@ export default function PotreroPage() {
         <Notice tone={aviso?.tono}>{aviso?.texto}</Notice>
       </div>
 
-      <section className="mt-2 rounded-lg border border-zinc-800 p-4">
-        <p className="mb-3 text-sm text-zinc-400">
+      <section className="mt-2 rounded-lg border border-suelo-200 p-4">
+        <p className="mb-3 text-sm text-suelo-600">
           {stock
             ? `Stock al ${formatFecha(stock.fecha)} · ${ORIGEN[stock.origen]}${stock.usuario ? ` (${stock.usuario})` : ''}`
             : 'Sin datos de stock todavía'}
@@ -102,10 +102,10 @@ export default function PotreroPage() {
           <Dato valor={formatNumero(stock?.ugHa, 2)} etiqueta={`UG/ha (1 UG = ${formatNumero(potrero.kgPorUg)} kg)`} />
         </div>
         {potrero.hectareasAConfirmar && (
-          <p className="mt-3 text-sm text-amber-300">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
+          <p className="mt-3 text-sm text-amber-800">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
         )}
         {stock && !stock.kilosCompletos && (
-          <p className="mt-3 text-sm text-amber-300">Hay categorías sin peso promedio: los kilos y las UG están incompletos.</p>
+          <p className="mt-3 text-sm text-amber-800">Hay categorías sin peso promedio: los kilos y las UG están incompletos.</p>
         )}
         {stock?.lineas.length > 0 && (
           <ul className="mt-4 space-y-2 text-sm">
@@ -119,18 +119,18 @@ export default function PotreroPage() {
             ))}
           </ul>
         )}
-        {stock?.nota && <p className="mt-3 text-sm text-zinc-400">Nota: {stock.nota}</p>}
+        {stock?.nota && <p className="mt-3 text-sm text-suelo-600">Nota: {stock.nota}</p>}
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Link
             to={`/pecuaria/registrar?efecto=ENTRA&potrero=${potrero.id}`}
-            className="rounded-md border border-emerald-700 px-3 py-2 text-center text-sm font-medium text-emerald-300 hover:bg-emerald-900/30"
+            className="rounded-md border border-emerald-300 px-3 py-2 text-center text-sm font-medium text-emerald-800 hover:bg-emerald-50"
           >
             + Entrada
           </Link>
           {stock?.lineas.length > 0 && (
             <Link
               to={`/pecuaria/registrar?efecto=SALE&potrero=${potrero.id}`}
-              className="rounded-md border border-red-800 px-3 py-2 text-center text-sm font-medium text-red-300 hover:bg-red-900/30"
+              className="rounded-md border border-red-300 px-3 py-2 text-center text-sm font-medium text-red-700 hover:bg-red-50"
             >
               − Salida
             </Link>
@@ -193,7 +193,7 @@ function Formulario({ titulo, children, onCancelar, onEnviar, ocupado, puedeGuar
         e.preventDefault();
         onEnviar();
       }}
-      className="mt-4 space-y-4 rounded-lg border border-sky-900 bg-zinc-800/50 p-4"
+      className="mt-4 space-y-4 rounded-lg border border-campo-200 bg-suelo-50 p-4"
     >
       <h2 className="text-lg font-semibold">{titulo}</h2>
       {children}
@@ -266,13 +266,13 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
         })
       }
     >
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-suelo-600">
         Se guarda como una versión nueva; la anterior queda en el historial. Para pasar animales a otro lote o a otro
         potrero, usá el botón Mover del lote.
       </p>
       <div className="space-y-3">
         {filas.map((f, i) => (
-          <div key={f.loteId ?? `nuevo-${i}`} className="space-y-2 rounded-md bg-zinc-900 p-3">
+          <div key={f.loteId ?? `nuevo-${i}`} className="space-y-2 rounded-md bg-white p-3">
             {f.loteId ? (
               <p className="text-sm font-semibold">{f.lote}</p>
             ) : (
@@ -298,7 +298,7 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
               ))}
             </select>
             <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-suelo-600">
                 Cabezas
                 <input
                   inputMode="numeric"
@@ -307,14 +307,14 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
                   className={`${inputClass} mt-1`}
                 />
               </label>
-              <label className="text-xs text-zinc-400">
+              <label className="text-xs text-suelo-600">
                 Peso prom. (kg)
                 <input inputMode="decimal" value={f.peso} onChange={(e) => cambiar(i, 'peso', e.target.value)} className={`${inputClass} mt-1`} />
               </label>
               <button
                 type="button"
                 onClick={() => setFilas((fs) => fs.filter((_, j) => j !== i))}
-                className="rounded-md px-3 py-2 text-zinc-400 hover:text-red-300"
+                className="rounded-md px-3 py-2 text-suelo-600 hover:text-red-700"
                 aria-label="Quitar lote"
               >
                 ✕
@@ -326,22 +326,22 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
       <button
         type="button"
         onClick={() => setFilas((fs) => [...fs, { loteId: null, lote: '', categoriaId: '', cabezas: '', peso: '' }])}
-        className="text-sm text-sky-400 hover:underline"
+        className="text-sm text-campo-600 hover:underline"
       >
         + Agregar lote
       </button>
       <p className="text-sm">
         Total: <strong>{formatNumero(total)}</strong> cabezas
         {potrero.stock && total !== potrero.stock.cabezas && (
-          <span className="text-zinc-400"> (antes {formatNumero(potrero.stock.cabezas)})</span>
+          <span className="text-suelo-600"> (antes {formatNumero(potrero.stock.cabezas)})</span>
         )}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm text-zinc-400">
+        <label className="text-sm text-suelo-600">
           Fecha del dato
           <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
         </label>
-        <label className="text-sm text-zinc-400">
+        <label className="text-sm text-suelo-600">
           Nota (opcional)
           <input value={nota} onChange={(e) => setNota(e.target.value)} maxLength={255} className={`${inputClass} mt-1`} />
         </label>
@@ -368,7 +368,7 @@ function CambiarUso({ potrero, onGuardar, onCancelar }) {
       puedeGuardar={usoSueloId && desde}
       onEnviar={() => enviar({ usoSueloId: Number(usoSueloId), desde })}
     >
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-suelo-600">
         El uso actual ({potrero.usoActual?.nombre ?? 'ninguno'}) se cierra en la fecha que elijas y queda en el historial.
       </p>
       <select value={usoSueloId} onChange={(e) => setUsoSueloId(e.target.value)} className={inputClass} aria-label="Uso de suelo">
@@ -379,7 +379,7 @@ function CambiarUso({ potrero, onGuardar, onCancelar }) {
           </option>
         ))}
       </select>
-      <label className="block text-sm text-zinc-400">
+      <label className="block text-sm text-suelo-600">
         Desde
         <input
           type="date"
@@ -415,7 +415,7 @@ function CorregirHectareas({ potrero, onGuardar, onCancelar }) {
         className={inputClass}
       />
       {potrero.hectareasAConfirmar && (
-        <p className="text-sm text-zinc-400">Al guardar, el potrero deja de estar "a confirmar" y se calculan los valores por hectárea.</p>
+        <p className="text-sm text-suelo-600">Al guardar, el potrero deja de estar "a confirmar" y se calculan los valores por hectárea.</p>
       )}
     </Formulario>
   );
@@ -427,31 +427,31 @@ function Historial({ historial }) {
       <h2 className="mb-3 text-lg font-semibold">Historial</h2>
       <ul className="space-y-2">
         {historial.versiones.map((v) => (
-          <li key={v.id} className="rounded-md bg-zinc-800/60 px-3 py-2 text-sm">
+          <li key={v.id} className="rounded-md bg-suelo-50 px-3 py-2 text-sm">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span>
                 <strong>{formatFecha(v.fecha)}</strong> · {ORIGEN[v.origen]}
-                {v.usuario && <span className="text-zinc-400"> · {v.usuario}</span>}
+                {v.usuario && <span className="text-suelo-600"> · {v.usuario}</span>}
               </span>
               <span className="font-semibold">{formatNumero(v.cabezas)} cab</span>
             </div>
-            <p className="mt-1 text-zinc-400">
+            <p className="mt-1 text-suelo-600">
               {v.lineas.length ? v.lineas.map((l) => `${l.lote}: ${formatNumero(l.cabezas)}`).join(' · ') : 'Vacío'}
               {v.importacion && ` · ${v.importacion.archivo} (${v.importacion.hoja})`}
             </p>
-            {v.movimiento && <p className="mt-1 text-sky-300">{v.movimiento}</p>}
-            {v.nota && <p className="text-zinc-400">Nota: {v.nota}</p>}
+            {v.movimiento && <p className="mt-1 text-campo-700">{v.movimiento}</p>}
+            {v.nota && <p className="text-suelo-600">Nota: {v.nota}</p>}
           </li>
         ))}
       </ul>
       {historial.usos.length > 0 && (
         <>
-          <h3 className="mb-2 mt-5 text-sm font-semibold text-zinc-300">Usos de suelo</h3>
+          <h3 className="mb-2 mt-5 text-sm font-semibold text-suelo-700">Usos de suelo</h3>
           <ul className="space-y-1 text-sm">
             {historial.usos.map((u, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
                 <UsoBadge uso={u.uso} />
-                <span className="text-zinc-400">
+                <span className="text-suelo-600">
                   desde {formatFecha(u.desde)}
                   {u.hasta ? ` hasta ${formatFecha(u.hasta)}` : ' (vigente)'}
                 </span>
@@ -470,7 +470,7 @@ function LoteFila({ linea: l, potreroId, onRenombrar }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(l.lote);
   return (
-    <li className="rounded-md bg-zinc-800/60 px-3 py-2">
+    <li className="rounded-md bg-suelo-50 px-3 py-2">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {editando ? (
@@ -483,7 +483,7 @@ function LoteFila({ linea: l, potreroId, onRenombrar }) {
               }}
             >
               <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre del lote" className={`${inputClass} py-1`} />
-              <button type="submit" disabled={!nombre.trim()} className="text-sm text-sky-400">
+              <button type="submit" disabled={!nombre.trim()} className="text-sm text-campo-600">
                 Guardar
               </button>
             </form>
@@ -492,24 +492,24 @@ function LoteFila({ linea: l, potreroId, onRenombrar }) {
               {l.lote}
             </button>
           )}
-          <p className="text-zinc-400">
+          <p className="text-suelo-600">
             {l.categoria} · {formatNumero(l.cabezas)} cab ·{' '}
-            {l.pesoPromedioKg ? `${formatNumero(l.pesoPromedioKg)} kg` : <span className="text-amber-300">sin peso</span>}
+            {l.pesoPromedioKg ? `${formatNumero(l.pesoPromedioKg)} kg` : <span className="text-amber-800">sin peso</span>}
           </p>
-          <Link to={`/pecuaria/lotes/${l.loteId}`} className="text-xs text-sky-400 hover:underline">
+          <Link to={`/pecuaria/lotes/${l.loteId}`} className="text-xs text-campo-600 hover:underline">
             Ver historial del lote
           </Link>
         </div>
         <div className="flex shrink-0 flex-col gap-1.5">
           <Link
             to={`/pecuaria/mover?potrero=${potreroId}&lote=${l.loteId}`}
-            className="rounded-md border border-sky-700 px-3 py-1.5 text-center text-sm font-medium text-sky-300 hover:bg-sky-900/40"
+            className="rounded-md border border-campo-300 px-3 py-1.5 text-center text-sm font-medium text-campo-700 hover:bg-campo-100"
           >
             Mover
           </Link>
           <Link
             to={`/pecuaria/registrar?efecto=SALE&potrero=${potreroId}&lote=${l.loteId}`}
-            className="rounded-md border border-red-800 px-3 py-1.5 text-center text-sm font-medium text-red-300 hover:bg-red-900/30"
+            className="rounded-md border border-red-300 px-3 py-1.5 text-center text-sm font-medium text-red-700 hover:bg-red-50"
           >
             Salida
           </Link>

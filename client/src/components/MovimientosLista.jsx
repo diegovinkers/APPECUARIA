@@ -19,7 +19,7 @@ const PERIODOS = [
   ['30', 'Últimos 30 días'],
   ['rango', 'Entre fechas'],
 ];
-const selectClass = 'min-w-0 rounded-md bg-zinc-800 px-2 py-2 text-sm text-zinc-200';
+const selectClass = 'min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-800';
 
 // Pestaña Movimientos: todos los movimientos del campo (también las entradas y
 // salidas), con filtros (en la URL), un resumen de lo filtrado, los botones
@@ -99,9 +99,9 @@ export default function MovimientosLista({ campoId, potreros }) {
         {!nuevo.accion ? (
           <div className="grid grid-cols-3 gap-2">
             {[
-              ['MOVER', 'Mover', 'bg-sky-600 hover:bg-sky-500'],
+              ['MOVER', 'Mover', 'bg-campo-600 hover:bg-campo-700'],
               ['ENTRA', '+ Entrada', 'bg-emerald-700 hover:bg-emerald-600'],
-              ['SALE', '− Salida', 'bg-red-800 hover:bg-red-700'],
+              ['SALE', '− Salida', 'bg-red-700 hover:bg-red-800'],
             ].map(([accion, texto, color]) => (
               <button
                 key={accion}
@@ -114,7 +114,7 @@ export default function MovimientosLista({ campoId, potreros }) {
             ))}
           </div>
         ) : (
-          <div className="space-y-2 rounded-lg border border-sky-900 bg-zinc-800/50 p-3">
+          <div className="space-y-2 rounded-lg border border-campo-200 bg-suelo-50 p-3">
             <p className="text-sm font-semibold">
               {nuevo.accion === 'ENTRA' ? '¿A qué potrero entran los animales?' : '¿De dónde salen los animales?'}
             </p>
@@ -159,11 +159,11 @@ export default function MovimientosLista({ campoId, potreros }) {
                       : `/pecuaria/registrar?efecto=${nuevo.accion}&potrero=${nuevo.potreroId}${nuevo.loteId ? `&lote=${nuevo.loteId}` : ''}`,
                   )
                 }
-                className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                className="rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
                 Seguir
               </button>
-              <button type="button" onClick={() => setNuevo({ accion: null, potreroId: '', loteId: '' })} className="px-3 text-sm text-zinc-400">
+              <button type="button" onClick={() => setNuevo({ accion: null, potreroId: '', loteId: '' })} className="px-3 text-sm text-suelo-600">
                 Cancelar
               </button>
             </div>
@@ -171,7 +171,7 @@ export default function MovimientosLista({ campoId, potreros }) {
         )}
       </div>
 
-      <div className="mb-3 space-y-2 rounded-lg border border-zinc-800 p-3">
+      <div className="mb-3 space-y-2 rounded-lg border border-suelo-200 p-3">
         <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Período">
           {PERIODOS.map(([valor, texto]) => (
             <button
@@ -179,7 +179,7 @@ export default function MovimientosLista({ campoId, potreros }) {
               type="button"
               onClick={() => poner({ periodo: valor, ...(valor !== 'rango' && { desde: '', hasta: '' }) })}
               aria-pressed={f.periodo === valor}
-              className={`shrink-0 rounded-full px-3 py-1 text-sm ${f.periodo === valor ? 'bg-sky-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+              className={`shrink-0 rounded-full px-3 py-1 text-sm ${f.periodo === valor ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
             >
               {texto}
             </button>
@@ -221,12 +221,12 @@ export default function MovimientosLista({ campoId, potreros }) {
             <strong>{formatNumero(datos.resumen.cabezas)}</strong> cabezas movidas
             {datos.resumen.entradas > 0 && (
               <>
-                {' '}· <strong className="text-emerald-300">+{formatNumero(datos.resumen.entradas)}</strong> entraron
+                {' '}· <strong className="text-emerald-800">+{formatNumero(datos.resumen.entradas)}</strong> entraron
               </>
             )}
             {datos.resumen.salidas > 0 && (
               <>
-                {' '}· <strong className="text-red-300">−{formatNumero(datos.resumen.salidas)}</strong> salieron
+                {' '}· <strong className="text-red-700">−{formatNumero(datos.resumen.salidas)}</strong> salieron
               </>
             )}
           </p>
@@ -234,7 +234,7 @@ export default function MovimientosLista({ campoId, potreros }) {
             <button
               type="button"
               onClick={() => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '' })}
-              className="text-sky-400 hover:underline"
+              className="text-campo-600 hover:underline"
             >
               Limpiar filtros
             </button>
@@ -243,9 +243,9 @@ export default function MovimientosLista({ campoId, potreros }) {
       )}
 
       {!datos ? (
-        <p className="text-zinc-400">Cargando…</p>
+        <p className="text-suelo-600">Cargando…</p>
       ) : datos.movimientos.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-700 p-6 text-center text-zinc-400">
+        <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">
           {hayFiltros ? 'No hay movimientos con esos filtros.' : 'Todavía no hay movimientos. Empezá con Mover, Entrada o Salida.'}
         </p>
       ) : (

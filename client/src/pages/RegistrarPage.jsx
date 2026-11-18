@@ -18,8 +18,8 @@ const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto ?? '').trim() === '' ? null : Number(String(texto).replace(',', '.')));
 const entero = (texto) => Number.parseInt(texto, 10) || 0;
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
-const etiqueta = 'block text-sm text-zinc-400';
-const seccion = 'mt-4 space-y-3 rounded-lg border border-zinc-800 p-4';
+const etiqueta = 'block text-sm text-suelo-600';
+const seccion = 'mt-4 space-y-3 rounded-lg border border-suelo-200 p-4';
 
 // Una línea de una entrada: cuántos, de qué categoría y a qué lote (uno nuevo
 // o uno que ya está en el potrero).
@@ -179,8 +179,8 @@ export default function RegistrarPage() {
   if (!potreroId) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
-        <p className="text-zinc-400">
-          Elegí un potrero desde la <Link to="/pecuaria?vista=movimientos" className="text-sky-400 hover:underline">pestaña Movimientos</Link>.
+        <p className="text-suelo-600">
+          Tocá el botón <strong>+</strong> y elegí Entrada o Salida, o entrá desde <Link to="/pecuaria/potreros" className="text-campo-600 hover:underline">Potreros</Link>.
         </p>
       </main>
     );
@@ -189,14 +189,14 @@ export default function RegistrarPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-zinc-400">Cargando…</p>}
+        {!errors.length && <p className="text-suelo-600">Cargando…</p>}
       </main>
     );
   }
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link to={`/pecuaria/potreros/${potrero.id}`} className="text-sm text-sky-400 hover:underline">
+      <Link to={`/pecuaria/potreros/${potrero.id}`} className="text-sm text-campo-600 hover:underline">
         ← {potrero.nombre}
       </Link>
       <h1 className="mb-4 mt-2 text-3xl font-bold">{sale ? 'Salida de animales' : 'Entrada de animales'}</h1>
@@ -210,7 +210,7 @@ export default function RegistrarPage() {
             type="button"
             aria-pressed={efecto === valor}
             onClick={() => cambiarEfecto(valor)}
-            className={`rounded-md border px-3 py-2 text-sm font-medium ${efecto === valor ? 'border-sky-500 bg-sky-900/30 text-white' : 'border-zinc-700 text-zinc-300'}`}
+            className={`rounded-md border px-3 py-2 text-sm font-medium ${efecto === valor ? 'border-campo-500 bg-campo-50 text-campo-800' : 'border-suelo-300 text-suelo-700'}`}
           >
             {texto}
           </button>
@@ -218,7 +218,7 @@ export default function RegistrarPage() {
       </div>
       <ErrorList errors={errors} />
 
-      <section className="space-y-3 rounded-lg border border-zinc-800 p-4">
+      <section className="space-y-3 rounded-lg border border-suelo-200 p-4">
         <h2 className="font-semibold">1. Qué pasó</h2>
         <div className="flex flex-wrap gap-2">
           {delEfecto.map((t) => (
@@ -227,7 +227,7 @@ export default function RegistrarPage() {
               type="button"
               aria-pressed={tipo?.id === t.id}
               onClick={() => elegirTipo(t)}
-              className={`rounded-full px-3 py-1.5 text-sm ${tipo?.id === t.id ? 'bg-sky-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+              className={`rounded-full px-3 py-1.5 text-sm ${tipo?.id === t.id ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
             >
               {t.nombre}
             </button>
@@ -285,7 +285,7 @@ export default function RegistrarPage() {
                         className={inputClass}
                         aria-label="Cabezas que salen"
                       />
-                      <button type="button" onClick={() => setCabezas(String(lote.cabezas))} className="rounded-md bg-zinc-700 px-3 text-sm text-white">
+                      <button type="button" onClick={() => setCabezas(String(lote.cabezas))} className="rounded-md bg-suelo-200 px-3 text-sm text-suelo-900">
                         Todas
                       </button>
                     </div>
@@ -303,7 +303,7 @@ export default function RegistrarPage() {
                   </label>
                 </div>
               )}
-              {lote && entero(cabezas) > lote.cabezas && <p className="text-sm text-red-300">El lote tiene {formatNumero(lote.cabezas)} cabezas.</p>}
+              {lote && entero(cabezas) > lote.cabezas && <p className="text-sm text-red-700">El lote tiene {formatNumero(lote.cabezas)} cabezas.</p>}
             </>
           ) : (
             <>
@@ -334,7 +334,7 @@ export default function RegistrarPage() {
                 />
               ))}
               {lineas.length < 10 && (
-                <button type="button" onClick={() => setLineas((ls) => [...ls, lineaVacia(categorias[0]?.id ?? '')])} className="text-sm text-sky-400 hover:underline">
+                <button type="button" onClick={() => setLineas((ls) => [...ls, lineaVacia(categorias[0]?.id ?? '')])} className="text-sm text-campo-600 hover:underline">
                   + Otra categoría
                 </button>
               )}
@@ -357,7 +357,7 @@ export default function RegistrarPage() {
                   </option>
                 ))}
               </select>
-              {!causasDelTipo.length && <span className="mt-1 block text-xs text-amber-300">No hay causas para {tipo.nombre}: cargalas en Configuración.</span>}
+              {!causasDelTipo.length && <span className="mt-1 block text-xs text-amber-800">No hay causas para {tipo.nombre}: cargalas en Configuración.</span>}
             </label>
           )}
           {(tipo.pideGuia || guia) && (
@@ -392,7 +392,7 @@ export default function RegistrarPage() {
         </section>
       )}
 
-      {problema && <p className="mt-4 rounded-md bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{problema}</p>}
+      {problema && <p className="mt-4 rounded-md bg-amber-500/15 px-3 py-2 text-sm text-amber-900">{problema}</p>}
       {previa && <ComoQueda previa={previa} />}
 
       {tipo && (
@@ -409,7 +409,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
   const mismos = lotes.filter((x) => String(x.categoriaId) === l.categoriaId);
   const categoria = categorias.find((c) => String(c.id) === l.categoriaId);
   return (
-    <div className="space-y-2 rounded-md bg-zinc-900 p-3">
+    <div className="space-y-2 rounded-md bg-white p-3">
       <div className="grid grid-cols-2 gap-2">
         <select
           value={l.categoriaId}
@@ -464,7 +464,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
         />
       )}
       {onQuitar && (
-        <button type="button" onClick={onQuitar} className="text-xs text-red-300 hover:underline">
+        <button type="button" onClick={onQuitar} className="text-xs text-red-700 hover:underline">
           Quitar
         </button>
       )}
@@ -476,7 +476,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
 function ComoQueda({ previa: p }) {
   const cambio = (a, d, decimales = 0) => (a === d ? formatNumero(d, decimales) : `${formatNumero(a, decimales)} → ${formatNumero(d, decimales)}`);
   return (
-    <section className="mt-6 rounded-lg bg-zinc-800 p-4 text-sm">
+    <section className="mt-6 rounded-lg border border-suelo-200 bg-white p-4 text-sm">
       <h2 className="mb-2 font-semibold">Cómo queda {p.potrero}</h2>
       <p>
         Cabezas: <strong>{cambio(p.antes.cabezas, p.despues.cabezas)}</strong>
@@ -487,7 +487,7 @@ function ComoQueda({ previa: p }) {
       <p>
         UG/ha: <strong>{p.despues.ugHa == null ? '—' : cambio(p.antes.ugHa, p.despues.ugHa, 2)}</strong>
       </p>
-      <ul className="mt-2 text-zinc-400">
+      <ul className="mt-2 text-suelo-600">
         {p.lineas.map((x) => (
           <li key={x.loteId ?? x.lote}>
             {x.lote}: {formatNumero(x.cabezas)} {x.categoria}

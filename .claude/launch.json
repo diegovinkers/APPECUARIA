@@ -5,12 +5,13 @@
       "name": "api",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "server", "run", "dev"],
-      "port": 4000
+      "port": 4001
     },
     {
       "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "client", "run", "dev"],
+      "env": { "API_DEV_URL": "http://localhost:4001" },
       "port": 5173
     }
   ]

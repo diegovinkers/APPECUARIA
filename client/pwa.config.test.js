@@ -33,8 +33,8 @@ describe('pwaOptions', () => {
       lang: 'es-UY',
       display: 'standalone',
       start_url: '/',
-      theme_color: '#18181b',
-      background_color: '#18181b',
+      theme_color: '#2e5e3a',
+      background_color: '#f6f3ec',
     });
     expect(m.icons.map((i) => i.sizes)).toEqual(expect.arrayContaining(['192x192', '512x512']));
     expect(m.icons.some((i) => i.purpose === 'maskable')).toBe(true);

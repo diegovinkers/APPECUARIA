@@ -90,14 +90,14 @@ export default function PotrerosLista({ potreros }) {
 
   return (
     <div>
-      <div className="mb-3 space-y-2 rounded-lg border border-zinc-800 p-3">
+      <div className="mb-3 space-y-2 rounded-lg border border-suelo-200 p-3">
         <input
           type="search"
           value={f.q}
           onChange={(e) => poner('q', e.target.value)}
           placeholder="Buscar potrero o lote…"
           aria-label="Buscar potrero o lote"
-          className="w-full rounded-md bg-zinc-800 px-3 py-2 text-sm text-white placeholder-zinc-500 outline-none focus:ring-2 focus:ring-sky-500"
+          className="w-full rounded-md border border-suelo-300 bg-white px-3 py-2 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
         />
         <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Grupo de uso de suelo">
           {GRUPOS.map(([valor, texto]) => (
@@ -115,7 +115,7 @@ export default function PotrerosLista({ potreros }) {
             opciones={[['', 'Todas las categorías'], ...categorias]}
           />
           <Select etiqueta="Ordenar" valor={f.orden} onChange={(v) => poner('orden', v === 'nombre' ? '' : v)} opciones={ORDEN} />
-          <label className="flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-2 text-sm text-zinc-300">
+          <label className="flex items-center gap-2 rounded-md bg-suelo-200/70 px-3 py-2 text-sm text-suelo-700">
             <input type="checkbox" checked={f.incompletos} onChange={(e) => poner('incompletos', e.target.checked ? '1' : '')} />
             Datos incompletos
           </label>
@@ -129,14 +129,14 @@ export default function PotrerosLista({ potreros }) {
           <strong>{formatNumero(resumen.hectareas)}</strong> ha
         </p>
         {hayFiltros && (
-          <button type="button" onClick={() => setParams({ vista: 'potreros' }, { replace: true })} className="text-sky-400 hover:underline">
+          <button type="button" onClick={() => setParams({}, { replace: true })} className="text-campo-600 hover:underline">
             Limpiar filtros
           </button>
         )}
       </div>
 
       {visibles.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-zinc-700 p-6 text-center text-zinc-400">Ningún potrero cumple esos filtros.</p>
+        <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">Ningún potrero cumple esos filtros.</p>
       ) : (
         <ul className="space-y-2">
           {visibles.map((p) => (
@@ -154,7 +154,7 @@ function Chip({ activo, onClick, children }) {
       type="button"
       onClick={onClick}
       aria-pressed={activo}
-      className={`shrink-0 rounded-full px-3 py-1 text-sm ${activo ? 'bg-sky-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+      className={`shrink-0 rounded-full px-3 py-1 text-sm ${activo ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
     >
       {children}
     </button>
@@ -167,7 +167,7 @@ function Select({ etiqueta, valor, onChange, opciones }) {
       value={valor}
       onChange={(e) => onChange(e.target.value)}
       aria-label={etiqueta}
-      className="min-w-0 rounded-md bg-zinc-800 px-2 py-2 text-sm text-zinc-200"
+      className="min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-800"
     >
       {opciones.map(([v, t]) => (
         <option key={v} value={v}>
@@ -187,25 +187,25 @@ function PotreroFila({ potrero: p, cargaMaxima, categoria }) {
     <li>
       <Link
         to={`/pecuaria/potreros/${p.id}`}
-        className={`block rounded-lg border px-4 py-3 transition hover:border-sky-700 ${vacio ? 'border-zinc-800/60 bg-zinc-900/40' : 'border-zinc-800 bg-zinc-900'}`}
+        className={`block rounded-lg border px-4 py-3 transition hover:border-campo-400 ${vacio ? 'border-suelo-200 bg-suelo-50' : 'border-suelo-200 bg-white'}`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className={`font-semibold ${vacio ? 'text-zinc-400' : ''}`}>
+            <p className={`font-semibold ${vacio ? 'text-suelo-600' : ''}`}>
               {p.nombre}
-              {p.tipo === 'CORRAL' && <span className="ml-2 text-xs font-medium text-amber-300">corral</span>}
+              {p.tipo === 'CORRAL' && <span className="ml-2 text-xs font-medium text-amber-800">corral</span>}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <UsoBadge uso={p.usoActual} />
               <Hectareas hectareas={p.hectareas} aConfirmar={p.hectareasAConfirmar} />
               {p.stock && !p.stock.kilosCompletos && (
-                <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300">sin peso</span>
+                <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs text-amber-800">sin peso</span>
               )}
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <p className={`text-xl font-bold ${vacio ? 'text-zinc-600' : ''}`}>{vacio ? 'vacío' : formatNumero(cabezas)}</p>
-            {!vacio && <p className="text-xs text-zinc-500">cabezas</p>}
+            <p className={`text-xl font-bold ${vacio ? 'text-suelo-400' : ''}`}>{vacio ? 'vacío' : formatNumero(cabezas)}</p>
+            {!vacio && <p className="text-xs text-suelo-500">cabezas</p>}
           </div>
         </div>
 
@@ -215,7 +215,7 @@ function PotreroFila({ potrero: p, cargaMaxima, categoria }) {
               <span
                 key={l.loteId}
                 title={`Lote ${l.lote}`}
-                className={`rounded px-2 py-0.5 text-xs ${String(l.categoriaId) === categoria ? 'bg-sky-600/30 text-sky-200' : 'bg-zinc-800 text-zinc-300'}`}
+                className={`rounded px-2 py-0.5 text-xs ${String(l.categoriaId) === categoria ? 'bg-campo-100 text-campo-800' : 'bg-suelo-200/70 text-suelo-700'}`}
               >
                 {l.categoria} <strong>{formatNumero(l.cabezas)}</strong>
               </span>
@@ -224,9 +224,9 @@ function PotreroFila({ potrero: p, cargaMaxima, categoria }) {
         )}
 
         {!vacio && ug != null && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
-              <div className="h-full rounded-full bg-emerald-500/70" style={{ width: `${Math.min(100, (ug / cargaMaxima) * 100)}%` }} />
+          <div className="mt-2 flex items-center gap-2 text-xs text-suelo-600">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true">
+              <div className="h-full rounded-full bg-campo-400" style={{ width: `${Math.min(100, (ug / cargaMaxima) * 100)}%` }} />
             </div>
             <span className="shrink-0">
               {formatNumero(p.stock.cabHa, 2)} cab/ha · {p.stock.kilosCompletos ? `${formatNumero(ug, 2)} UG/ha` : 'UG sin peso'}

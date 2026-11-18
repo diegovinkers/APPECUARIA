@@ -87,7 +87,7 @@ export default function UsersPage() {
       <ErrorList errors={errors} />
       <Notice tone="ok">{aviso}</Notice>
 
-      <section className="mb-10 rounded-lg border border-zinc-800 bg-zinc-800/50 p-6">
+      <section className="mb-10 rounded-lg border border-suelo-200 bg-suelo-50 p-6">
         <h2 className="mb-4 text-lg font-semibold">Crear usuario</h2>
         <form onSubmit={onCreate} className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -122,7 +122,7 @@ export default function UsersPage() {
             <FieldError error={formState.errors.password} />
           </div>
           <fieldset className="sm:col-span-2">
-            <legend className="mb-2 text-sm text-zinc-400">Roles</legend>
+            <legend className="mb-2 text-sm text-suelo-600">Roles</legend>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {roles.map((rol) => (
                 <label key={rol.id} className="flex items-center gap-2 text-sm" title={rol.descripcion ?? ''}>
@@ -138,9 +138,9 @@ export default function UsersPage() {
         </form>
       </section>
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-800">
+      <div className="overflow-x-auto rounded-lg border border-suelo-200">
         <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-800 text-zinc-400">
+          <thead className="bg-suelo-200/70 text-suelo-600">
             <tr>
               <th className="px-4 py-3">Usuario</th>
               <th className="px-4 py-3">Nombre</th>
@@ -149,19 +149,19 @@ export default function UsersPage() {
               <th className="px-4 py-3">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800">
+          <tbody className="divide-y divide-suelo-200">
             {users.map((user) => {
               const isMe = user.id === me.id;
               return (
-                <tr key={user.id} className={user.activo ? '' : 'text-zinc-500'}>
+                <tr key={user.id} className={user.activo ? '' : 'text-suelo-500'}>
                   <td className="px-4 py-3 align-top">
-                    {user.usuario} {isMe && <span className="text-zinc-500">(vos)</span>}
-                    {user.email && <div className="break-all text-xs text-zinc-500">{user.email}</div>}
+                    {user.usuario} {isMe && <span className="text-suelo-500">(vos)</span>}
+                    {user.email && <div className="break-all text-xs text-suelo-500">{user.email}</div>}
                   </td>
                   <td className="px-4 py-3 align-top">{user.nombre}</td>
                   <td className="px-4 py-3 align-top">
                     {user.esSuperadmin ? (
-                      <span className="text-amber-300">Superadministrador</span>
+                      <span className="text-amber-800">Superadministrador</span>
                     ) : (
                       <RolesEditor
                         user={user}
@@ -172,13 +172,13 @@ export default function UsersPage() {
                     )}
                   </td>
                   <td className="space-y-1 px-4 py-3 align-top">
-                    <div className={user.activo ? 'text-emerald-400' : 'text-zinc-500'}>
+                    <div className={user.activo ? 'text-emerald-700' : 'text-suelo-500'}>
                       {user.activo ? 'Activo' : 'Inactivo'}
                     </div>
                     {estaBloqueado(user) && (
-                      <div className="text-xs text-red-300">Bloqueado hasta las {formatHora(user.bloqueadoHasta)}</div>
+                      <div className="text-xs text-red-700">Bloqueado hasta las {formatHora(user.bloqueadoHasta)}</div>
                     )}
-                    {user.debeCambiarPassword && <div className="text-xs text-amber-300">Contraseña temporal</div>}
+                    {user.debeCambiarPassword && <div className="text-xs text-amber-800">Contraseña temporal</div>}
                   </td>
                   <td className="px-4 py-3 align-top">
                     {!isMe && !user.esSuperadmin && (
@@ -186,12 +186,12 @@ export default function UsersPage() {
                         <button
                           type="button"
                           onClick={() => onToggleActive(user)}
-                          className={`text-xs hover:underline ${user.activo ? 'text-red-400' : 'text-sky-400'}`}
+                          className={`text-xs hover:underline ${user.activo ? 'text-red-700' : 'text-campo-600'}`}
                         >
                           {user.activo ? 'Desactivar' : 'Activar'}
                         </button>
                         {estaBloqueado(user) && (
-                          <button type="button" onClick={() => onUnlock(user)} className="text-xs text-sky-400 hover:underline">
+                          <button type="button" onClick={() => onUnlock(user)} className="text-xs text-campo-600 hover:underline">
                             Desbloquear
                           </button>
                         )}
@@ -234,7 +234,7 @@ function ResetPassword({ onSave }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs text-sky-400 hover:underline">
+      <button type="button" onClick={() => setOpen(true)} className="text-xs text-campo-600 hover:underline">
         Restablecer contraseña
       </button>
     );
@@ -252,12 +252,12 @@ function ResetPassword({ onSave }) {
         className={`${inputClass} py-1 text-sm`}
         autoFocus
       />
-      {problem && <p className="text-xs text-red-400">{problem}</p>}
+      {problem && <p className="text-xs text-red-700">{problem}</p>}
       <div className="flex gap-3">
-        <button type="submit" className="text-xs font-medium text-sky-400 hover:underline">
+        <button type="submit" className="text-xs font-medium text-campo-600 hover:underline">
           Guardar
         </button>
-        <button type="button" onClick={close} className="text-xs text-zinc-400 hover:underline">
+        <button type="button" onClick={close} className="text-xs text-suelo-600 hover:underline">
           Cancelar
         </button>
       </div>
@@ -283,14 +283,14 @@ function RolesEditor({ user, roles, disabled, onSave }) {
   if (!editing) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        {user.roles.length === 0 && <span className="text-zinc-500">Sin roles</span>}
+        {user.roles.length === 0 && <span className="text-suelo-500">Sin roles</span>}
         {user.roles.map((rol) => (
-          <span key={rol.id} className="rounded bg-zinc-700 px-2 py-0.5 text-xs">
+          <span key={rol.id} className="rounded bg-suelo-200 px-2 py-0.5 text-xs">
             {rol.nombre}
           </span>
         ))}
         {!disabled && (
-          <button type="button" onClick={start} className="text-xs text-sky-400 hover:underline">
+          <button type="button" onClick={start} className="text-xs text-campo-600 hover:underline">
             Editar
           </button>
         )}
@@ -307,10 +307,10 @@ function RolesEditor({ user, roles, disabled, onSave }) {
         </label>
       ))}
       <div className="flex gap-3 pt-1">
-        <button type="button" onClick={save} className="text-xs font-medium text-sky-400 hover:underline">
+        <button type="button" onClick={save} className="text-xs font-medium text-campo-600 hover:underline">
           Guardar
         </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-xs text-zinc-400 hover:underline">
+        <button type="button" onClick={() => setEditing(false)} className="text-xs text-suelo-600 hover:underline">
           Cancelar
         </button>
       </div>

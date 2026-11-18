@@ -47,7 +47,7 @@ export default function LoginPage() {
           Entrar
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-zinc-400">¿No tenés usuario? Pedíselo a un administrador.</p>
+      <p className="mt-6 text-center text-sm text-suelo-600">¿No tenés usuario? Pedíselo a un administrador.</p>
     </Card>
   );
 }

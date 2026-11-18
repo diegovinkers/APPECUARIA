@@ -27,8 +27,8 @@ const SEXOS = [
   ['MACHO', 'Machos'],
   ['HEMBRA', 'Hembras'],
 ];
-const boton = 'rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50';
-const selectClass = 'rounded-md bg-zinc-700 px-2 py-1.5 text-sm text-white';
+const boton = 'rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white hover:bg-campo-700 disabled:opacity-50';
+const selectClass = 'rounded-md border border-suelo-300 bg-white px-2 py-1.5 text-sm text-suelo-900';
 // "Ternero, Terneros" → ["Ternero", "Terneros"]
 const separarAlias = (texto) =>
   texto
@@ -77,16 +77,16 @@ export default function ConfiguracionPecuariaPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link to="/pecuaria" className="text-sm text-sky-400 hover:underline">
-        ← Pecuaria
+      <Link to="/pecuaria/resumen" className="text-sm text-campo-600 hover:underline">
+        ← Resumen
       </Link>
       <h1 className="mb-6 mt-2 text-3xl font-bold">Configuración</h1>
       <ErrorList errors={errors} />
       <Notice tone="ok">{aviso}</Notice>
 
-      <section className="mb-8 rounded-lg border border-zinc-800 p-4">
+      <section className="mb-8 rounded-lg border border-suelo-200 p-4">
         <h2 className="mb-1 text-lg font-semibold">Unidad ganadera</h2>
-        <p className="mb-3 text-sm text-zinc-400">Cuántos kilos de peso vivo son 1 UG. Cambia todos los cálculos de UG/ha.</p>
+        <p className="mb-3 text-sm text-suelo-600">Cuántos kilos de peso vivo son 1 UG. Cambia todos los cálculos de UG/ha.</p>
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
@@ -111,15 +111,15 @@ export default function ConfiguracionPecuariaPage() {
 
       <section className="mb-8">
         <h2 className="mb-1 text-lg font-semibold">Usos de suelo</h2>
-        <p className="mb-3 text-sm text-zinc-400">
+        <p className="mb-3 text-sm text-suelo-600">
           El grupo dice en qué columna del resumen caen los animales de ese potrero. Hasta que lo confirme el encargado, es un supuesto.
         </p>
-        <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+        <ul className="divide-y divide-suelo-200 rounded-lg border border-suelo-200">
           {usos.map((u) => (
             <li key={u.id} className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 ${u.activo ? '' : 'opacity-50'}`}>
               <div className="min-w-0">
                 <p className="font-medium">{u.nombre}</p>
-                <p className="text-xs text-zinc-500">En la planilla: {u.alias.join(', ')}</p>
+                <p className="text-xs text-suelo-500">En la planilla: {u.alias.join(', ')}</p>
               </div>
               <div className="flex items-center gap-3">
                 <select
@@ -134,7 +134,7 @@ export default function ConfiguracionPecuariaPage() {
                     </option>
                   ))}
                 </select>
-                <label className="flex items-center gap-1 text-xs text-zinc-400">
+                <label className="flex items-center gap-1 text-xs text-suelo-600">
                   <input
                     type="checkbox"
                     checked={u.activo}
@@ -155,11 +155,11 @@ export default function ConfiguracionPecuariaPage() {
 
       <section className="mb-8">
         <h2 className="mb-1 text-lg font-semibold">Categorías</h2>
-        <p className="mb-3 text-sm text-zinc-400">
+        <p className="mb-3 text-sm text-suelo-600">
           Los alias son las otras formas en que la planilla escribe la categoría (por ejemplo "Ternero" para "Terneros"). El sexo se deduce del nombre
           (CIGAM no lo tiene); corregilo si hace falta.
         </p>
-        <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+        <ul className="divide-y divide-suelo-200 rounded-lg border border-suelo-200">
           {categorias.map((c) => (
             <Categoria key={c.id} categoria={c} guardar={guardar} />
           ))}
@@ -187,7 +187,7 @@ function Categoria({ categoria: c, guardar }) {
 
   if (editando) {
     return (
-      <li className="space-y-2 bg-zinc-800/50 px-4 py-3">
+      <li className="space-y-2 bg-suelo-50 px-4 py-3">
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre" className={inputClass} />
         <input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Alias, separados por coma" aria-label="Alias" className={inputClass} />
         <div className="flex gap-2">
@@ -202,7 +202,7 @@ function Categoria({ categoria: c, guardar }) {
           >
             Guardar
           </button>
-          <button type="button" onClick={() => setEditando(false)} className="px-3 text-sm text-zinc-400">
+          <button type="button" onClick={() => setEditando(false)} className="px-3 text-sm text-suelo-600">
             Cancelar
           </button>
         </div>
@@ -213,7 +213,7 @@ function Categoria({ categoria: c, guardar }) {
     <li className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 ${c.activo ? '' : 'opacity-50'}`}>
       <div className="min-w-0">
         <p className="font-medium">{c.nombre}</p>
-        <p className="text-xs text-zinc-500">En la planilla: {c.alias.join(', ')}</p>
+        <p className="text-xs text-suelo-500">En la planilla: {c.alias.join(', ')}</p>
       </div>
       <div className="flex items-center gap-3">
         <select
@@ -228,10 +228,10 @@ function Categoria({ categoria: c, guardar }) {
             </option>
           ))}
         </select>
-        <button type="button" onClick={abrir} className="text-sm text-sky-400 hover:underline">
+        <button type="button" onClick={abrir} className="text-sm text-campo-600 hover:underline">
           Editar
         </button>
-        <label className="flex items-center gap-1 text-xs text-zinc-400">
+        <label className="flex items-center gap-1 text-xs text-suelo-600">
           <input
             type="checkbox"
             checked={c.activo}
@@ -252,14 +252,14 @@ function NuevoItem({ etiqueta, conGrupo = false, onCrear }) {
 
   if (!abierto) {
     return (
-      <button type="button" onClick={() => setAbierto(true)} className="mt-3 text-sm text-sky-400 hover:underline">
+      <button type="button" onClick={() => setAbierto(true)} className="mt-3 text-sm text-campo-600 hover:underline">
         + Agregar {etiqueta}
       </button>
     );
   }
   return (
     <form
-      className="mt-3 space-y-2 rounded-lg bg-zinc-800/50 p-4"
+      className="mt-3 space-y-2 rounded-lg bg-suelo-50 p-4"
       onSubmit={async (e) => {
         e.preventDefault();
         const ok = await onCrear({ nombre: nombre.trim(), alias: separarAlias(alias), ...(conGrupo && { grupo }) });
@@ -291,7 +291,7 @@ function NuevoItem({ etiqueta, conGrupo = false, onCrear }) {
         <button type="submit" className={boton} disabled={!nombre.trim()}>
           Agregar
         </button>
-        <button type="button" onClick={() => setAbierto(false)} className="px-3 text-sm text-zinc-400">
+        <button type="button" onClick={() => setAbierto(false)} className="px-3 text-sm text-suelo-600">
           Cancelar
         </button>
       </div>

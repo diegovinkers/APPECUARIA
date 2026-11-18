@@ -1,5 +1,46 @@
 @import "tailwindcss";
 
+/* Paleta "de campo" (docs/DECISIONES.md §11). Tema claro: al sol se lee mejor.
+   - suelo: los neutros cálidos (fondo hueso = suelo-100, texto = suelo-900).
+   - campo: el verde principal (barras, botones, links) = campo-600.
+   - trigo: el botón "+" y el logo = trigo-500.
+   - tierra: correcciones = tierra-600.
+   Rojo, ámbar y esmeralda siguen siendo los de Tailwind (errores, avisos, ok). */
+@theme {
+  --color-suelo-50: #fbf9f4;
+  --color-suelo-100: #f6f3ec;
+  --color-suelo-200: #e9e4d8;
+  --color-suelo-300: #d6d0c2;
+  --color-suelo-400: #a9a69b;
+  --color-suelo-500: #8a877c;
+  --color-suelo-600: #6b6a62;
+  --color-suelo-700: #4a4a44;
+  --color-suelo-800: #2f332d;
+  --color-suelo-900: #1f2a1f;
+  --color-suelo-950: #141a14;
+
+  --color-campo-50: #f1f6ec;
+  --color-campo-100: #e4eedc;
+  --color-campo-200: #c9ddbb;
+  --color-campo-300: #9dc08a;
+  --color-campo-400: #6e9a61;
+  --color-campo-500: #3b7449;
+  --color-campo-600: #2e5e3a;
+  --color-campo-700: #254c2f;
+  --color-campo-800: #1d3b25;
+  --color-campo-900: #15291a;
+
+  --color-trigo-100: #f6ead2;
+  --color-trigo-400: #d9a94f;
+  --color-trigo-500: #c8922e;
+  --color-trigo-600: #a97923;
+  --color-trigo-900: #2a1c05;
+
+  --color-tierra-100: #efe4da;
+  --color-tierra-600: #7a5232;
+  --color-tierra-700: #61401f;
+}
+
 body {
-  @apply min-h-screen bg-zinc-900 text-zinc-100 antialiased;
+  @apply min-h-screen bg-suelo-100 text-suelo-900 antialiased;
 }

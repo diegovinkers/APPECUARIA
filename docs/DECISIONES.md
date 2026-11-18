@@ -314,3 +314,57 @@ Comparte la arquitectura del módulo Parcelas (§9): base propia sincronizada de
   - A averiguar con el encargado: con qué criterio cambia hoy de categoría (edad, peso, fecha fija) y qué cambios hace.
 - **Tres calendarios separados en el modelo:** ejercicio fiscal (1/7-30/6), zafra agrícola ("ZF 26/27") y zafra pecuaria (a definir con el encargado).
 - **Preguntas abiertas:** en CONTEXTO_SAPSA §8 ("Sobre la pecuaria") y al final de `docs/PECUARIA.md`.
+
+## 11. Rediseño, permisos, estancias e IA (Diego, 18/11/2026)
+
+Diego siente que la app no es intuitiva. Antes de la pestaña Registro se rediseñan la navegación y el estilo, pensando desde ya en usuarios con distintos permisos, en todas las estancias y en un asistente con IA.
+
+- **Navegación (propuesta, a confirmar en el boceto):**
+  - **Trabajo diario** (Resumen · Potreros · Movimientos + botón **"+"** para registrar): en el celular, barra abajo; en la compu, en el navbar de arriba. Dejan de estar "dentro" de Pecuaria.
+  - **Todo lo demás** (otros módulos, Configuración, Importar, Administración): **panel izquierdo**, agrupado por área. Se abre con una flechita al medio del borde izquierdo (y un ☰ arriba) y se cierra con una X.
+  - **Barra de arriba:** logo, selector de estancia (solo para quien ve más de una), botón ✦ del asistente, usuario.
+  - **Panel derecho:** el chat del asistente.
+  - El menú sale de **una lista donde cada ítem dice qué permiso pide**: se diseña para el usuario que ve todo y cada uno ve su parte.
+  - Ocultar en el front no protege: el servidor filtra por permiso y por estancia (paso 3).
+- **Traslado entre estancias:** hoy es una salida y una entrada sueltas. Pasa a ser un solo paso: los dos movimientos se graban juntos y enlazados, y revertir deshace los dos. Seguir un animal por su caravana es otro modelo (por animal) y queda para el bastón.
+- **Asistente con IA:** arma movimientos y entradas/salidas desde texto o dictado, muestra la vista previa y **nada se graba sin Confirmar**. Reglas de §4 (permisos del usuario, auditoría "vía asistente", tope de costo). Necesita la fase 4 antes.
+- **Plan (cada paso para y espera el OK):**
+  0. Definir los roles: qué ve y qué hace cada uno (tabla abajo).
+  1. Boceto de la navegación en celular y compu, para el usuario que ve todo y para el encargado; colores y logo.
+  2. Rediseño de la navegación (solo front; al principio distingue solo superadmin).
+  3. Fase 4 reducida: permisos de Pecuaria en cada ruta, alcance por estancia, endpoint "mis permisos", pantalla de roles. Obligatoria antes de que entre un encargado.
+  4. Las otras estancias: importador, carga en desarrollo y en Render, Resumen con "Todas".
+  5. Traslado entre estancias en un paso.
+  6. Libro del rodeo, paso 3: pestaña Registro; "Editar stock" → "Corrección".
+  7. Asistente con IA: primero para Diego y el dueño, después para el encargado.
+  - **Con fecha:** pasar la base de Render a pago antes del ~17/12/2026.
+- **Roles (propuesta, paso 0 en curso):** ver la tabla que sigue.
+- **Roles (respuestas de Diego, 18/11/2026):**
+
+  | Qué | Superadmin (Diego) | Dirección (dueño) | Jefe pecuario | Encargado de estancia | Capataz / peón | Administrador |
+  |---|---|---|---|---|---|---|
+  | Estancias | todas | todas | todas | la suya | la suya | — |
+  | Resumen, Potreros, Movimientos | ✅ | ✅ (solo ver) | ✅ | ✅ | ✅ | — |
+  | Mover, entrada/salida, categoría, corrección | ✅ | — | ✅ | ✅ | ✅ | — |
+  | Revertir | ✅ | — | ✅ | ✅ | — | — |
+  | Importar planilla | ✅ | — | ✅ | ✅ (su estancia) | — | — |
+  | Configuración Pecuaria | ✅ | — | ✅ | ✅ | — | — |
+  | Usuarios, Roles | ✅ | — | — | — | — | ✅ |
+  | Auditoría | ✅ | ✅ (propuesta) | — | — | — | ✅ |
+  | Asistente IA | ✅ | ✅ | ✅ | ✅ | ✅ | — |
+
+  - **Diego** es el superadmin que ya existe: pasa todos los permisos y ve todas las estancias. Se distingue de **Dirección**, que ve todo el negocio pero no carga nada.
+  - **El encargado puede todo en su estancia**: la app es para que alimente la información.
+  - **Configuración:** categorías, kg por UG, grupos de uso y tipos de movimiento son **de todas las estancias**. Decidido: el encargado configura igual, aunque cambie para todas; queda en la auditoría.
+  - **Capataz / peón:** ve y registra en su estancia, sin revertir, importar ni configurar (confirmado).
+  - **Cada persona tiene su propio usuario** (encargado, capataz, peón, jefe, dueño). El **rol** dice *qué* puede hacer; las **estancias asignadas al usuario** dicen *dónde*. Un usuario puede tener más de una estancia (por ejemplo, un capataz que trabaja en dos campos).
+  - **Traslado entre estancias:** lo registra **uno solo**, con la salida y la entrada juntas. Puede hacerlo quien tiene la estancia de origen, aunque no tenga la de destino; la auditoría dice quién fue.
+  - **El Administrador** que ya está en el seed queda como está (usuarios, roles y auditoría). Los roles de compras del seed siguen siendo de ejemplo.
+- **Boceto del celular aprobado (Diego, 18/11/2026):**
+  - **Paleta "de campo", tema claro por defecto** (al sol se lee mejor; el oscuro puede quedar como opción): verde campo `#2E5E3A` (barra y principal), pasto claro `#E4EEDC` (seleccionado, fondos suaves), trigo `#C8922E` (botón +, logo), tierra `#7A5232` (correcciones), hueso `#F6F3EC` (fondo), rojo `#B3412E` (salidas y errores). SAPSA no tiene logo: ícono provisorio "S" en trigo sobre verde.
+  - **Barra de arriba:** logo, SAPSA, selector de estancia (fijo y sin flechita para quien tiene una sola), ✦ del asistente.
+  - **Barra de abajo, igual para todos:** Resumen · Potreros · **+** · Movimientos · Menú.
+  - **Botón +** (hoja que sube desde abajo): mover entre potreros, traslado a otra estancia, cambio de categoría, entrada, salida, corrección de stock. Cada opción aparece solo si el usuario tiene el permiso.
+  - **Panel izquierdo:** se abre con la flechita al medio del borde, con "Menú" o deslizando, y se cierra con la X o tocando afuera. Grupos: Campo (Pecuaria; Parcelas "pronto"), Pecuaria (Importar planilla, Configuración), Administración (Usuarios, Roles y permisos, Auditoría); abajo Mi perfil y Salir. A quien tiene una sola estancia le muestra su estancia y su rol.
+  - **Asistente:** panel derecho a pantalla completa en el celular; vista previa con Confirmar / Cambiar; escribir o dictar.
+  - **En la compu:** Resumen · Potreros · Movimientos en el navbar, con "+ Registrar" (abre el mismo menú que el + del celular), el ✦ y el usuario a la derecha. El panel izquierdo queda fijo y se achica a íconos con «. El asistente se abre a la derecha y corre la pantalla, sin taparla. Desde 1024 px de ancho; por debajo, como en el celular.

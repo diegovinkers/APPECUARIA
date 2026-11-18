@@ -12,7 +12,7 @@ export default function ProtectedRoute({ superadmin = false }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <p className="p-6 text-zinc-400">Cargando...</p>;
+  if (loading) return <p className="p-6 text-suelo-600">Cargando...</p>;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   if (user.debeCambiarPassword && location.pathname !== CAMBIAR_PASSWORD) {
     return <Navigate to={CAMBIAR_PASSWORD} replace />;

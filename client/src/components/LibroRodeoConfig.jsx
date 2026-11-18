@@ -25,8 +25,8 @@ const SEXOS = [
   ['MACHO', 'Solo machos'],
 ];
 
-const boton = 'rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50';
-const selectClass = 'rounded-md bg-zinc-700 px-2 py-2 text-sm text-white';
+const boton = 'rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white hover:bg-campo-700 disabled:opacity-50';
+const selectClass = 'rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-900';
 const chip = 'rounded px-2 py-0.5 text-xs';
 
 function Check({ checked, onChange, children, disabled = false }) {
@@ -44,7 +44,7 @@ function Botones({ onCancelar, deshabilitado, texto = 'Guardar' }) {
       <button type="submit" className={boton} disabled={deshabilitado}>
         {texto}
       </button>
-      <button type="button" onClick={onCancelar} className="px-3 text-sm text-zinc-400">
+      <button type="button" onClick={onCancelar} className="px-3 text-sm text-suelo-600">
         Cancelar
       </button>
     </div>
@@ -62,7 +62,7 @@ function FormTipo({ inicial, sistema = false, onGuardar, onCancelar, texto }) {
 
   return (
     <form
-      className="space-y-3 rounded-lg bg-zinc-800/50 p-4"
+      className="space-y-3 rounded-lg bg-suelo-50 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         onGuardar({ ...t, nombre: t.nombre.trim(), idTipoEventoCigam: t.idTipoEventoCigam?.trim() || null });
@@ -70,7 +70,7 @@ function FormTipo({ inicial, sistema = false, onGuardar, onCancelar, texto }) {
     >
       <input value={t.nombre} onChange={(e) => set('nombre')(e.target.value)} placeholder="Nombre (por ejemplo, Dosificación)" aria-label="Nombre" className={inputClass} />
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="text-xs text-zinc-400">
+        <label className="text-xs text-suelo-600">
           Qué hace
           <select value={t.efecto} disabled={sistema} onChange={(e) => set('efecto')(e.target.value)} className={`${selectClass} mt-1 w-full`}>
             {EFECTOS.map(([valor, titulo, ayuda]) => (
@@ -80,7 +80,7 @@ function FormTipo({ inicial, sistema = false, onGuardar, onCancelar, texto }) {
             ))}
           </select>
         </label>
-        <label className="text-xs text-zinc-400">
+        <label className="text-xs text-suelo-600">
           A qué animales
           <select value={t.sexo} onChange={(e) => set('sexo')(e.target.value)} className={`${selectClass} mt-1 w-full`}>
             {SEXOS.map(([valor, texto]) => (
@@ -91,9 +91,9 @@ function FormTipo({ inicial, sistema = false, onGuardar, onCancelar, texto }) {
           </select>
         </label>
       </div>
-      {sistema && <p className="text-xs text-zinc-500">Lo usa la app para mover animales: no se cambia qué hace ni se desactiva.</p>}
+      {sistema && <p className="text-xs text-suelo-500">Lo usa la app para mover animales: no se cambia qué hace ni se desactiva.</p>}
       <fieldset>
-        <legend className="mb-1 text-xs text-zinc-400">Se puede registrar por</legend>
+        <legend className="mb-1 text-xs text-suelo-600">Se puede registrar por</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {NIVELES.map(([valor, texto]) => (
             <Check key={valor} checked={t.niveles.includes(valor)} onChange={nivel(valor)}>
@@ -110,7 +110,7 @@ function FormTipo({ inicial, sistema = false, onGuardar, onCancelar, texto }) {
           Pide número de guía
         </Check>
       </div>
-      <label className="block text-xs text-zinc-400">
+      <label className="block text-xs text-suelo-600">
         Evento de CIGAM (número, si lo hay)
         <input
           value={t.idTipoEventoCigam ?? ''}
@@ -150,25 +150,25 @@ function Tipo({ tipo: t, guardar }) {
       <div className="min-w-0 space-y-1">
         <p className="font-medium">
           {t.nombre}
-          {t.idTipoEventoCigam && <span className="ml-2 text-xs font-normal text-zinc-500">CIGAM {t.idTipoEventoCigam}</span>}
+          {t.idTipoEventoCigam && <span className="ml-2 text-xs font-normal text-suelo-500">CIGAM {t.idTipoEventoCigam}</span>}
         </p>
-        <p className="text-xs text-zinc-400">{etiquetaNiveles(t.niveles)}</p>
+        <p className="text-xs text-suelo-600">{etiquetaNiveles(t.niveles)}</p>
         <div className="flex flex-wrap gap-1">
           {t.sexo !== 'CUALQUIERA' && <span className={`${chip} bg-fuchsia-500/15 text-fuchsia-300`}>{t.sexo === 'HEMBRA' ? 'Solo hembras' : 'Solo machos'}</span>}
           {t.pideCausa && (
-            <span className={`${chip} bg-amber-500/15 text-amber-300`}>
+            <span className={`${chip} bg-amber-500/15 text-amber-800`}>
               Pide causa{t.causas.length ? ` (${t.causas.length})` : ' · sin causas cargadas'}
             </span>
           )}
-          {t.pideGuia && <span className={`${chip} bg-sky-500/15 text-sky-300`}>Pide guía</span>}
-          {t.sistema && <span className={`${chip} bg-zinc-600/40 text-zinc-300`}>Lo usa la app</span>}
+          {t.pideGuia && <span className={`${chip} bg-campo-100 text-campo-700`}>Pide guía</span>}
+          {t.sistema && <span className={`${chip} bg-suelo-200 text-suelo-700`}>Lo usa la app</span>}
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={() => setEditando(true)} className="text-sm text-sky-400 hover:underline">
+        <button type="button" onClick={() => setEditando(true)} className="text-sm text-campo-600 hover:underline">
           Editar
         </button>
-        <label className={`flex items-center gap-1 text-xs text-zinc-400 ${t.sistema ? 'opacity-50' : ''}`}>
+        <label className={`flex items-center gap-1 text-xs text-suelo-600 ${t.sistema ? 'opacity-50' : ''}`}>
           <input
             type="checkbox"
             checked={t.activo}
@@ -187,7 +187,7 @@ export function TiposMovimiento({ tipos, guardar }) {
   return (
     <section className="mb-8">
       <h2 className="mb-1 text-lg font-semibold">Tipos de movimiento</h2>
-      <p className="mb-3 text-sm text-zinc-400">
+      <p className="mb-3 text-sm text-suelo-600">
         Todo cambio en el ganado queda registrado con uno de estos tipos. Los niveles dicen a qué se puede aplicar: los grandes (campo, potrero, categoría)
         son atajos que por dentro se registran lote por lote.
       </p>
@@ -197,10 +197,10 @@ export function TiposMovimiento({ tipos, guardar }) {
           if (!delGrupo.length) return null;
           return (
             <div key={efecto}>
-              <h3 className="mb-1 text-sm font-semibold text-zinc-300">
-                {titulo} <span className="font-normal text-zinc-500">· {ayuda}</span>
+              <h3 className="mb-1 text-sm font-semibold text-suelo-700">
+                {titulo} <span className="font-normal text-suelo-500">· {ayuda}</span>
               </h3>
-              <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+              <ul className="divide-y divide-suelo-200 rounded-lg border border-suelo-200">
                 {delGrupo.map((t) => (
                   <Tipo key={t.id} tipo={t} guardar={guardar} />
                 ))}
@@ -221,7 +221,7 @@ export function TiposMovimiento({ tipos, guardar }) {
           />
         </div>
       ) : (
-        <button type="button" onClick={() => setAgregando(true)} className="mt-3 text-sm text-sky-400 hover:underline">
+        <button type="button" onClick={() => setAgregando(true)} className="mt-3 text-sm text-campo-600 hover:underline">
           + Agregar tipo de movimiento
         </button>
       )}
@@ -239,7 +239,7 @@ function FormCausa({ inicial, tipos, onGuardar, onCancelar, texto }) {
 
   return (
     <form
-      className="space-y-3 rounded-lg bg-zinc-800/50 p-4"
+      className="space-y-3 rounded-lg bg-suelo-50 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         onGuardar({ codigo: c.codigo.trim(), nombre: c.nombre.trim(), tipoIds: c.tipoIds });
@@ -250,14 +250,14 @@ function FormCausa({ inicial, tipos, onGuardar, onCancelar, texto }) {
         <input value={c.nombre} onChange={(e) => setC({ ...c, nombre: e.target.value })} placeholder="Nombre" aria-label="Nombre" className={inputClass} />
       </div>
       <fieldset>
-        <legend className="mb-1 text-xs text-zinc-400">Se usa en</legend>
+        <legend className="mb-1 text-xs text-suelo-600">Se usa en</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {opciones.map((t) => (
             <Check key={t.id} checked={c.tipoIds.includes(t.id)} onChange={marcar(t.id)}>
               {t.nombre}
             </Check>
           ))}
-          {!opciones.length && <p className="text-sm text-zinc-500">Ningún tipo pide causa.</p>}
+          {!opciones.length && <p className="text-sm text-suelo-500">Ningún tipo pide causa.</p>}
         </div>
       </fieldset>
       <Botones onCancelar={onCancelar} deshabilitado={!c.codigo.trim() || !c.nombre.trim()} texto={texto} />
@@ -285,16 +285,16 @@ function Causa({ causa: c, tipos, guardar }) {
     <li className={`flex flex-wrap items-center justify-between gap-2 px-4 py-3 ${c.activo ? '' : 'opacity-50'}`}>
       <div className="min-w-0">
         <p className="font-medium">
-          <span className="mr-2 font-mono text-xs text-zinc-400">{c.codigo}</span>
+          <span className="mr-2 font-mono text-xs text-suelo-600">{c.codigo}</span>
           {c.nombre}
         </p>
-        <p className="text-xs text-zinc-500">{c.tipos.length ? `Se usa en: ${c.tipos.map((t) => t.nombre).join(', ')}` : 'Sin tipos asignados'}</p>
+        <p className="text-xs text-suelo-500">{c.tipos.length ? `Se usa en: ${c.tipos.map((t) => t.nombre).join(', ')}` : 'Sin tipos asignados'}</p>
       </div>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={() => setEditando(true)} className="text-sm text-sky-400 hover:underline">
+        <button type="button" onClick={() => setEditando(true)} className="text-sm text-campo-600 hover:underline">
           Editar
         </button>
-        <label className="flex items-center gap-1 text-xs text-zinc-400">
+        <label className="flex items-center gap-1 text-xs text-suelo-600">
           <input
             type="checkbox"
             checked={c.activo}
@@ -312,14 +312,14 @@ export function Causas({ causas, tipos, guardar }) {
   return (
     <section className="mb-8">
       <h2 className="mb-1 text-lg font-semibold">Causas</h2>
-      <p className="mb-3 text-sm text-zinc-400">
+      <p className="mb-3 text-sm text-suelo-600">
         Las que piden los tipos marcados con "Pide causa" (por ejemplo, la muerte). Las primeras vienen de CIGAM; falta completarlas con el encargado.
       </p>
-      <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+      <ul className="divide-y divide-suelo-200 rounded-lg border border-suelo-200">
         {causas.map((c) => (
           <Causa key={c.id} causa={c} tipos={tipos} guardar={guardar} />
         ))}
-        {!causas.length && <li className="px-4 py-3 text-sm text-zinc-500">Todavía no hay causas.</li>}
+        {!causas.length && <li className="px-4 py-3 text-sm text-suelo-500">Todavía no hay causas.</li>}
       </ul>
       {agregando ? (
         <div className="mt-3">
@@ -334,7 +334,7 @@ export function Causas({ causas, tipos, guardar }) {
           />
         </div>
       ) : (
-        <button type="button" onClick={() => setAgregando(true)} className="mt-3 text-sm text-sky-400 hover:underline">
+        <button type="button" onClick={() => setAgregando(true)} className="mt-3 text-sm text-campo-600 hover:underline">
           + Agregar causa
         </button>
       )}

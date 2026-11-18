@@ -66,14 +66,14 @@ export default function CambiarPasswordPage() {
           />
           <FieldError error={formState.errors.repetida} />
         </div>
-        <p className="text-sm text-zinc-400">
+        <p className="text-sm text-suelo-600">
           Mínimo 10 caracteres. Mejor una frase larga y fácil de recordar que algo corto lleno de símbolos.
         </p>
         <button type="submit" disabled={formState.isSubmitting} className={buttonClass}>
           Guardar contraseña
         </button>
         {!obligatorio && (
-          <button type="button" onClick={() => navigate('/profile')} className="w-full text-sm text-zinc-400 hover:underline">
+          <button type="button" onClick={() => navigate('/profile')} className="w-full text-sm text-suelo-600 hover:underline">
             Cancelar
           </button>
         )}

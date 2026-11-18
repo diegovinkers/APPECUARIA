@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Ícono provisorio de SAPSA: "S" blanca sobre sky-600 (el color de los botones). -->
-  <rect width="512" height="512" rx="96" fill="#0284c7"/>
+  <!-- Ícono provisorio de SAPSA (no hay logo): "S" trigo sobre verde campo. -->
+  <rect width="512" height="512" rx="96" fill="#2e5e3a"/>
   <text x="256" y="262" text-anchor="middle" dominant-baseline="central"
-        font-family="Arial, Helvetica, sans-serif" font-size="340" font-weight="700" fill="#ffffff">S</text>
+        font-family="Arial, Helvetica, sans-serif" font-size="340" font-weight="700" fill="#c8922e">S</text>
 </svg>

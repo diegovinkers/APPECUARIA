@@ -7,7 +7,10 @@
 // - Nunca se actualiza solo: cuando hay versión nueva, la app muestra un cartel
 //   y se aplica al tocar "Actualizar" (registerType 'prompt').
 // - Apagado en desarrollo (npm run dev), para no confundir con versiones viejas.
-const COLOR_FONDO = '#18181b'; // zinc-900, el fondo de la app
+// La barra del sistema toma el verde de la barra de arriba; la pantalla de
+// carga, el fondo hueso de la app (src/index.css).
+const COLOR_BARRA = '#2e5e3a'; // campo-600
+const COLOR_FONDO = '#f6f3ec'; // suelo-100
 
 export const pwaOptions = {
   registerType: 'prompt',
@@ -21,7 +24,7 @@ export const pwaOptions = {
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    theme_color: COLOR_FONDO,
+    theme_color: COLOR_BARRA,
     background_color: COLOR_FONDO,
     icons: [
       { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },

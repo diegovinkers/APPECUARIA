@@ -4,15 +4,15 @@ import app from '../src/app.js';
 import { prisma } from '../src/db.js';
 import { seedPecuaria } from '../src/seed/seed.js';
 import { resolverCategoria, resolverUsoSuelo } from '../src/pecuaria/catalogos.repository.js';
-import { ALICE, createUser, loggedAgent, useTestDatabase } from './helpers.js';
+import { ALICE, PECUARIA_TODO, loggedAgent, useTestDatabase, usuarioCon } from './helpers.js';
 
 useTestDatabase();
 
 const quiet = () => {};
 
-// En la v1 todos los usuarios con sesión pueden hacer lo mismo (fase 4 postergada).
+// Un usuario con todos los permisos de Pecuaria y todas las estancias.
 async function usuarioComun() {
-  await createUser(ALICE);
+  await usuarioCon(ALICE, { permisos: PECUARIA_TODO, todas: true });
   return loggedAgent(ALICE);
 }
 

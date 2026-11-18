@@ -5,6 +5,7 @@ import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice } from './ui';
 import { formatNumero } from './pecuaria';
 import { MovimientoItem } from './movimientos';
+import usePuede from '../hooks/usePuede';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const iso = (d) => d.toLocaleDateString('sv-SE');
@@ -26,6 +27,7 @@ const selectClass = 'min-w-0 rounded-md border border-suelo-300 bg-white px-2 py
 // para mover, registrar una entrada o una salida, y la opción de revertir.
 export default function MovimientosLista({ campoId, potreros }) {
   const navigate = useNavigate();
+  const puedo = usePuede();
   const [params, setParams] = useSearchParams();
   const f = {
     periodo: params.get('periodo') ?? '',
@@ -95,6 +97,7 @@ export default function MovimientosLista({ campoId, potreros }) {
 
   return (
     <div>
+      {puedo('pecuaria:CREAR') && (
       <div className="mb-4">
         {!nuevo.accion ? (
           <div className="grid grid-cols-3 gap-2">
@@ -170,6 +173,7 @@ export default function MovimientosLista({ campoId, potreros }) {
           </div>
         )}
       </div>
+      )}
 
       <div className="mb-3 space-y-2 rounded-lg border border-suelo-200 p-3">
         <div className="flex gap-1.5 overflow-x-auto pb-1" role="group" aria-label="Período">
@@ -251,7 +255,7 @@ export default function MovimientosLista({ campoId, potreros }) {
       ) : (
         <ul className="space-y-2">
           {datos.movimientos.map((m) => (
-            <MovimientoItem key={m.id} m={m} onRevertir={onRevertir} />
+            <MovimientoItem key={m.id} m={m} onRevertir={puedo('pecuaria:ANULAR') ? onRevertir : undefined} />
           ))}
         </ul>
       )}

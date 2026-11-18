@@ -18,7 +18,30 @@ export const MODULOS = [
 const TODAS = ['VER', 'CREAR', 'EDITAR', 'APROBAR', 'ANULAR'];
 
 // permisos: { claveDelModulo: [acciones] }
+// Pecuaria (paso 3 del rediseño, DECISIONES §11): VER mirar, CREAR registrar,
+// ANULAR revertir, EDITAR importar la planilla y configurar. Qué estancias ve
+// cada uno no va en el rol: se asigna a cada usuario.
 export const ROLES = [
+  {
+    nombre: 'Dirección',
+    descripcion: 'Ve todo Pecuaria y la auditoría, sin cargar nada.',
+    permisos: { pecuaria: ['VER'], auditoria: ['VER'] },
+  },
+  {
+    nombre: 'Jefe pecuario',
+    descripcion: 'Registra, revierte, importa y configura. Normalmente, con todas las estancias.',
+    permisos: { pecuaria: ['VER', 'CREAR', 'ANULAR', 'EDITAR'] },
+  },
+  {
+    nombre: 'Encargado de estancia',
+    descripcion: 'Registra, revierte, importa y configura en su estancia.',
+    permisos: { pecuaria: ['VER', 'CREAR', 'ANULAR', 'EDITAR'] },
+  },
+  {
+    nombre: 'Capataz',
+    descripcion: 'Ve y registra en su estancia, sin revertir, importar ni configurar.',
+    permisos: { pecuaria: ['VER', 'CREAR'] },
+  },
   {
     nombre: 'Administrador',
     descripcion: 'Crea y desactiva usuarios y les asigna roles. Ve la auditoría.',

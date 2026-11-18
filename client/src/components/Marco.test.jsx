@@ -31,8 +31,9 @@ let contenedor;
 let root;
 
 const EG = { id: 1, sigla: 'EG', nombre: 'La Gateada' };
-const superadmin = { nombre: 'Superadmin', esSuperadmin: true, roles: [] };
-const capataz = { nombre: 'Capataz', esSuperadmin: false, roles: [{ nombre: 'Capataz' }] };
+const superadmin = { nombre: 'Superadmin', esSuperadmin: true, roles: [], permisos: [] };
+const capataz = { nombre: 'Capataz', esSuperadmin: false, roles: [{ nombre: 'Capataz' }], permisos: ['pecuaria:CREAR', 'pecuaria:VER'] };
+const direccion = { nombre: 'Dirección', esSuperadmin: false, roles: [{ nombre: 'Dirección' }], permisos: ['pecuaria:VER'] };
 
 function Donde() {
   const { pathname, search } = useLocation();
@@ -91,7 +92,17 @@ describe('Marco: barras y panel', () => {
     estado.user = capataz;
     montar();
     expect(links()).not.toContain('Usuarios');
-    expect(links()).toContain('Configuración');
+    // El capataz no importa ni configura.
+    expect(links()).not.toContain('Configuración');
+    expect(links()).toContain('Mi perfil');
+  });
+
+  it('Dirección no tiene el botón + (no registra)', () => {
+    estado.user = direccion;
+    montar();
+    expect(boton('Registrar')).toBeUndefined();
+    const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
+    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Movim.', 'Menú']);
   });
 
   it('con una sola estancia, la muestra fija (sin selector)', () => {

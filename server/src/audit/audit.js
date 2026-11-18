@@ -14,6 +14,22 @@ export const ACCION = {
   PASSWORD_CAMBIO_FALLIDO: 'PASSWORD_CAMBIO_FALLIDO',
   PASSWORD_RESTABLECIDA: 'PASSWORD_RESTABLECIDA',
 
+  // Usuarios, roles y permisos (paso 3 del rediseño).
+  // detalle: { usuario, roles: [nombres], todasLasEstancias, campos: [siglas] }
+  USUARIO_CREADO: 'USUARIO_CREADO',
+  // detalle: { activo }
+  USUARIO_ESTADO_CAMBIADO: 'USUARIO_ESTADO_CAMBIADO',
+  // detalle: { antes: [nombres], despues: [nombres] }
+  ROLES_ASIGNADOS: 'ROLES_ASIGNADOS',
+  // detalle: { antes: { todas, campos: [siglas] }, despues: { todas, campos } }
+  ESTANCIAS_ASIGNADAS: 'ESTANCIAS_ASIGNADAS',
+  // detalle: { nombre, descripcion? } · en la edición, { antes, despues }
+  ROL_CREADO: 'ROL_CREADO',
+  ROL_EDITADO: 'ROL_EDITADO',
+  ROL_BORRADO: 'ROL_BORRADO',
+  // detalle: { rol, antes: ['modulo:ACCION'], despues: [...] }
+  PERMISOS_CAMBIADOS: 'PERMISOS_CAMBIADOS',
+
   // Pecuaria. En las ediciones, detalle = { antes, despues } con los campos que cambiaron.
   USO_SUELO_CREADO: 'USO_SUELO_CREADO',
   USO_SUELO_EDITADO: 'USO_SUELO_EDITADO',

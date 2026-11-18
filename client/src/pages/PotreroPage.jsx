@@ -13,6 +13,7 @@ import {
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { Dato, Hectareas, UsoBadge, formatFecha, formatNumero } from '../components/pecuaria';
+import usePuede from '../hooks/usePuede';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 // Acepta "250" o "250,5" (como se escribe acá).
@@ -24,6 +25,7 @@ const botonSecundario =
 // Detalle de un potrero: stock por categoría con los cálculos, y los cambios
 // (stock, uso de suelo, hectáreas). Cada cambio queda en el historial.
 export default function PotreroPage() {
+  const puedo = usePuede();
   const { id } = useParams();
   const location = useLocation();
   const [potrero, setPotrero] = useState(null);
@@ -114,12 +116,14 @@ export default function PotreroPage() {
                 key={l.loteId}
                 linea={l}
                 potreroId={potrero.id}
+                puedeRegistrar={puedo('pecuaria:CREAR')}
                 onRenombrar={(nombre) => guardar(() => renombrarLote(l.loteId, nombre).then(() => null), 'Lote renombrado.')}
               />
             ))}
           </ul>
         )}
         {stock?.nota && <p className="mt-3 text-sm text-suelo-600">Nota: {stock.nota}</p>}
+        {puedo('pecuaria:CREAR') && (
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Link
             to={`/pecuaria/registrar?efecto=ENTRA&potrero=${potrero.id}`}
@@ -136,19 +140,27 @@ export default function PotreroPage() {
             </Link>
           )}
         </div>
+        )}
       </section>
 
       {!modo && (
         <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <button type="button" onClick={() => setModo('stock')} className={buttonClass}>
-            Editar stock
-          </button>
-          <button type="button" onClick={() => setModo('uso')} className={botonSecundario}>
-            Cambiar uso de suelo
-          </button>
-          <button type="button" onClick={() => setModo('hectareas')} className={botonSecundario}>
-            {potrero.hectareasAConfirmar ? 'Cargar hectáreas' : 'Corregir hectáreas'}
-          </button>
+          {puedo('pecuaria:CREAR') && (
+            <button type="button" onClick={() => setModo('stock')} className={buttonClass}>
+              Editar stock
+            </button>
+          )}
+          {puedo('pecuaria:CREAR') && (
+            <button type="button" onClick={() => setModo('uso')} className={botonSecundario}>
+              Cambiar uso de suelo
+            </button>
+          )}
+          {/* Las hectáreas son datos del potrero: Configuración. */}
+          {puedo('pecuaria:EDITAR') && (
+            <button type="button" onClick={() => setModo('hectareas')} className={botonSecundario}>
+              {potrero.hectareasAConfirmar ? 'Cargar hectáreas' : 'Corregir hectáreas'}
+            </button>
+          )}
         </div>
       )}
 
@@ -466,7 +478,7 @@ function Historial({ historial }) {
 
 // Un lote del potrero: nombre (se cambia tocándolo), categoría, cabezas, peso,
 // y el botón para moverlo (todo o una parte) a otro lote o potrero.
-function LoteFila({ linea: l, potreroId, onRenombrar }) {
+function LoteFila({ linea: l, potreroId, puedeRegistrar, onRenombrar }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(l.lote);
   return (
@@ -487,10 +499,12 @@ function LoteFila({ linea: l, potreroId, onRenombrar }) {
                 Guardar
               </button>
             </form>
-          ) : (
+          ) : puedeRegistrar ? (
             <button type="button" onClick={() => setEditando(true)} className="text-left font-semibold hover:underline" title="Cambiar el nombre">
               {l.lote}
             </button>
+          ) : (
+            <p className="font-semibold">{l.lote}</p>
           )}
           <p className="text-suelo-600">
             {l.categoria} · {formatNumero(l.cabezas)} cab ·{' '}
@@ -500,6 +514,7 @@ function LoteFila({ linea: l, potreroId, onRenombrar }) {
             Ver historial del lote
           </Link>
         </div>
+        {puedeRegistrar && (
         <div className="flex shrink-0 flex-col gap-1.5">
           <Link
             to={`/pecuaria/mover?potrero=${potreroId}&lote=${l.loteId}`}
@@ -514,6 +529,7 @@ function LoteFila({ linea: l, potreroId, onRenombrar }) {
             Salida
           </Link>
         </div>
+        )}
       </div>
     </li>
   );

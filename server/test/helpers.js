@@ -5,6 +5,7 @@ import { COOKIE_NAME } from '../src/config.js';
 import { prisma } from '../src/db.js';
 import * as users from '../src/users/users.repository.js';
 import { hashPassword } from '../src/auth/password.js';
+import { seedModulos } from '../src/seed/seed.js';
 
 // La cookie de sesión que puso una respuesta, o undefined.
 export const sessionCookie = (res) => res.headers['set-cookie']?.find((c) => c.startsWith(`${COOKIE_NAME}=`));
@@ -32,6 +33,39 @@ export async function createUser({ password, ...data }) {
 
 export async function createRole(nombre) {
   return prisma.rol.create({ data: { nombre }, select: { id: true, nombre: true } });
+}
+
+// Todos los permisos de Pecuaria (lo que tiene el jefe o el encargado).
+export const PECUARIA_TODO = ['pecuaria:VER', 'pecuaria:CREAR', 'pecuaria:ANULAR', 'pecuaria:EDITAR'];
+
+// Un rol con esos permisos ('modulo:ACCION'). Crea los módulos si faltan.
+export async function rolConPermisos(nombre, permisos) {
+  await seedModulos(prisma);
+  const ids = [];
+  for (const clave of permisos) {
+    const [modulo, accion] = clave.split(':');
+    const p = await prisma.permiso.findFirst({ where: { accion, modulo: { clave: modulo } }, select: { id: true } });
+    if (!p) throw new Error(`Permiso inexistente en el test: ${clave}`);
+    ids.push(p.id);
+  }
+  return prisma.rol.create({
+    data: { nombre, permisos: { create: ids.map((permisoId) => ({ permisoId })) } },
+    select: { id: true, nombre: true },
+  });
+}
+
+// Crea un usuario con un rol propio de esos permisos y su alcance:
+// todas = todas las estancias; campoIds = las que tiene asignadas.
+export async function usuarioCon(datos, { permisos = [], todas = false, campoIds = [] } = {}) {
+  const rol = await rolConPermisos(`Rol de ${datos.usuario}`, permisos);
+  return users.create({
+    ...datos,
+    password: undefined,
+    passwordHash: await hashPassword(datos.password),
+    rolIds: [rol.id],
+    todasLasEstancias: todas,
+    campoIds,
+  });
 }
 
 // Un "agent" guarda las cookies entre requests, como un navegador.

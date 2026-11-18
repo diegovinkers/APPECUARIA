@@ -50,63 +50,89 @@ import {
   usoSchema,
 } from './pecuaria.schema.js';
 import { authRequired } from '../auth/auth.middleware.js';
+import { requirePermission } from '../auth/permisos.js';
 import { validateBody } from '../middlewares/validate.js';
+import {
+  alcance,
+  alcanceEntradaSalida,
+  alcanceImportacion,
+  alcanceMovimiento,
+  alcanceSubirPlanilla,
+  soloTodas,
+} from './alcance.js';
 
 const router = Router();
 
-// v1 (DECISIONES §10): la fase 4 está postergada, así que cualquier usuario
-// con sesión puede hacer todo. Cada cambio queda en la auditoría.
+// Permisos (paso 3 del rediseño, docs/superpowers/plans/2026-11-18-permisos.md):
+//   VER: mirar · CREAR: registrar (mover, entradas, salidas, corrección, uso)
+//   ANULAR: revertir · EDITAR: importar la planilla y la Configuración.
+// Además, cada ruta que toca una estancia controla que sea del usuario
+// (alcance.js); la Configuración (catálogos, parámetros) es común a todas.
+const ver = requirePermission('pecuaria', 'VER');
+const registrar = requirePermission('pecuaria', 'CREAR');
+const revertir = requirePermission('pecuaria', 'ANULAR');
+const configurar = requirePermission('pecuaria', 'EDITAR');
+
 router.use(authRequired);
 
-router.get('/usos-suelo', usosSueloController.list);
-router.post('/usos-suelo', validateBody(crearUsoSchema), usosSueloController.create);
-router.patch('/usos-suelo/:id', validateBody(editarUsoSchema), usosSueloController.update);
+router.get('/usos-suelo', ver, usosSueloController.list);
+router.post('/usos-suelo', configurar, validateBody(crearUsoSchema), usosSueloController.create);
+router.patch('/usos-suelo/:id', configurar, validateBody(editarUsoSchema), usosSueloController.update);
 
-router.get('/categorias', categoriasController.list);
-router.post('/categorias', validateBody(crearCategoriaSchema), categoriasController.create);
-router.patch('/categorias/:id', validateBody(editarCategoriaSchema), categoriasController.update);
+router.get('/categorias', ver, categoriasController.list);
+router.post('/categorias', configurar, validateBody(crearCategoriaSchema), categoriasController.create);
+router.patch('/categorias/:id', configurar, validateBody(editarCategoriaSchema), categoriasController.update);
 
 // Catálogo del "libro del rodeo".
-router.get('/tipos-movimiento', tiposMovimientoController.list);
-router.post('/tipos-movimiento', validateBody(crearTipoSchema), tiposMovimientoController.create);
-router.patch('/tipos-movimiento/:id', validateBody(editarTipoSchema), tiposMovimientoController.update);
+router.get('/tipos-movimiento', ver, tiposMovimientoController.list);
+router.post('/tipos-movimiento', configurar, validateBody(crearTipoSchema), tiposMovimientoController.create);
+router.patch('/tipos-movimiento/:id', configurar, validateBody(editarTipoSchema), tiposMovimientoController.update);
 
-router.get('/causas', causasController.list);
-router.post('/causas', validateBody(crearCausaSchema), causasController.create);
-router.patch('/causas/:id', validateBody(editarCausaSchema), causasController.update);
+router.get('/causas', ver, causasController.list);
+router.post('/causas', configurar, validateBody(crearCausaSchema), causasController.create);
+router.patch('/causas/:id', configurar, validateBody(editarCausaSchema), causasController.update);
 
-router.get('/parametros', getParametros);
-router.put('/parametros/:clave', validateBody(parametroSchema), putParametro);
+router.get('/parametros', ver, getParametros);
+router.put('/parametros/:clave', configurar, validateBody(parametroSchema), putParametro);
 
-router.get('/campos', camposController.list);
-router.post('/campos', validateBody(crearCampoSchema), camposController.create);
-router.patch('/campos/:id', validateBody(editarCampoSchema), camposController.update);
+// Estancias: cada uno ve las suyas. Crear una nueva es de alcance general.
+router.get('/campos', ver, camposController.list);
+router.post('/campos', configurar, soloTodas, validateBody(crearCampoSchema), camposController.create);
+router.patch('/campos/:id', configurar, alcance('campo'), validateBody(editarCampoSchema), camposController.update);
 
-router.get('/campos/:campoId/potreros', listPotreros);
-router.get('/campos/:campoId/resumen', getResumen);
-router.post('/campos/:campoId/potreros', validateBody(crearPotreroSchema), createPotrero);
-router.get('/potreros/:id', getPotrero);
-router.patch('/potreros/:id', validateBody(editarPotreroSchema), updatePotrero);
-router.get('/potreros/:id/historial', getHistorial);
-router.put('/potreros/:id/stock', validateBody(stockSchema), putStock);
-router.put('/potreros/:id/uso', validateBody(usoSchema), putUso);
+router.get('/campos/:campoId/potreros', ver, alcance('campo', 'campoId'), listPotreros);
+router.get('/campos/:campoId/resumen', ver, alcance('campo', 'campoId'), getResumen);
+// Agregar un corral (feedlot) es parte del trabajo diario.
+router.post('/campos/:campoId/potreros', registrar, alcance('campo', 'campoId'), validateBody(crearPotreroSchema), createPotrero);
+router.get('/potreros/:id', ver, alcance('potrero'), getPotrero);
+router.patch('/potreros/:id', configurar, alcance('potrero'), validateBody(editarPotreroSchema), updatePotrero);
+router.get('/potreros/:id/historial', ver, alcance('potrero'), getHistorial);
+router.put('/potreros/:id/stock', registrar, alcance('potrero'), validateBody(stockSchema), putStock);
+router.put('/potreros/:id/uso', registrar, alcance('potrero'), validateBody(usoSchema), putUso);
 
-router.get('/lotes/:id', getLote);
-router.patch('/lotes/:id', validateBody(loteSchema), patchLote);
-router.get('/campos/:campoId/movimientos', getMovimientos);
-router.post('/movimientos/vista-previa', validateBody(movimientoSchema), postVistaPreviaMovimiento);
-router.post('/movimientos', validateBody(movimientoSchema), postMovimiento);
-router.post('/movimientos/:id/revertir', postRevertirMovimiento);
+router.get('/lotes/:id', ver, alcance('lote'), getLote);
+router.patch('/lotes/:id', registrar, alcance('lote'), validateBody(loteSchema), patchLote);
+router.get('/campos/:campoId/movimientos', ver, alcance('campo', 'campoId'), getMovimientos);
+// La vista previa no guarda nada, pero solo tiene sentido para quien registra.
+router.post('/movimientos/vista-previa', registrar, validateBody(movimientoSchema), alcanceMovimiento, postVistaPreviaMovimiento);
+router.post('/movimientos', registrar, validateBody(movimientoSchema), alcanceMovimiento, postMovimiento);
+router.post('/movimientos/:id/revertir', revertir, alcance('movimiento'), postRevertirMovimiento);
 // Entradas (nacimiento, compra...) y salidas (muerte, venta...). Quedan en la
 // misma lista que los movimientos y se revierten igual.
-router.post('/entradas-salidas/vista-previa', validateBody(entradaSalidaSchema), postVistaPreviaEntradaSalida);
-router.post('/entradas-salidas', validateBody(entradaSalidaSchema), postEntradaSalida);
+router.post('/entradas-salidas/vista-previa', registrar, validateBody(entradaSalidaSchema), alcanceEntradaSalida, postVistaPreviaEntradaSalida);
+router.post('/entradas-salidas', registrar, validateBody(entradaSalidaSchema), alcanceEntradaSalida, postEntradaSalida);
 
 // La planilla llega como el archivo tal cual en el cuerpo (sin JSON), con el
 // nombre en ?archivo=. Opcionales: ?hoja= y ?campo= (por defecto EG).
-router.post('/importaciones/planilla', express.raw({ type: () => true, limit: '5mb' }), subirPlanilla);
-router.get('/importaciones/:id', getImportacion);
-router.post('/importaciones/:id/confirmar', validateBody(confirmarImportacionSchema), confirmarImportacion);
-router.post('/importaciones/:id/descartar', descartarImportacion);
+router.post(
+  '/importaciones/planilla',
+  configurar,
+  alcanceSubirPlanilla,
+  express.raw({ type: () => true, limit: '5mb' }),
+  subirPlanilla,
+);
+router.get('/importaciones/:id', configurar, alcanceImportacion, getImportacion);
+router.post('/importaciones/:id/confirmar', configurar, alcanceImportacion, validateBody(confirmarImportacionSchema), confirmarImportacion);
+router.post('/importaciones/:id/descartar', configurar, alcanceImportacion, descartarImportacion);
 
 export default router;

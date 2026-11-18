@@ -5,13 +5,13 @@ import { ALICE, BOB, SUPER, createRole, createUser, loggedAgent, superAgent, use
 
 useTestDatabase();
 
-describe('acceso a /api/users y /api/roles (por ahora, solo superadmin)', () => {
+describe('acceso a /api/users y /api/roles: hace falta el permiso', () => {
   it('sin sesión responde 401', async () => {
     await request(app).get('/api/users').expect(401);
     await request(app).get('/api/roles').expect(401);
   });
 
-  it('un usuario sin indicador de superadmin recibe 403, tenga los roles que tenga', async () => {
+  it('un usuario sin permisos de Usuarios ni Roles recibe 403, aunque su rol se llame Administrador', async () => {
     const rol = await createRole('Administrador');
     await createUser({ ...ALICE, rolIds: [rol.id] });
     const alice = await loggedAgent(ALICE);

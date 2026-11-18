@@ -3,7 +3,7 @@ import request from 'supertest';
 import app from '../src/app.js';
 import { prisma } from '../src/db.js';
 import { seedPecuaria } from '../src/seed/seed.js';
-import { ALICE, createUser, loggedAgent, useTestDatabase } from './helpers.js';
+import { ALICE, PECUARIA_TODO, loggedAgent, useTestDatabase, usuarioCon } from './helpers.js';
 import { ENCABEZADO, HOJA_EJ, crearPlanilla, fila } from './planilla-fixture.js';
 
 useTestDatabase();
@@ -12,7 +12,7 @@ const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 async function preparar() {
   await seedPecuaria(prisma, () => {});
-  await createUser(ALICE);
+  await usuarioCon(ALICE, { permisos: PECUARIA_TODO, todas: true });
   return loggedAgent(ALICE);
 }
 

@@ -1,4 +1,5 @@
 import { categorias, listParametros, setParametro, usosSuelo } from './catalogos.repository.js';
+import { filtroCampos } from './alcance.js';
 import * as lugares from './lugares.repository.js';
 import * as importaciones from './importaciones.service.js';
 import * as stock from './stock.service.js';
@@ -76,6 +77,9 @@ export const camposController = abm({
   editada: ACCION.CAMPO_EDITADO,
   noEncontrado: 'Campo no encontrado',
 });
+
+// Cada uno ve solo sus estancias (alcance.js).
+camposController.list = async (req, res) => res.json(await lugares.listCampos(filtroCampos(req.user)));
 
 // --- Parámetros ---
 

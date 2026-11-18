@@ -42,6 +42,9 @@ model Usuario {
   activo              Boolean   @default(true)
   /// Obliga a cambiar la contraseña en el próximo ingreso (fase 3).
   debeCambiarPassword Boolean   @default(false) @map("debe_cambiar_password")
+  /// Alcance: ve y toca todas las estancias (dueño, jefe), incluidas las que
+  /// se sumen después. Si no, solo las de `campos`. El superadmin pasa siempre.
+  todasLasEstancias   Boolean   @default(false) @map("todas_las_estancias")
   /// Bloqueo por intentos fallidos (fase 3).
   intentosFallidos    Int       @default(0) @map("intentos_fallidos")
   bloqueadoHasta      DateTime? @map("bloqueado_hasta") @db.Timestamptz(3)
@@ -50,6 +53,7 @@ model Usuario {
   actualizadoEn       DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(3)
 
   roles     UsuarioRol[]
+  campos    UsuarioCampo[]
   sesiones  Sesion[]
   auditoria Auditoria[]
 
@@ -118,6 +122,20 @@ model UsuarioRol {
   @@id([usuarioId, rolId])
   @@index([rolId])
   @@map("usuario_rol")
+}
+
+/// Las estancias que puede ver y tocar un usuario (si no tiene "todas").
+model UsuarioCampo {
+  usuarioId  Int      @map("usuario_id")
+  campoId    Int      @map("campo_id")
+  asignadoEn DateTime @default(now()) @map("asignado_en") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  campo   Campo   @relation(fields: [campoId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, campoId])
+  @@index([campoId])
+  @@map("usuario_campo")
 }
 
 model RolPermiso {
@@ -276,6 +294,7 @@ model Campo {
 
   potreros       Potrero[]
   lotes          Lote[]
+  usuarios       UsuarioCampo[]
   sesionesBaston SesionBaston[]
   movimientos    Movimiento[]   @relation("MovimientoCampo")
   trasladosOtro  Movimiento[]   @relation("MovimientoCampoOtro")

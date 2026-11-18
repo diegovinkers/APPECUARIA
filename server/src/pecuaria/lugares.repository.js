@@ -35,8 +35,9 @@ export async function findCampo(id) {
   return prisma.campo.findUnique({ where: { id: campoId }, select: campoSelect });
 }
 
-export function listCampos() {
-  return prisma.campo.findMany({ select: campoSelect, orderBy: [{ orden: 'asc' }, { sigla: 'asc' }] });
+// where: el filtro de alcance (alcance.js: filtroCampos). Sin filtro, todas.
+export function listCampos(where) {
+  return prisma.campo.findMany({ where, select: campoSelect, orderBy: [{ orden: 'asc' }, { sigla: 'asc' }] });
 }
 
 export async function createCampo(data) {

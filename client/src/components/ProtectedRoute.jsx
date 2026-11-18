@@ -1,14 +1,15 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { puede } from '../navegacion/menu';
 
 export const CAMBIAR_PASSWORD = '/cambiar-password';
 
 // Sin sesión → al login (y vuelve a esta página después de entrar).
 // Con la contraseña puesta por un administrador → a cambiarla, antes que nada.
-// Con `superadmin`, además exige el indicador de superadmin (TEMPORAL: en la
-// fase 5 se reemplaza por permisos por módulo).
+// Con `permiso` ('modulo:ACCION'), además lo exige; si no lo tiene, al inicio
+// (que lo manda a la primera pantalla que sí puede usar).
 // Es solo comodidad visual: quien protege los datos es la API.
-export default function ProtectedRoute({ superadmin = false }) {
+export default function ProtectedRoute({ permiso }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -17,7 +18,7 @@ export default function ProtectedRoute({ superadmin = false }) {
   if (user.debeCambiarPassword && location.pathname !== CAMBIAR_PASSWORD) {
     return <Navigate to={CAMBIAR_PASSWORD} replace />;
   }
-  if (superadmin && !user.esSuperadmin) return <Navigate to="/" replace />;
+  if (permiso && !puede(user, permiso)) return <Navigate to="/" replace />;
 
   return <Outlet />;
 }

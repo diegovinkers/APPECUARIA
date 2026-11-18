@@ -30,9 +30,4 @@ export const authRequired = authenticate({ permitirCambioPendiente: false });
 // Solo para /verify y para el cambio de contraseña.
 export const authAllowPendingPassword = authenticate({ permitirCambioPendiente: true });
 
-// TEMPORAL (fases 2 y 3): las rutas de administración son solo del superadmin.
-// En la fase 4 se reemplaza por requirePermission(modulo, accion) en cada ruta.
-export function requireSuperadmin(req, res, next) {
-  if (!req.user?.esSuperadmin) throw forbidden('No tenés permisos para esta acción');
-  next();
-}
+// Los permisos por rol están en permisos.js (requirePermission).

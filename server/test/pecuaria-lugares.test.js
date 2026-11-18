@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../src/db.js';
-import { ALICE, createUser, loggedAgent, useTestDatabase } from './helpers.js';
+import { ALICE, PECUARIA_TODO, loggedAgent, useTestDatabase, usuarioCon } from './helpers.js';
 
 useTestDatabase();
 
@@ -8,7 +8,7 @@ useTestDatabase();
 const CAMPO = { sigla: 'EJ', nombre: 'Estancia Ejemplo' };
 
 async function agente() {
-  await createUser(ALICE);
+  await usuarioCon(ALICE, { permisos: PECUARIA_TODO, todas: true });
   return loggedAgent(ALICE);
 }
 

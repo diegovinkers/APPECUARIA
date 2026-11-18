@@ -82,6 +82,17 @@ export async function seedPecuaria(prisma, log = console.log) {
   return { usosSuelo, categorias, parametros, tiposMovimiento, causas };
 }
 
+// Módulos (los que faltan; un nombre editado no se toca) y todos sus permisos.
+export async function seedModulos(prisma) {
+  for (const modulo of MODULOS) {
+    const { id } = await prisma.modulo.upsert({ where: { clave: modulo.clave }, update: {}, create: modulo });
+    await prisma.permiso.createMany({
+      data: Object.values(Accion).map((accion) => ({ moduloId: id, accion })),
+      skipDuplicates: true,
+    });
+  }
+}
+
 const superadminSchema = z.object({
   SUPERADMIN_USUARIO: usuarioField,
   SUPERADMIN_NOMBRE: nombreField,
@@ -100,13 +111,7 @@ export async function runSeed(prisma, env = process.env, log = console.log) {
   const admin = parseEnv(superadminSchema, env, 'Revisá las variables SUPERADMIN_* en .env (ver .env.example):');
 
   // 1. Módulos y todos sus permisos (módulo × acción).
-  for (const modulo of MODULOS) {
-    const { id } = await prisma.modulo.upsert({ where: { clave: modulo.clave }, update: {}, create: modulo });
-    await prisma.permiso.createMany({
-      data: Object.values(Accion).map((accion) => ({ moduloId: id, accion })),
-      skipDuplicates: true,
-    });
-  }
+  await seedModulos(prisma);
 
   // 2. Roles de ejemplo, solo los que no existen (un rol editado no se toca).
   const permisos = await prisma.permiso.findMany({ select: { id: true, accion: true, modulo: { select: { clave: true } } } });

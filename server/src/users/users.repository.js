@@ -14,21 +14,47 @@ export const userSelect = {
   esSuperadmin: true,
   activo: true,
   debeCambiarPassword: true,
+  todasLasEstancias: true,
   bloqueadoHasta: true,
   ultimoAcceso: true,
   creadoEn: true,
   actualizadoEn: true,
   roles: {
-    select: { rol: { select: { id: true, nombre: true } } },
+    select: {
+      rol: {
+        select: {
+          id: true,
+          nombre: true,
+          permisos: { select: { permiso: { select: { accion: true, modulo: { select: { clave: true, activo: true } } } } } },
+        },
+      },
+    },
     orderBy: { rol: { nombre: 'asc' } },
   },
+  campos: { select: { campoId: true }, orderBy: { campoId: 'asc' } },
 };
 
-// roles: [{ rol: { id, nombre } }] → [{ id, nombre }]
+// Deja el usuario plano:
+//   roles → [{ id, nombre }]
+//   permisos → ['pecuaria:VER', ...]: la suma de los permisos de sus roles
+//     (de módulos activos), sin repetir y ordenada. Se leen de la base en cada
+//     request, así un cambio de rol vale al instante.
+//   campoIds → las estancias asignadas (si no tiene todasLasEstancias).
 export function toUser(row) {
   if (!row) return null;
-  const { roles, ...user } = row;
-  return { ...user, roles: roles.map((r) => r.rol) };
+  const { roles, campos, ...user } = row;
+  const permisos = new Set();
+  for (const { rol } of roles) {
+    for (const { permiso } of rol.permisos) {
+      if (permiso.modulo.activo) permisos.add(`${permiso.modulo.clave}:${permiso.accion}`);
+    }
+  }
+  return {
+    ...user,
+    roles: roles.map(({ rol }) => ({ id: rol.id, nombre: rol.nombre })),
+    permisos: [...permisos].sort(),
+    campoIds: campos.map((c) => c.campoId),
+  };
 }
 
 const isPrismaError = (error, code) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
@@ -70,6 +96,11 @@ export async function list() {
   return rows.map(toUser);
 }
 
+// Todas las estancias, para asignarlas (id, sigla, nombre).
+export function listEstancias() {
+  return prisma.campo.findMany({ select: { id: true, sigla: true, nombre: true, activo: true }, orderBy: [{ orden: 'asc' }, { sigla: 'asc' }] });
+}
+
 // Dice cuál de los campos únicos ya está en uso, con un mensaje claro.
 async function assertUnique({ usuario, email, codigoCigam }) {
   const checks = [
@@ -82,6 +113,31 @@ async function assertUnique({ usuario, email, codigoCigam }) {
       throw conflict(message);
     }
   }
+}
+
+async function assertCamposExist(campoIds) {
+  if (campoIds.length === 0) return;
+  const found = await prisma.campo.count({ where: { id: { in: campoIds } } });
+  if (found !== campoIds.length) throw badRequest('Alguna de las estancias elegidas no existe');
+}
+
+// Los nombres de los roles (de esa lista) que dan permisos sobre Usuarios,
+// Roles o Auditoría: solo el superadmin los puede asignar (DECISIONES §3).
+export async function rolesDeAdministracion(rolIds) {
+  if (rolIds.length === 0) return [];
+  const rows = await prisma.rol.findMany({
+    where: { id: { in: rolIds }, permisos: { some: { permiso: { modulo: { esAdministracion: true } } } } },
+    select: { nombre: true },
+    orderBy: { nombre: 'asc' },
+  });
+  return rows.map((r) => r.nombre);
+}
+
+// Para la auditoría: las siglas de esas estancias.
+export async function siglasDe(campoIds) {
+  if (campoIds.length === 0) return [];
+  const rows = await prisma.campo.findMany({ where: { id: { in: campoIds } }, select: { sigla: true }, orderBy: { sigla: 'asc' } });
+  return rows.map((c) => c.sigla);
 }
 
 async function assertRolesExist(rolIds) {
@@ -99,9 +155,12 @@ export async function create({
   rolIds = [],
   esSuperadmin = false,
   debeCambiarPassword = false,
+  todasLasEstancias = false,
+  campoIds = [],
 }) {
   await assertUnique({ usuario, email, codigoCigam });
   await assertRolesExist(rolIds);
+  await assertCamposExist(campoIds);
   try {
     const row = await prisma.usuario.create({
       data: {
@@ -112,7 +171,9 @@ export async function create({
         passwordHash,
         esSuperadmin,
         debeCambiarPassword,
+        todasLasEstancias,
         roles: { create: rolIds.map((rolId) => ({ rolId })) },
+        campos: { create: (todasLasEstancias ? [] : campoIds).map((campoId) => ({ campoId })) },
       },
       select: userSelect,
     });
@@ -135,6 +196,22 @@ export async function setRoles(id, rolIds) {
   await prisma.$transaction([
     prisma.usuarioRol.deleteMany({ where: { usuarioId: userId } }),
     prisma.usuarioRol.createMany({ data: rolIds.map((rolId) => ({ usuarioId: userId, rolId })) }),
+  ]);
+  return findById(userId);
+}
+
+// Dónde trabaja: todas las estancias, o la lista. Con "todas" la lista se
+// vacía (una estancia nueva le aparece sola). null si no existe.
+export async function setEstancias(id, { todasLasEstancias, campoIds }) {
+  const userId = parseId(id);
+  if (!userId) return null;
+  if (!(await prisma.usuario.findUnique({ where: { id: userId }, select: { id: true } }))) return null;
+  const ids = todasLasEstancias ? [] : campoIds;
+  await assertCamposExist(ids);
+  await prisma.$transaction([
+    prisma.usuarioCampo.deleteMany({ where: { usuarioId: userId } }),
+    prisma.usuarioCampo.createMany({ data: ids.map((campoId) => ({ usuarioId: userId, campoId })) }),
+    prisma.usuario.update({ where: { id: userId }, data: { todasLasEstancias }, select: { id: true } }),
   ]);
   return findById(userId);
 }

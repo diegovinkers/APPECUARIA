@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { getCampos } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { useAuth } from './AuthContext';
+import { puede } from '../navegacion/menu';
 
 // La estancia (campo) que se está mirando. La elige el selector de la barra de
 // arriba y la usan Resumen, Potreros, Movimientos y el botón "+".
@@ -20,7 +21,8 @@ const EstanciaContext = createContext(null);
 
 export function EstanciaProvider({ children }) {
   const { user } = useAuth();
-  const habilitado = Boolean(user && !user.debeCambiarPassword);
+  // Solo quien ve Pecuaria (un administrador de usuarios, por ejemplo, no).
+  const habilitado = puede(user, 'pecuaria:VER');
   const [campos, setCampos] = useState(null);
   const [campoId, setCampoIdState] = useState(leerGuardada);
   const [errors, setErrors] = useState([]);

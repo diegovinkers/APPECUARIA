@@ -14,6 +14,7 @@ import MoverPage from './pages/MoverPage';
 import PotreroPage from './pages/PotreroPage';
 import ProfilePage from './pages/ProfilePage';
 import RegistrarPage from './pages/RegistrarPage';
+import RolesPage from './pages/RolesPage';
 import UsersPage from './pages/UsersPage';
 import MovimientosPage from './pages/pecuaria/MovimientosPage';
 import PotrerosPage from './pages/pecuaria/PotrerosPage';
@@ -37,22 +38,30 @@ export default function App() {
               <Route element={<ProtectedRoute />}>
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/cambiar-password" element={<CambiarPasswordPage />} />
-                {/* Pecuaria v1: todos los usuarios con sesión (fase 4 postergada). */}
+              </Route>
+
+              {/* Cada grupo pide su permiso (el mismo que la API; docs/DECISIONES.md §11). */}
+              <Route element={<ProtectedRoute permiso="pecuaria:VER" />}>
                 <Route path="/pecuaria" element={<RedirigirPecuaria />} />
                 <Route path="/pecuaria/resumen" element={<ResumenPage />} />
                 <Route path="/pecuaria/potreros" element={<PotrerosPage />} />
                 <Route path="/pecuaria/movimientos" element={<MovimientosPage />} />
-                <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />
                 <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
-                <Route path="/pecuaria/configuracion" element={<ConfiguracionPecuariaPage />} />
-                <Route path="/pecuaria/mover" element={<MoverPage />} />
-                <Route path="/pecuaria/registrar" element={<RegistrarPage />} />
                 <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
               </Route>
-
-              {/* TEMPORAL (fases 2 y 3): solo superadmin. En la fase 4, por permisos. */}
-              <Route element={<ProtectedRoute superadmin />}>
+              <Route element={<ProtectedRoute permiso="pecuaria:CREAR" />}>
+                <Route path="/pecuaria/mover" element={<MoverPage />} />
+                <Route path="/pecuaria/registrar" element={<RegistrarPage />} />
+              </Route>
+              <Route element={<ProtectedRoute permiso="pecuaria:EDITAR" />}>
+                <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />
+                <Route path="/pecuaria/configuracion" element={<ConfiguracionPecuariaPage />} />
+              </Route>
+              <Route element={<ProtectedRoute permiso="usuarios:VER" />}>
                 <Route path="/users" element={<UsersPage />} />
+              </Route>
+              <Route element={<ProtectedRoute permiso="roles:VER" />}>
+                <Route path="/roles" element={<RolesPage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

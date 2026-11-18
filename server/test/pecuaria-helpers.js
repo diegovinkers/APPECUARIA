@@ -1,14 +1,14 @@
 // Arma un campo ficticio (EJ) con potreros, usos y lotes, directo en la base.
 import { prisma } from '../src/db.js';
 import { seedPecuaria } from '../src/seed/seed.js';
-import { ALICE, createUser, loggedAgent } from './helpers.js';
+import { ALICE, PECUARIA_TODO, loggedAgent, usuarioCon } from './helpers.js';
 
 export const dia = (iso) => new Date(`${iso}T00:00:00Z`);
 export const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Montevideo' });
 
 export async function prepararCampo() {
   await seedPecuaria(prisma, () => {});
-  await createUser(ALICE);
+  await usuarioCon(ALICE, { permisos: PECUARIA_TODO, todas: true });
   const agent = await loggedAgent(ALICE);
   const cat = Object.fromEntries((await prisma.categoria.findMany()).map((c) => [c.nombre, c.id]));
   const uso = Object.fromEntries((await prisma.usoSuelo.findMany()).map((u) => [u.nombre, u.id]));

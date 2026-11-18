@@ -19,8 +19,8 @@ const ENV = {
 const quiet = () => {};
 
 // Lo que crea el seed además de los usuarios: módulos y permisos, roles de
-// ejemplo y los catálogos de Pecuaria (usos de suelo, categorías, parámetros).
-const CATALOGOS = { modulos: 8, permisos: 40, roles: 6, usosSuelo: 10, categorias: 9, parametros: 1, tiposMovimiento: 26, causas: 4 };
+// ejemplo (4 de Pecuaria + 6 de ejemplo) y los catálogos de Pecuaria.
+const CATALOGOS = { modulos: 8, permisos: 40, roles: 10, usosSuelo: 10, categorias: 9, parametros: 1, tiposMovimiento: 26, causas: 4 };
 
 describe('seed', () => {
   it('crea módulos, todos los permisos, roles, el superadmin y los usuarios de ejemplo', async () => {
@@ -93,5 +93,24 @@ describe('seed', () => {
     await expect(runSeed(prisma, { ...ENV, SUPERADMIN_PASSWORD: 'corta' }, quiet)).rejects.toThrow(/SUPERADMIN_PASSWORD/);
     expect(await prisma.modulo.count()).toBe(0);
     expect(await prisma.usuario.count()).toBe(0);
+  });
+});
+
+describe('seed: roles de Pecuaria (paso 3 del rediseño)', () => {
+  it('crea Dirección, Jefe pecuario, Encargado de estancia y Capataz con sus permisos', async () => {
+    await runSeed(prisma, ENV, quiet);
+    const permisosDe = async (nombre) =>
+      (
+        await prisma.rolPermiso.findMany({
+          where: { rol: { nombre } },
+          select: { permiso: { select: { accion: true, modulo: { select: { clave: true } } } } },
+        })
+      )
+        .map(({ permiso }) => `${permiso.modulo.clave}:${permiso.accion}`)
+        .sort();
+    expect(await permisosDe('Dirección')).toEqual(['auditoria:VER', 'pecuaria:VER']);
+    expect(await permisosDe('Jefe pecuario')).toEqual(['pecuaria:ANULAR', 'pecuaria:CREAR', 'pecuaria:EDITAR', 'pecuaria:VER']);
+    expect(await permisosDe('Encargado de estancia')).toEqual(['pecuaria:ANULAR', 'pecuaria:CREAR', 'pecuaria:EDITAR', 'pecuaria:VER']);
+    expect(await permisosDe('Capataz')).toEqual(['pecuaria:CREAR', 'pecuaria:VER']);
   });
 });

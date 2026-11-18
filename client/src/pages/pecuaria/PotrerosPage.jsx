@@ -6,13 +6,13 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, inputClass } from '../../components/ui';
 import PotrerosLista from '../../components/PotrerosLista';
-import { Encabezado, SinEstancia } from './comun';
+import { ElegirEstancia, Encabezado, SinEstancia } from './comun';
 
 // Los potreros de la estancia con su uso, cabezas, lotes y carga, con filtros.
 // Tocar un potrero abre su ficha.
 export default function PotrerosPage() {
   const navigate = useNavigate();
-  const { campoId } = useEstancia();
+  const { campoId, todas } = useEstancia();
   const { potreros, errors: erroresCarga } = usePotreros(campoId);
   const [nuevoCorral, setNuevoCorral] = useState(null);
   const [errors, setErrors] = useState([]);
@@ -31,7 +31,8 @@ export default function PotrerosPage() {
     <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
       <Encabezado titulo="Potreros" />
       <ErrorList errors={[...erroresCarga, ...errors]} />
-      {!campoId && <SinEstancia />}
+      {todas && <ElegirEstancia />}
+      {!campoId && !todas && <SinEstancia />}
       {campoId && !potreros && !erroresCarga.length && <p className="text-suelo-600">Cargando…</p>}
       {potreros && (
         <>

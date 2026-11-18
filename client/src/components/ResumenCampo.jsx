@@ -21,7 +21,12 @@ export default function ResumenCampo({ campoId }) {
 
   if (errors.length) return <ErrorList errors={errors} />;
   if (!resumen) return <p className="text-suelo-600">Cargando…</p>;
-  if (!resumen.filas.length) return <p className="text-suelo-600">Todavía no hay animales cargados en este campo.</p>;
+  return <TablaResumen resumen={resumen} />;
+}
+
+// La tabla y la carga por grupo, de una estancia o de todas juntas.
+export function TablaResumen({ resumen }) {
+  if (!resumen.filas.length) return <p className="text-suelo-600">Todavía no hay animales cargados.</p>;
 
   // CN y Verdeos siempre; Corral y Otro, solo si tienen animales (en el celular no sobra lugar).
   const columnas = ['CN', 'VERDEO', ...['CORRAL', 'OTRO'].filter((g) => resumen.totales[g] > 0)];

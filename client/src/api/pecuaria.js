@@ -24,6 +24,8 @@ export const editarPotrero = (id, datos) => api.patch(`/pecuaria/potreros/${id}`
 export const crearPotrero = (campoId, datos) => api.post(`/pecuaria/campos/${campoId}/potreros`, datos);
 
 export const getResumen = (campoId) => api.get(`/pecuaria/campos/${campoId}/resumen`);
+// Todas las estancias del usuario, sumadas (con una fila por estancia).
+export const getResumenTodas = () => api.get('/pecuaria/resumen');
 
 export const getParametros = () => api.get('/pecuaria/parametros');
 export const setParametro = (clave, valor) => api.put(`/pecuaria/parametros/${clave}`, { valor });

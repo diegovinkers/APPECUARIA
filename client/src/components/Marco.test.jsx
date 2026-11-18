@@ -5,16 +5,18 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Lo que devuelven los contextos y la API, a mano en cada test.
-const estado = vi.hoisted(() => ({ user: null, campos: [], potreros: [] }));
+const estado = vi.hoisted(() => ({ user: null, campos: [], potreros: [], todas: false }));
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ user: estado.user, logout: vi.fn() }),
 }));
 vi.mock('../context/EstanciaContext', () => ({
+  TODAS: 'todas',
   useEstancia: () => ({
     campos: estado.campos,
-    campoId: estado.campos[0]?.id ?? null,
-    campo: estado.campos[0] ?? null,
+    todas: estado.todas,
+    campoId: estado.todas ? null : (estado.campos[0]?.id ?? null),
+    campo: estado.todas ? null : (estado.campos[0] ?? null),
     setCampoId: vi.fn(),
     errors: [],
   }),
@@ -66,6 +68,7 @@ beforeEach(() => {
   estado.user = superadmin;
   estado.campos = [EG];
   estado.potreros = [];
+  estado.todas = false;
   contenedor = document.createElement('div');
   document.body.appendChild(contenedor);
   root = createRoot(contenedor);
@@ -115,7 +118,7 @@ describe('Marco: barras y panel', () => {
     estado.campos = [EG, { id: 2, sigla: 'ES', nombre: 'Otra estancia' }];
     montar();
     const select = contenedor.querySelector('select[aria-label="Estancia"]');
-    expect([...select.options].map((o) => o.textContent)).toEqual(['La Gateada', 'Otra estancia']);
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Todas las estancias', 'La Gateada', 'Otra estancia']);
   });
 
   it('la flechita del borde abre el panel y la X lo cierra', () => {
@@ -182,6 +185,19 @@ describe('Marco: el botón +', () => {
     montar();
     click(boton('Registrar'));
     elegir('Entrada');
+    elegir('14');
+    expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14');
+  });
+
+  it('con "Todas las estancias" elegido, primero pregunta en cuál', () => {
+    estado.campos = [EG, { id: 2, sigla: 'ES', nombre: 'Otra estancia' }];
+    estado.todas = true;
+    montar();
+    click(boton('Registrar'));
+    elegir('Entrada');
+    expect(texto()).toContain('¿En qué estancia?');
+    elegir('La Gateada');
+    expect(texto()).toContain('¿A qué potrero entran?');
     elegir('14');
     expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14');
   });

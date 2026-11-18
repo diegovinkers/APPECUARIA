@@ -11,7 +11,10 @@ export const USOS_SUELO = [
   { nombre: 'Festuca nueva', grupo: 'VERDEO' },
   { nombre: 'Festuca vieja', grupo: 'VERDEO' },
   // Sin distinguir forrajero (F) de silero (S) por ahora.
-  { nombre: 'Sorgo', grupo: 'VERDEO' },
+  { nombre: 'Sorgo', grupo: 'VERDEO', alias: ['S. Silero', 'Sorgo silero'] },
+  // De las otras estancias (decisión del 18/11/2026).
+  { nombre: 'Avena', grupo: 'VERDEO' },
+  { nombre: 'Megamix', grupo: 'VERDEO' },
   { nombre: 'PP+', grupo: 'VERDEO' },
   { nombre: 'Semillero', grupo: 'OTRO' },
   { nombre: 'Arroz', grupo: 'OTRO' },
@@ -32,7 +35,11 @@ export const CATEGORIAS = [
   { nombre: 'Vacas paridas', alias: ['Vaca parida'] },
   { nombre: 'Vacas invernar', alias: ['Vaca invernar', 'Vacas de invernada'] },
   { nombre: 'Vacas CUT', alias: ['Vaca CUT'] },
-  { nombre: 'Vaquillonas paridas', alias: ['VAQ. PARIDA', 'Vaq parida', 'Vaquillona parida'] },
+  { nombre: 'Vaquillonas paridas', alias: ['VAQ. PARIDA', 'Vaq parida', 'Vaquillona parida', 'Vacas primiparas', 'Vaca primipara'] },
+  // Las otras estancias escriben "Novillos" y "Vaquillonas" sin la edad: van
+  // como categorías generales, que se recategorizan después (18/11/2026).
+  { nombre: 'Novillos', alias: ['Novillo'] },
+  { nombre: 'Vaquillonas', alias: ['Vaquillona'] },
 ];
 
 export const PARAMETROS = [

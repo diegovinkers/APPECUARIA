@@ -151,7 +151,26 @@ describe('confirmar la importación', () => {
 
     const { body: b } = await subir(agent, archivo);
     expect(b.puedeConfirmar).toBe(false);
-    expect(b.errores).toEqual([expect.stringMatching(/Esta hoja de este archivo ya se importó/)]);
+    expect(b.errores).toEqual([expect.stringMatching(/Esta hoja de este archivo ya se importó para EJ/)]);
+  });
+
+  it('del mismo archivo se puede importar otra estancia (cada una por su lado)', async () => {
+    const agent = await preparar();
+    const archivo = await crearPlanilla({ '13.11.2026': HOJA_EJ });
+    const { body: a } = await subir(agent, archivo);
+    await agent.post(`/api/pecuaria/importaciones/${a.id}/confirmar`).send({}).expect(200);
+
+    const { body: ot } = await agent
+      .post('/api/pecuaria/importaciones/planilla?archivo=cargas.xlsx&campo=OT')
+      .set('Content-Type', XLSX)
+      .send(archivo)
+      .expect(201);
+    expect(ot.errores).toEqual([]);
+    await agent.post(`/api/pecuaria/importaciones/${ot.id}/confirmar`).send({ nombreCampo: 'Otra Estancia' }).expect(200);
+    const potreros = await potrerosDe(agent, 'OT');
+    expect(potreros.map((p) => [p.nombre, p.stock.cabezas])).toEqual([['1', 30]]);
+    // "Novillos", sin la edad, es una categoría general.
+    expect(potreros[0].stock.lotes.map((l) => l.categoria)).toEqual(['Novillos']);
   });
 
   it('una planilla nueva agrega historial: mantiene las hectáreas corregidas en la app y cambia el uso', async () => {

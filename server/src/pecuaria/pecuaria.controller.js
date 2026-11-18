@@ -3,7 +3,7 @@ import { filtroCampos } from './alcance.js';
 import * as lugares from './lugares.repository.js';
 import * as importaciones from './importaciones.service.js';
 import * as stock from './stock.service.js';
-import { resumenCampo } from './resumen.service.js';
+import { resumenCampo, resumenTodas } from './resumen.service.js';
 import * as movimientos from './movimientos.service.js';
 import * as tipos from './tipos.repository.js';
 import * as entradasSalidas from './entradas-salidas.service.js';
@@ -195,6 +195,11 @@ export async function putUso(req, res) {
 }
 
 // --- Resumen por campo ---
+
+// Todas las estancias que el usuario puede ver, sumadas.
+export async function getResumenTodas(req, res) {
+  res.json(await resumenTodas(filtroCampos(req.user)));
+}
 
 export async function getResumen(req, res) {
   res.json(await resumenCampo(req.params.campoId));

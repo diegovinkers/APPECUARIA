@@ -17,11 +17,31 @@ const r2 = (n) => Math.round(n * 100) / 100;
 export async function resumenCampo(campoId) {
   const campo = await findCampo(campoId);
   if (!campo) throw notFound('Campo no encontrado');
+  const { porCampo, ...r } = await resumen({ campoId: campo.id, activo: true });
+  return { campo: { id: campo.id, sigla: campo.sigla, nombre: campo.nombre }, ...r };
+}
+
+// "Todas las estancias" (paso 4 del rediseño): la misma tabla sumando las
+// estancias que el usuario puede ver (filtroCampos: undefined = todas), más
+// una fila por estancia con sus cabezas, potreros y hectáreas.
+export async function resumenTodas(filtroCampos) {
+  const campos = await prisma.campo.findMany({
+    where: { activo: true, ...filtroCampos },
+    select: { id: true, sigla: true, nombre: true },
+    orderBy: [{ orden: 'asc' }, { sigla: 'asc' }],
+  });
+  const { porCampo, ...r } = await resumen({ campoId: { in: campos.map((c) => c.id) }, activo: true });
+  const estancias = campos.map((c) => ({ ...c, ...(porCampo.get(c.id) ?? { potreros: 0, cabezas: 0, hectareas: 0 }) }));
+  return { campo: null, estancias, ...r };
+}
+
+async function resumen(where) {
   const kg = await kgPorUg();
 
   const potreros = await prisma.potrero.findMany({
-    where: { campoId: campo.id, activo: true },
+    where,
     select: {
+      campoId: true,
       tipo: true,
       hectareas: true,
       hectareasAConfirmar: true,
@@ -39,6 +59,7 @@ export async function resumenCampo(campoId) {
 
   const filas = new Map();
   const totales = vacio();
+  const porCampo = new Map();
   const grupos = Object.fromEntries(GRUPOS.map((g) => [g, { potreros: 0, hectareas: 0, todas: [], conHa: [] }]));
   let fecha = null;
 
@@ -51,6 +72,12 @@ export async function resumenCampo(campoId) {
       pesoPromedioKg: l.pesoPromedioKg == null ? null : Number(l.pesoPromedioKg),
     }));
     if (version && (!fecha || version.fecha > fecha)) fecha = version.fecha;
+
+    const c = porCampo.get(p.campoId) ?? { potreros: 0, cabezas: 0, hectareas: 0 };
+    c.potreros++;
+    c.cabezas += lineas.reduce((n, l) => n + l.cabezas, 0);
+    c.hectareas = r2(c.hectareas + (ha ?? 0));
+    porCampo.set(p.campoId, c);
 
     const g = grupos[grupo];
     g.potreros++;
@@ -73,7 +100,7 @@ export async function resumenCampo(campoId) {
   }
 
   return {
-    campo: { id: campo.id, sigla: campo.sigla, nombre: campo.nombre },
+    porCampo,
     fecha: fechaISO(fecha),
     kgPorUg: kg,
     filas: [...filas.values()]

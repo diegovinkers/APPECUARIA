@@ -4,12 +4,12 @@ import { ErrorList } from '../../components/ui';
 
 // Encabezado de Resumen, Potreros y Movimientos: el título y la estancia.
 export function Encabezado({ titulo, children }) {
-  const { campo } = useEstancia();
+  const { campo, todas } = useEstancia();
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
       <div>
         <h1 className="text-2xl font-bold sm:text-3xl">{titulo}</h1>
-        {campo && <p className="text-sm text-suelo-600">{campo.nombre}</p>}
+        {(campo || todas) && <p className="text-sm text-suelo-600">{todas ? 'Todas las estancias' : campo.nombre}</p>}
       </div>
       {children}
     </div>
@@ -28,6 +28,29 @@ export function SinEstancia() {
         Empezá importando la planilla de cargas
       </Link>
       .
+    </div>
+  );
+}
+
+// Con "Todas las estancias" elegido, las pantallas de una sola estancia
+// (Potreros, Movimientos) piden cuál.
+export function ElegirEstancia({ texto = '¿De qué estancia?' }) {
+  const { campos, setCampoId } = useEstancia();
+  return (
+    <div className="rounded-lg border border-suelo-200 bg-white p-4">
+      <p className="mb-3 text-suelo-700">{texto}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {campos.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setCampoId(c.id)}
+            className="rounded-md border border-suelo-300 px-4 py-3 text-left font-medium hover:border-campo-500 hover:bg-campo-50"
+          >
+            {c.nombre}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -18,7 +18,11 @@ const TONO = {
 // En el celular sube desde abajo; en la compu es una ventana al medio.
 export default function HojaRegistrar({ acciones, onCerrar }) {
   const navigate = useNavigate();
-  const { campoId, campo } = useEstancia();
+  const estancia = useEstancia();
+  // Con "Todas las estancias" elegido, primero se pide cuál.
+  const [elegida, setElegida] = useState(null);
+  const campoId = estancia.todas ? elegida?.id : estancia.campoId;
+  const campo = estancia.todas ? elegida : estancia.campo;
   const [accion, setAccion] = useState(null);
   const [potrero, setPotrero] = useState(null);
   const [busqueda, setBusqueda] = useState('');
@@ -47,14 +51,19 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
 
   function volver() {
     if (potrero) setPotrero(null);
-    else {
+    else if (estancia.todas && elegida) {
+      setElegida(null);
+      setBusqueda('');
+    } else {
       setAccion(null);
       setBusqueda('');
     }
   }
 
+  const pideEstancia = accion && estancia.todas && !elegida;
   let titulo = 'Registrar';
-  if (accion && !potrero) titulo = accion.pregunta;
+  if (pideEstancia) titulo = '¿En qué estancia?';
+  else if (accion && !potrero) titulo = accion.pregunta;
   if (potrero) titulo = `¿Qué lote de ${potrero.nombre}?`;
 
   return (
@@ -100,7 +109,19 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
           </ul>
         )}
 
-        {accion && !potrero && (
+        {pideEstancia && (
+          <ul className="-mx-1 divide-y divide-suelo-200">
+            {(estancia.campos ?? []).map((c) => (
+              <li key={c.id}>
+                <button type="button" onClick={() => setElegida(c)} className="w-full px-2 py-3 text-left font-medium hover:bg-suelo-100">
+                  {c.nombre}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {accion && !pideEstancia && !potrero && (
           <>
             <ErrorList errors={errors} />
             {!campoId && <p className="py-4 text-sm text-suelo-600">Todavía no hay estancias cargadas.</p>}

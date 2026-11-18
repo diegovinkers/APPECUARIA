@@ -63,9 +63,11 @@ function vistaPrevia(row) {
   };
 }
 
-const yaImportada = (hashArchivo, hoja) =>
+// La misma hoja del mismo archivo ya confirmada para esa estancia. Una
+// planilla trae varias estancias: importar EG no impide importar ER.
+const yaImportada = (hashArchivo, hoja, sigla) =>
   prisma.importacion.findFirst({
-    where: { tipo: 'PLANILLA', estado: 'CONFIRMADA', hashArchivo, hoja },
+    where: { tipo: 'PLANILLA', estado: 'CONFIRMADA', hashArchivo, hoja, datos: { path: ['campo', 'sigla'], equals: sigla } },
     select: { confirmadaEn: true },
   });
 
@@ -127,8 +129,8 @@ export async function previsualizarPlanilla({ buffer, archivo, hoja, campo, usua
       `La categoría "${texto}" ${enPotreros(lista)} no está en el catálogo: agregala como categoría o como alias de una existente y volvé a subir la planilla`,
     );
   }
-  const previa = await yaImportada(hashArchivo, lectura.hoja);
-  if (previa) errores.push(`Esta hoja de este archivo ya se importó el ${fechaUY(previa.confirmadaEn)}`);
+  const previa = await yaImportada(hashArchivo, lectura.hoja, lectura.campo);
+  if (previa) errores.push(`Esta hoja de este archivo ya se importó para ${lectura.campo} el ${fechaUY(previa.confirmadaEn)}`);
 
   const porCategoria = new Map();
   for (const l of potreros.flatMap((p) => p.lineas)) {
@@ -185,7 +187,7 @@ export async function confirmar(id, { fecha, nombreCampo }, usuarioId) {
   if (d.errores.length) {
     throw badRequest('La vista previa tiene errores: corregí la planilla (o los catálogos) y volvé a subirla');
   }
-  if (await yaImportada(row.hashArchivo, row.hoja)) throw conflict('Esta hoja de este archivo ya se importó');
+  if (await yaImportada(row.hashArchivo, row.hoja, row.datos.campo.sigla)) throw conflict('Esta hoja de este archivo ya se importó para esa estancia');
 
   const f = aFecha(fecha ?? fechaISO(row.fechaDatos) ?? hoyISO());
   const resultado = await prisma.$transaction(

@@ -182,6 +182,19 @@ describe('alcance por estancia', () => {
     await encargado.post('/api/pecuaria/campos').send({ sigla: 'NV', nombre: 'Nueva' }).expect(404);
   });
 
+  it('el resumen de "todas" suma solo las estancias que puede ver', async () => {
+    const { encargado, agent: jefe } = await encargadoDeEJ();
+    const todas = (await jefe.get('/api/pecuaria/resumen').expect(200)).body;
+    expect(todas.estancias.map((e) => [e.sigla, e.cabezas])).toEqual([
+      ['EJ', 150],
+      ['OT', 30],
+    ]);
+    expect(todas.totales.total).toBe(180);
+    const suyas = (await encargado.get('/api/pecuaria/resumen').expect(200)).body;
+    expect(suyas.estancias.map((e) => e.sigla)).toEqual(['EJ']);
+    expect(suyas.totales.total).toBe(150);
+  });
+
   it('la Configuración es común: el encargado la usa aunque tenga una sola estancia', async () => {
     const { encargado } = await encargadoDeEJ();
     await encargado.get('/api/pecuaria/categorias').expect(200);

@@ -40,7 +40,8 @@ export function Paginador({ pagina, total, onCambiar, desde, hasta, de }) {
   if (total <= 1) return null;
   const boton = 'min-w-9 rounded-md px-2 py-1.5 text-sm tabular-nums';
   return (
-    <nav aria-label="Páginas" className="mt-3 flex flex-col items-center gap-1.5">
+    // Una sola línea si entra: queda fija debajo de la tabla, siempre a la vista.
+    <nav aria-label="Páginas" className="mt-2 flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1">
       <div className="flex flex-wrap items-center justify-center gap-1">
         <button type="button" disabled={pagina <= 1} onClick={() => onCambiar(pagina - 1)} aria-label="Página anterior" className={`${boton} text-campo-700 hover:bg-suelo-100 disabled:opacity-30`}>
           ‹

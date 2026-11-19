@@ -56,13 +56,14 @@ const fechaCorta = (f) => formatFecha(f).slice(0, 5);
 
 // "potrero · lote" de un lado del movimiento. Si el potrero es de otra
 // estancia (movimiento entre campos), con su estancia: "← La Gateada · 10.3".
-function lado(m, cual, campoId) {
+// corto: solo el potrero (para la segunda línea del celular).
+function lado(m, cual, campoId, corto = false) {
   const potrero = cual === 'origen' ? m.potreroOrigen : m.potreroDestino;
   const lote = cual === 'origen' ? m.loteOrigen : m.loteDestino;
   if (!potrero) return '—';
   // Los lotes que armó la planilla ya llevan el potrero en el nombre
   // ("10.3 · Terneros"): no se repite.
-  const texto = !lote ? potrero.nombre : lote.nombre.startsWith(`${potrero.nombre} · `) ? lote.nombre : `${potrero.nombre} · ${lote.nombre}`;
+  const texto = !lote || corto ? potrero.nombre : lote.nombre.startsWith(`${potrero.nombre} · `) ? lote.nombre : `${potrero.nombre} · ${lote.nombre}`;
   if (potrero.campoId == null || potrero.campoId === campoId) return texto;
   const campo = [m.campo, m.campoOtro].find((c) => c?.id === potrero.campoId);
   return `${cual === 'origen' ? '←' : '→'} ${campo?.nombre ?? 'otro campo'} · ${texto}`;
@@ -109,6 +110,8 @@ export function armarFilas(movimientos, campoId) {
         peso: m.pesoPromedioKg,
         origen: lado(m, 'origen', campoId),
         destino: lado(m, 'destino', campoId),
+        origenCorto: lado(m, 'origen', campoId, true),
+        destinoCorto: lado(m, 'destino', campoId, true),
         usuario: m.usuario ?? '',
         revertido: m.revertido,
         puedeRevertir: m.puedeRevertir,
@@ -130,6 +133,8 @@ export function armarFilas(movimientos, campoId) {
       peso: pasos.length === 1 ? pasos[0].pesoPromedioKg : null,
       origen: unicos(pasos.map((m) => lado(m, 'origen', campoId))).join(', ') || '—',
       destino: unicos(pasos.map((m) => lado(m, 'destino', campoId))).join(', ') || '—',
+      origenCorto: unicos(pasos.map((m) => lado(m, 'origen', campoId, true))).join(', ') || '—',
+      destinoCorto: unicos(pasos.map((m) => lado(m, 'destino', campoId, true))).join(', ') || '—',
       usuario: pasos[0].usuario ?? '',
       revertido: Boolean(f.evento.revertido),
       puedeRevertir: Boolean(f.evento.puedeRevertir),
@@ -272,7 +277,7 @@ export default function MovimientosLista({ campoId, potreros }) {
   const columnas = conRevertir ? COLUMNAS.length + 1 : COLUMNAS.length;
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PanelFiltros activos={activos} onLimpiar={limpiar}>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Período">
           {PERIODOS.map(([valor, texto]) => (
@@ -337,7 +342,8 @@ export default function MovimientosLista({ campoId, potreros }) {
           {hayFiltros ? 'No hay movimientos con esos filtros.' : 'Todavía no hay movimientos. Se registran con el botón +.'}
         </p>
       ) : (
-        <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-movimientos">
+        // Se achica para que entre en la pantalla; lo que no entra, scrollea adentro.
+        <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-movimientos">
           <table className="w-full border-separate md:min-w-[56rem] border-spacing-0 text-left text-sm">
             <thead className="text-xs text-suelo-600">
               <tr>
@@ -373,9 +379,9 @@ export default function MovimientosLista({ campoId, potreros }) {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={columnas} className="sticky bottom-0 left-0 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
+                <td colSpan={columnas} className="sticky bottom-0 left-0 z-20 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
                   <span className="sticky left-3">
-                    <strong>Total{hayFiltros ? ' con los filtros' : ''}:</strong> {datos.resumen.movimientos} {datos.resumen.movimientos === 1 ? 'movimiento' : 'movimientos'} ·{' '}
+                    <strong>Total{hayFiltros ? ' filtrado' : ''}:</strong> {datos.resumen.movimientos} {datos.resumen.movimientos === 1 ? 'movimiento' : 'movimientos'} ·{' '}
                     <strong>{formatNumero(datos.resumen.cabezas)}</strong> cabezas movidas ·{' '}
                     <strong className="text-emerald-800">+{formatNumero(datos.resumen.entradas)}</strong> entraron ·{' '}
                     <strong className="text-red-700">−{formatNumero(datos.resumen.salidas)}</strong> salieron
@@ -412,7 +418,7 @@ function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
         {/* En el celular: categoría, de dónde a dónde, peso y quién, debajo del tipo. */}
         <span className="block text-xs text-suelo-600 md:hidden">
           {fila.categoria}
-          {fila.origen !== '—' || fila.destino !== '—' ? ` · ${fila.origen} → ${fila.destino}` : ''}
+          {fila.origenCorto !== '—' || fila.destinoCorto !== '—' ? ` · ${fila.origenCorto} → ${fila.destinoCorto}` : ''}
           {fila.peso ? ` · ${formatNumero(fila.peso)} kg` : ''}
           {fila.usuario ? ` · ${fila.usuario}` : ''}
         </span>
@@ -462,7 +468,7 @@ function Paso({ m, n, campoId, conRevertir }) {
       <td className={celda}>
         {tipoDe(m)}
         <span className="block text-xs text-suelo-600 md:hidden">
-          {categoriaDe(m)} · {lado(m, 'origen', campoId)} → {lado(m, 'destino', campoId)}
+          {categoriaDe(m)} · {lado(m, 'origen', campoId, true)} → {lado(m, 'destino', campoId, true)}
         </span>
       </td>
       <td className={`${celda} ${SOLO_COMPU}`}>{categoriaDe(m)}</td>

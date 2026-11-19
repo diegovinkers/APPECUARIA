@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { TODAS, useEstancia } from '../context/EstanciaContext';
@@ -147,6 +147,7 @@ function MarcoInterno() {
   const filtros = usePanelFiltros();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [registrarAbierto, setRegistrarAbierto] = useState(false);
+  const contenido = useRef(null);
   const conMenu = Boolean(user && !user.debeCambiarPassword);
   const menu = menuPara(user);
   const { setAbierto: setFiltrosAbierto, hay: hayFiltros } = filtros;
@@ -157,8 +158,10 @@ function MarcoInterno() {
     navigate('/login');
   }
 
-  // Al cambiar de pantalla se cierran el menú, los filtros y la hoja del "+".
+  // Al cambiar de pantalla se cierran el menú, los filtros y la hoja del "+",
+  // y lo de la pantalla nueva arranca desde arriba.
   useEffect(() => {
+    contenido.current?.scrollTo?.(0, 0);
     setMenuAbierto(false);
     setFiltrosAbierto(false);
     setRegistrarAbierto(false);
@@ -213,8 +216,11 @@ function MarcoInterno() {
     `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${isActive ? 'font-semibold text-campo-600' : 'text-suelo-500'}`;
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-30 flex items-center gap-2 bg-campo-600 px-3 py-2.5 text-white lg:gap-3 lg:px-4">
+    // La app ocupa justo la pantalla: arriba la barra, abajo (celular) la barra
+    // de abajo, y en el medio lo que scrollea. Así Potreros y Movimientos
+    // (PantallaTabla) dejan fijos el título y el paginador y solo scrollea la tabla.
+    <div className="flex h-dvh flex-col">
+      <header className="relative z-30 flex shrink-0 items-center gap-2 bg-campo-600 px-3 py-2.5 text-white lg:gap-3 lg:px-4">
         <Link to="/pecuaria/resumen" className="flex items-center gap-2">
           <Logo />
           <span className="text-lg font-semibold">SAPSA</span>
@@ -263,7 +269,7 @@ function MarcoInterno() {
         </div>
       )}
 
-      <div className="lg:flex">
+      <div className="flex min-h-0 flex-1">
         {/* Panel de filtros: cajón en el celular, fijo en la compu. */}
         {hayFiltros && filtros.abierto && (
           <button type="button" aria-label="Cerrar los filtros" onClick={() => setFiltrosAbierto(false)} className="fixed inset-0 z-40 bg-black/40 lg:hidden" />
@@ -272,7 +278,7 @@ function MarcoInterno() {
           aria-label="Filtros"
           className={`${hayFiltros ? '' : 'hidden'} fixed inset-y-0 left-0 z-40 w-[85%] max-w-xs overflow-y-auto bg-white p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl transition-transform ${
             filtros.abierto ? 'translate-x-0' : '-translate-x-full'
-          } lg:sticky lg:top-[52px] lg:z-0 lg:h-[calc(100vh-52px)] lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-r lg:border-suelo-200 lg:shadow-none`}
+          } lg:static lg:z-0 lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-r lg:border-suelo-200 lg:shadow-none`}
         >
           <div className="mb-3 flex items-center justify-between">
             <p className="font-semibold">Filtros</p>
@@ -282,7 +288,8 @@ function MarcoInterno() {
           </div>
           <DestinoFiltros />
         </aside>
-        <div className="min-w-0 flex-1 pb-24 lg:pb-0">
+        {/* pb-6: que el "+" de la barra de abajo (sobresale) no tape lo último. */}
+        <div ref={contenido} className="min-w-0 flex-1 overflow-y-auto pb-6 lg:pb-0" data-testid="contenido">
           <Outlet />
         </div>
       </div>
@@ -301,7 +308,7 @@ function MarcoInterno() {
 
       <nav
         aria-label="Barra de abajo"
-        className="fixed inset-x-0 bottom-0 z-30 flex items-end border-t border-suelo-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         {menu.principal.slice(0, 2).map((item) => (
           <NavLink key={item.clave} to={item.ruta} className={linkAbajo}>

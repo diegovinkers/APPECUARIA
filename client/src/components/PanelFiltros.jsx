@@ -13,7 +13,8 @@ export function PanelFiltrosProvider({ children }) {
   const [destino, setDestino] = useState(null); // el lugar del panel, en el Marco
   const [abierto, setAbierto] = useState(false);
   const [cuantos, setCuantos] = useState(0); // pantallas con filtros montadas
-  const value = { destino, setDestino, abierto, setAbierto, hay: cuantos > 0, setCuantos };
+  const [destinoBoton, setDestinoBoton] = useState(null); // al lado del título (Encabezado)
+  const value = { destino, setDestino, abierto, setAbierto, hay: cuantos > 0, setCuantos, destinoBoton, setDestinoBoton };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -23,38 +24,60 @@ export function DestinoFiltros() {
   return <div ref={setDestino} />;
 }
 
+// El lugar del botón "Filtros", al lado del título de la pantalla (lo pone el
+// Encabezado). Sin él, el botón va donde esté <PanelFiltros>.
+export function DestinoBotonFiltros() {
+  const { setDestinoBoton } = usePanelFiltros();
+  return <div ref={setDestinoBoton} className="contents" />;
+}
+
+const SIN_PANEL = {
+  destino: null,
+  setDestino: () => {},
+  abierto: false,
+  setAbierto: () => {},
+  hay: false,
+  setCuantos: () => {},
+  destinoBoton: null,
+  setDestinoBoton: () => {},
+};
+
 export function usePanelFiltros() {
-  return useContext(Ctx) ?? { destino: null, setDestino: () => {}, abierto: false, setAbierto: () => {}, hay: false, setCuantos: () => {} };
+  return useContext(Ctx) ?? SIN_PANEL;
 }
 
 // activos: cuántos filtros hay puestos (para el botón). onLimpiar: si hay.
 export default function PanelFiltros({ activos = 0, onLimpiar, children }) {
-  const { destino, setAbierto, setCuantos } = usePanelFiltros();
+  const { destino, setAbierto, setCuantos, destinoBoton } = usePanelFiltros();
 
   useEffect(() => {
     setCuantos((n) => n + 1);
     return () => setCuantos((n) => n - 1);
   }, [setCuantos]);
 
+  // En el celular: el botón para abrir el cajón (en la compu el panel está fijo).
+  const boton = (
+    <div className={`flex items-center gap-2 lg:hidden ${destinoBoton ? '' : 'mb-2'}`}>
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="flex items-center gap-1.5 rounded-md border border-suelo-300 bg-white px-2.5 py-1.5 text-sm font-medium text-suelo-800 hover:border-campo-400"
+      >
+        <Icono nombre="configuracion" className="h-4 w-4" />
+        Filtros
+        {activos > 0 && <span className="rounded-full bg-campo-600 px-2 text-xs text-white">{activos}</span>}
+      </button>
+      {activos > 0 && onLimpiar && (
+        <button type="button" onClick={onLimpiar} className="text-sm text-campo-600 hover:underline">
+          Limpiar
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <>
-      {/* En el celular: el botón para abrir el cajón, arriba de la tabla. */}
-      <div className="mb-3 flex items-center gap-3 lg:hidden">
-        <button
-          type="button"
-          onClick={() => setAbierto(true)}
-          className="flex items-center gap-2 rounded-md border border-suelo-300 bg-white px-3 py-2 text-sm font-medium text-suelo-800 hover:border-campo-400"
-        >
-          <Icono nombre="configuracion" className="h-4 w-4" />
-          Filtros
-          {activos > 0 && <span className="rounded-full bg-campo-600 px-2 text-xs text-white">{activos}</span>}
-        </button>
-        {activos > 0 && onLimpiar && (
-          <button type="button" onClick={onLimpiar} className="text-sm text-campo-600 hover:underline">
-            Limpiar
-          </button>
-        )}
-      </div>
+      {destinoBoton ? createPortal(boton, destinoBoton) : boton}
       {destino &&
         createPortal(
           <div className="space-y-3">

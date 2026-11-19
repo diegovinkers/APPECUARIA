@@ -130,6 +130,13 @@ describe('armarFilas', () => {
     expect(enDestino.origen).toBe('← La Gateada · 10.3 · A');
     expect(enDestino.destino).toBe('Feedlot · A');
   });
+
+  it('para la segunda línea del celular, solo los potreros (sin repetir la categoría del lote)', () => {
+    const [entre, multiple, suelto] = armarFilas(MOVIMIENTOS, EG.id);
+    expect([multiple.origenCorto, multiple.destinoCorto]).toEqual(['10.3, 2', '2, 3']);
+    expect([entre.origenCorto, entre.destinoCorto]).toEqual(['10.3', '→ La Seda · Feedlot']);
+    expect([suelto.origenCorto, suelto.destinoCorto]).toEqual(['2', '—']);
+  });
 });
 
 describe('ordenarFilas', () => {

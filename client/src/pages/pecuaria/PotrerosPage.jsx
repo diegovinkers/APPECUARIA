@@ -6,10 +6,10 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, inputClass } from '../../components/ui';
 import PotrerosLista from '../../components/PotrerosLista';
-import { ElegirEstancia, Encabezado, SinEstancia } from './comun';
+import { ElegirEstancia, Encabezado, PantallaTabla, SinEstancia } from './comun';
 
 // Los potreros de la estancia con su uso, cabezas, lotes y carga, con filtros.
-// Tocar un potrero abre su ficha.
+// Tocar un potrero abre su ficha. La pantalla no scrollea: solo la tabla.
 export default function PotrerosPage() {
   const navigate = useNavigate();
   const { campoId, todas } = useEstancia();
@@ -28,43 +28,30 @@ export default function PotrerosPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
-      <Encabezado titulo="Potreros" />
+    <PantallaTabla>
+      <Encabezado titulo="Potreros">
+        {potreros && nuevoCorral == null && (
+          <button type="button" onClick={() => setNuevoCorral('Feedlot')} className="text-sm text-campo-600 hover:underline">
+            + Corral
+          </button>
+        )}
+      </Encabezado>
+      {nuevoCorral != null && (
+        <form onSubmit={agregarCorral} className="mb-2 flex shrink-0 flex-wrap gap-2">
+          <input value={nuevoCorral} onChange={(e) => setNuevoCorral(e.target.value)} aria-label="Nombre del corral" className={`${inputClass} max-w-xs`} />
+          <button type="submit" disabled={!nuevoCorral.trim()} className="rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+            Agregar
+          </button>
+          <button type="button" onClick={() => setNuevoCorral(null)} className="px-3 py-2 text-sm text-suelo-600">
+            Cancelar
+          </button>
+        </form>
+      )}
       <ErrorList errors={[...erroresCarga, ...errors]} />
       {todas && <ElegirEstancia />}
       {!campoId && !todas && <SinEstancia />}
       {campoId && !potreros && !erroresCarga.length && <p className="text-suelo-600">Cargando…</p>}
-      {potreros && (
-        <>
-          <PotrerosLista potreros={potreros} />
-          <div className="mt-6">
-            {nuevoCorral == null ? (
-              <button type="button" onClick={() => setNuevoCorral('Feedlot')} className="text-sm text-campo-600 hover:underline">
-                + Agregar corral (feedlot)
-              </button>
-            ) : (
-              <form onSubmit={agregarCorral} className="flex flex-wrap gap-2">
-                <input
-                  value={nuevoCorral}
-                  onChange={(e) => setNuevoCorral(e.target.value)}
-                  aria-label="Nombre del corral"
-                  className={`${inputClass} max-w-xs`}
-                />
-                <button
-                  type="submit"
-                  disabled={!nuevoCorral.trim()}
-                  className="rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  Agregar
-                </button>
-                <button type="button" onClick={() => setNuevoCorral(null)} className="px-3 py-2 text-sm text-suelo-600">
-                  Cancelar
-                </button>
-              </form>
-            )}
-          </div>
-        </>
-      )}
-    </main>
+      {potreros && <PotrerosLista potreros={potreros} />}
+    </PantallaTabla>
   );
 }

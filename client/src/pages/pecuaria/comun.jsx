@@ -1,19 +1,30 @@
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useEstancia } from '../../context/EstanciaContext';
 import { ErrorList } from '../../components/ui';
+import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 
-// Encabezado de Resumen, Potreros y Movimientos: el título y la estancia.
+// Encabezado de Resumen, Potreros y Movimientos, en un solo renglón (pedido de
+// Diego, 19/11): el título, la estancia chica al lado y, en el celular, el
+// botón "Filtros" de la pantalla (si tiene).
 export function Encabezado({ titulo, children }) {
   const { campo, todas } = useEstancia();
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">{titulo}</h1>
-        {(campo || todas) && <p className="text-sm text-suelo-600">{todas ? 'Todas las estancias' : campo.nombre}</p>}
-      </div>
-      {children}
+    <div className="mb-2 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <h1 className="text-xl font-bold leading-tight sm:text-2xl">
+        {titulo}
+        {(campo || todas) && <span className="ml-2 text-sm font-normal text-suelo-600">{todas ? 'Todas las estancias' : campo.nombre}</span>}
+      </h1>
+      <DestinoBotonFiltros />
+      {children && <div className="ml-auto">{children}</div>}
     </div>
   );
+}
+
+// Pantalla de una tabla (Potreros, Movimientos): ocupa justo el alto que deja
+// el Marco; el título y el paginador quedan fijos y solo scrollea la tabla
+// (pedido de Diego, 19/11). La lista adentro usa flex-1 + min-h-0.
+export function PantallaTabla({ children }) {
+  return <main className="mx-auto flex h-full max-w-5xl flex-col px-4 pt-3 sm:pt-5 lg:pb-4">{children}</main>;
 }
 
 // Mientras no haya estancia elegida: cargando, error o "importá la planilla".

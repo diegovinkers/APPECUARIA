@@ -174,6 +174,12 @@ describe('Marco: barras y panel', () => {
     expect(contenedor.querySelector('aside[aria-label="Filtros"]').className).toContain('translate-x-0');
   });
 
+  it('ocupa justo la pantalla: lo que scrollea es el contenido, no la página', () => {
+    montar();
+    expect(contenedor.firstElementChild.className).toContain('h-dvh');
+    expect(contenedor.querySelector('[data-testid="contenido"]').className).toContain('overflow-y-auto');
+  });
+
   it('sin sesión no hay menú, solo la barra simple', () => {
     estado.user = null;
     montar('/login');

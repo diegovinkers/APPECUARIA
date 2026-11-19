@@ -132,7 +132,7 @@ export default function PotrerosLista({ potreros }) {
   const pie = `${celda} sticky bottom-0 border-t-2 border-t-suelo-300 bg-suelo-100`;
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <PanelFiltros activos={activos} onLimpiar={limpiar}>
         <input
           type="search"
@@ -160,23 +160,12 @@ export default function PotrerosLista({ potreros }) {
         </label>
       </PanelFiltros>
 
-      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-sm">
-        <p>
-          <strong>{visibles.length}</strong> de {potreros.length} potreros
-          {nombreCategoria && (
-            <>
-              {' '}
-              · con <strong>{nombreCategoria}</strong>
-            </>
-          )}
-        </p>
-      </div>
-
       {visibles.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">Ningún potrero cumple esos filtros.</p>
       ) : (
         <>
-          <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-potreros">
+          {/* Se achica para que entre en la pantalla; lo que no entra, scrollea adentro. */}
+          <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-potreros">
             <table className="w-full border-separate md:min-w-[44rem] border-spacing-0 text-left text-sm">
               <thead className="text-xs text-suelo-600">
                 <tr>
@@ -204,10 +193,11 @@ export default function PotrerosLista({ potreros }) {
                   <td className={`${pie} left-0 z-20`}>
                     Total{hayFiltros ? ' filtrado' : ''}
                     <span className="block text-xs font-normal text-suelo-600 md:hidden">
-                      {visibles.length} potreros · {formatNumero(resumen.hectareas)} ha
+                      {visibles.length} de {potreros.length} potreros · {formatNumero(resumen.hectareas)} ha
+                      {nombreCategoria && ` · con ${nombreCategoria}`}
                     </span>
                   </td>
-                  <td className={`${pie} ${SOLO_COMPU} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} potreros</td>
+                  <td className={`${pie} ${SOLO_COMPU} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} de {potreros.length} potreros</td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
                   <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.cabezas)}</td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>

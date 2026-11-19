@@ -210,6 +210,18 @@ describe('la tabla', () => {
     window.confirm.mockRestore();
   });
 
+  it('con más de 50 filas aparece el paginador; la página 2 trae el resto', async () => {
+    const muchos = Array.from({ length: 120 }, (_, i) => ({ ...MOVIMIENTOS[3], id: 1000 + i, cabezas: i + 1 }));
+    api.getMovimientos.mockResolvedValue({ data: { movimientos: muchos, resumen: { movimientos: 120, cabezas: 0, entradas: 0, salidas: 0 } } });
+    await montar();
+    expect(filasDelCuerpo()).toHaveLength(50);
+    const paginas = contenedor.querySelector('nav[aria-label="Páginas"]');
+    expect(paginas.textContent).toContain('Filas 1–50 de 120');
+    act(() => [...paginas.querySelectorAll('button')].find((b) => b.textContent === '3').click());
+    expect(filasDelCuerpo()).toHaveLength(20);
+    expect(paginas.textContent).toContain('Filas 101–120 de 120');
+  });
+
   it('sin permiso de revertir no hay columna de acciones', async () => {
     estado.user = { esSuperadmin: false, permisos: ['pecuaria:VER'] };
     await montar();

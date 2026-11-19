@@ -5,6 +5,7 @@ import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice } from './ui';
 import { formatFecha, formatNumero } from './pecuaria';
 import usePuede from '../hooks/usePuede';
+import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const iso = (d) => d.toLocaleDateString('sv-SE');
@@ -194,6 +195,7 @@ export default function MovimientosLista({ campoId, potreros }) {
   const [aviso, setAviso] = useState(null);
   const [orden, setOrden] = useState({ col: 'fecha', dir: 'desc' });
   const [abiertos, setAbiertos] = useState(() => new Set());
+  const [pagina, setPagina] = useState(1);
 
   const filtrosApi = useMemo(() => {
     const desde =
@@ -226,6 +228,9 @@ export default function MovimientosLista({ campoId, potreros }) {
   }, [potreros]);
 
   const filas = useMemo(() => (datos ? ordenarFilas(armarFilas(datos.movimientos, campoId), orden) : []), [datos, campoId, orden]);
+  // Cambiar un filtro o el orden vuelve a la página 1.
+  useEffect(() => setPagina(1), [filtrosApi, orden]);
+  const pag = paginar(filas, pagina);
 
   const ordenarPor = (col) => setOrden((o) => ({ col, dir: o.col === col && o.dir === 'desc' ? 'asc' : 'desc' }));
   const alternar = (clave) =>
@@ -332,34 +337,22 @@ export default function MovimientosLista({ campoId, potreros }) {
           {hayFiltros ? 'No hay movimientos con esos filtros.' : 'Todavía no hay movimientos. Se registran con el botón +.'}
         </p>
       ) : (
-        <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-200 bg-white" data-testid="tabla-movimientos">
+        <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-movimientos">
           <table className="w-full min-w-[56rem] border-separate border-spacing-0 text-left text-sm">
             <thead className="text-xs text-suelo-600">
               <tr>
                 {COLUMNAS.map(([col, titulo], i) => (
-                  <th
-                    key={col}
-                    scope="col"
-                    aria-sort={orden.col === col ? (orden.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    className={`sticky top-0 border-b border-suelo-200 bg-suelo-100 px-3 py-2 font-medium ${i === 0 ? 'left-0 z-20' : 'z-10'} ${col === 'cabezas' || col === 'peso' ? 'text-right' : ''}`}
-                  >
-                    <button type="button" onClick={() => ordenarPor(col)} className="inline-flex items-center gap-1 hover:text-suelo-900">
-                      {titulo}
-                      <span aria-hidden="true" className="text-suelo-400">
-                        {orden.col === col ? (orden.dir === 'asc' ? '▲' : '▼') : '↕'}
-                      </span>
-                    </button>
-                  </th>
+                  <TituloOrdenable key={col} col={col} titulo={titulo} orden={orden} onOrdenar={ordenarPor} derecha={col === 'cabezas' || col === 'peso'} fija={i === 0} />
                 ))}
-                {conRevertir && <th scope="col" className="sticky top-0 z-10 border-b border-suelo-200 bg-suelo-100 px-3 py-2" aria-label="Acciones" />}
+                {conRevertir && <th scope="col" className="sticky top-0 z-10 border-b border-suelo-300 bg-suelo-100 px-2 py-1.5" aria-label="Acciones" />}
               </tr>
             </thead>
             <tbody>
-              {filas.map((fila) => {
+              {pag.filas.map((fila, n) => {
                 const abierto = abiertos.has(fila.clave);
                 return (
                   <Fragment key={fila.clave}>
-                    <Fila fila={fila} abierto={abierto} onAlternar={() => alternar(fila.clave)} conRevertir={conRevertir} onRevertir={() => onRevertir(fila)} />
+                    <Fila fila={fila} par={n % 2 === 1} abierto={abierto} onAlternar={() => alternar(fila.clave)} conRevertir={conRevertir} onRevertir={() => onRevertir(fila)} />
                     {fila.pasos &&
                       abierto &&
                       fila.pasos.map((m, n) => (
@@ -384,17 +377,18 @@ export default function MovimientosLista({ campoId, potreros }) {
           </table>
         </div>
       )}
+      {datos && <Paginador {...pag} onCambiar={setPagina} de={filas.length} />}
     </div>
   );
 }
 
-const celda = 'border-b border-suelo-200 px-3 py-2 align-top';
-
-function Fila({ fila, abierto, onAlternar, conRevertir, onRevertir }) {
+function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
   const colorCabezas = fila.signo === '+' ? 'text-emerald-800' : fila.signo === '−' ? 'text-red-700' : '';
+  // Filas alternadas, como en Excel.
+  const fondo = par ? '[&>td]:bg-suelo-50' : '[&>td]:bg-white';
   return (
-    <tr className={fila.revertido ? 'text-suelo-400' : ''}>
-      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap bg-white font-medium`}>
+    <tr className={`${fondo} ${fila.revertido ? 'text-suelo-400' : ''}`}>
+      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap font-medium`}>
         {fila.pasos ? (
           <button type="button" onClick={onAlternar} aria-expanded={abierto} aria-label={abierto ? 'Cerrar los pasos' : 'Ver los pasos'} className="mr-1 text-campo-600">
             {abierto ? '▾' : '▸'}
@@ -446,8 +440,8 @@ function LadoConLink({ texto, lote }) {
 
 function Paso({ m, n, campoId, conRevertir }) {
   return (
-    <tr className="bg-suelo-50 text-suelo-700">
-      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap bg-suelo-50 pl-8 text-xs text-suelo-500`}>Paso {n}</td>
+    <tr className="text-suelo-700 [&>td]:bg-campo-50">
+      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap pl-7 text-xs text-suelo-500`}>Paso {n}</td>
       <td className={celda}>{tipoDe(m)}</td>
       <td className={celda}>{categoriaDe(m)}</td>
       <td className={`${celda} text-right tabular-nums`}>{formatNumero(m.cabezas)}</td>

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Hectareas, UsoBadge, formatNumero } from './pecuaria';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { UsoBadge, cabezasPorCategoria, formatNumero } from './pecuaria';
+import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -17,37 +18,76 @@ const ANIMALES = [
   ['con', 'Con animales'],
   ['vacios', 'Vacíos'],
 ];
-const ORDEN = [
-  ['nombre', 'Nombre'],
-  ['cabezas', 'Más cabezas'],
-  ['carga', 'Más carga'],
+
+// Columnas de la tabla: [clave, título, derecha, valor para ordenar].
+// Las de números se ordenan primero de mayor a menor.
+const COLUMNAS = [
+  ['potrero', 'Potrero', false, null],
+  ['uso', 'Uso', false, (p) => p.usoActual?.nombre ?? null],
+  ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas)],
+  ['cabezas', 'Cabezas', true, (p) => p.stock?.cabezas ?? 0],
+  ['categorias', 'Categorías', false, (p) => (p.stock?.cabezas ? cabezasPorCategoria(p.stock.lotes) : null)],
+  ['cabHa', 'cab/ha', true, (p) => p.stock?.cabHa ?? null],
+  ['ugHa', 'UG/ha', true, (p) => p.stock?.ugHa ?? null],
 ];
+const NUMERICAS = new Set(['hectareas', 'cabezas', 'cabHa', 'ugHa']);
+// Las direcciones viejas (?orden=carga) siguen andando.
+const ALIAS_ORDEN = { nombre: 'potrero', carga: 'ugHa' };
 
 const grupoDe = (p) => (p.tipo === 'CORRAL' ? 'CORRAL' : (p.usoActual?.grupo ?? 'OTRO'));
 const incompleto = (p) => p.hectareasAConfirmar || (p.stock && !p.stock.kilosCompletos);
 
-// Lista de potreros con filtros. Los filtros viven en la dirección de la
-// página (?grupo=VERDEO&categoria=…): al volver de un potrero siguen puestos.
+// Ordena los potreros por una columna. "Potrero" sigue el orden de la planilla
+// (y el nombre); en las demás, a igualdad, por nombre. Los que no tienen el
+// dato van siempre al final.
+export function ordenarPotreros(lista, { col, dir }) {
+  const porNombre = (a, b) => a.orden - b.orden || ordenNatural.compare(a.nombre, b.nombre);
+  const signo = dir === 'asc' ? 1 : -1;
+  const valor = COLUMNAS.find(([c]) => c === col)?.[3];
+  if (!valor) return [...lista].sort((a, b) => porNombre(a, b) * signo);
+  return [...lista].sort((a, b) => {
+    const x = valor(a);
+    const y = valor(b);
+    if (x == null || y == null) return (x == null) - (y == null) || porNombre(a, b);
+    const c = typeof x === 'number' ? x - y : ordenNatural.compare(x, y);
+    return c * signo || porNombre(a, b);
+  });
+}
+
+// Lista de potreros como una tabla tipo Excel (pedido de Diego, 19/11), con
+// filtros arriba, totales abajo y paginador. Los filtros, el orden y la página
+// viven en la dirección (?grupo=VERDEO&orden=cabezas&pagina=2): al volver de
+// un potrero siguen puestos.
 export default function PotrerosLista({ potreros }) {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const ordenUrl = params.get('orden') ?? 'potrero';
+  const col = ALIAS_ORDEN[ordenUrl] ?? ordenUrl;
   const f = {
     q: params.get('q') ?? '',
     grupo: params.get('grupo') ?? '',
     animales: params.get('animales') ?? '',
     categoria: params.get('categoria') ?? '',
     incompletos: params.get('incompletos') === '1',
-    orden: params.get('orden') ?? 'nombre',
+    orden: { col, dir: params.get('dir') ?? (NUMERICAS.has(col) ? 'desc' : 'asc') },
+    pagina: Number(params.get('pagina')) || 1,
   };
-  const poner = (clave, valor) =>
+  // Cambiar un filtro o el orden vuelve a la página 1.
+  const poner = (cambios) =>
     setParams(
       (actual) => {
         const nuevo = new URLSearchParams(actual);
-        if (valor) nuevo.set(clave, valor);
-        else nuevo.delete(clave);
+        if (!('pagina' in cambios)) nuevo.delete('pagina');
+        for (const [k, v] of Object.entries(cambios)) v ? nuevo.set(k, v) : nuevo.delete(k);
         return nuevo;
       },
       { replace: true },
     );
+  const ordenarPor = (c) => {
+    const porDefecto = NUMERICAS.has(c) ? 'desc' : 'asc';
+    const dir = f.orden.col === c ? (f.orden.dir === 'asc' ? 'desc' : 'asc') : porDefecto;
+    poner({ orden: c === 'potrero' ? '' : c, dir: dir === porDefecto ? '' : dir });
+  };
   const hayFiltros = f.q || f.grupo || f.animales || f.categoria || f.incompletos;
 
   // Las categorías que hay hoy en el campo, para el filtro.
@@ -70,31 +110,28 @@ export default function PotrerosLista({ potreros }) {
       if (f.incompletos && !incompleto(p)) return false;
       return true;
     });
-    const porNombre = (a, b) => ordenNatural.compare(a.nombre, b.nombre);
-    if (f.orden === 'cabezas') return lista.sort((a, b) => (b.stock?.cabezas ?? 0) - (a.stock?.cabezas ?? 0) || porNombre(a, b));
-    if (f.orden === 'carga') return lista.sort((a, b) => (b.stock?.ugHa ?? -1) - (a.stock?.ugHa ?? -1) || porNombre(a, b));
-    return lista.sort((a, b) => a.orden - b.orden || porNombre(a, b));
-  }, [potreros, f.q, f.grupo, f.animales, f.categoria, f.incompletos, f.orden]);
+    return ordenarPotreros(lista, f.orden);
+  }, [potreros, f.q, f.grupo, f.animales, f.categoria, f.incompletos, f.orden.col, f.orden.dir]);
 
   // Lo que suma lo filtrado. Con una categoría elegida, cuenta solo esa.
   const resumen = useMemo(() => {
     const deCategoria = (p) =>
       (p.stock?.lotes ?? []).filter((l) => !f.categoria || String(l.categoriaId) === f.categoria).reduce((s, l) => s + l.cabezas, 0);
-    return {
-      cabezas: visibles.reduce((s, p) => s + deCategoria(p), 0),
-      hectareas: visibles.reduce((s, p) => s + (p.hectareasAConfirmar ? 0 : (p.hectareas ?? 0)), 0),
-    };
+    const cabezas = visibles.reduce((s, p) => s + deCategoria(p), 0);
+    const hectareas = visibles.reduce((s, p) => s + (p.hectareasAConfirmar ? 0 : (p.hectareas ?? 0)), 0);
+    return { cabezas, hectareas, cabHa: hectareas > 0 ? cabezas / hectareas : null };
   }, [visibles, f.categoria]);
   const nombreCategoria = categorias.find(([id]) => id === f.categoria)?.[1];
-  const cargaMaxima = Math.max(1, ...potreros.map((p) => p.stock?.ugHa ?? 0));
+  const pagina = paginar(visibles, f.pagina);
+  const pie = `${celda} sticky bottom-0 border-t-2 border-t-suelo-300 bg-suelo-100`;
 
   return (
     <div>
-      <div className="mb-3 space-y-2 rounded-lg border border-suelo-200 p-3">
+      <div className="mb-3 space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
         <input
           type="search"
           value={f.q}
-          onChange={(e) => poner('q', e.target.value)}
+          onChange={(e) => poner({ q: e.target.value })}
           placeholder="Buscar potrero o lote…"
           aria-label="Buscar potrero o lote"
           className="w-full rounded-md border border-suelo-300 bg-white px-3 py-2 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
@@ -102,34 +139,30 @@ export default function PotrerosLista({ potreros }) {
         {/* Los grupos bajan de renglón si no entran (nada de scroll de costado). */}
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Grupo de uso de suelo">
           {GRUPOS.map(([valor, texto]) => (
-            <Chip key={texto} activo={f.grupo === valor} onClick={() => poner('grupo', valor)}>
+            <Chip key={texto} activo={f.grupo === valor} onClick={() => poner({ grupo: valor })}>
               {texto}
             </Chip>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr]">
-          <div className="col-span-2 sm:col-span-1">
-            <Select
-              etiqueta="Categoría"
-              valor={f.categoria}
-              onChange={(v) => poner('categoria', v)}
-              opciones={[['', 'Todas'], ...categorias]}
-            />
-          </div>
-          <Select etiqueta="Animales" valor={f.animales} onChange={(v) => poner('animales', v)} opciones={ANIMALES} />
-          <Select etiqueta="Ordenar por" valor={f.orden} onChange={(v) => poner('orden', v === 'nombre' ? '' : v)} opciones={ORDEN} />
+        <div className="grid grid-cols-2 gap-2">
+          <Select etiqueta="Categoría" valor={f.categoria} onChange={(v) => poner({ categoria: v })} opciones={[['', 'Todas'], ...categorias]} />
+          <Select etiqueta="Animales" valor={f.animales} onChange={(v) => poner({ animales: v })} opciones={ANIMALES} />
         </div>
         <label className="flex items-center gap-2 text-sm text-suelo-700">
-          <input type="checkbox" checked={f.incompletos} onChange={(e) => poner('incompletos', e.target.checked ? '1' : '')} />
+          <input type="checkbox" checked={f.incompletos} onChange={(e) => poner({ incompletos: e.target.checked ? '1' : '' })} />
           Solo con datos incompletos (sin hectáreas o sin peso)
         </label>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-sm">
         <p>
-          <strong>{visibles.length}</strong> de {potreros.length} potreros ·{' '}
-          <strong>{formatNumero(resumen.cabezas)}</strong> {nombreCategoria ?? 'cabezas'} ·{' '}
-          <strong>{formatNumero(resumen.hectareas)}</strong> ha
+          <strong>{visibles.length}</strong> de {potreros.length} potreros
+          {nombreCategoria && (
+            <>
+              {' '}
+              · con <strong>{nombreCategoria}</strong>
+            </>
+          )}
         </p>
         {hayFiltros && (
           <button type="button" onClick={() => setParams({}, { replace: true })} className="text-campo-600 hover:underline">
@@ -141,11 +174,36 @@ export default function PotrerosLista({ potreros }) {
       {visibles.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">Ningún potrero cumple esos filtros.</p>
       ) : (
-        <ul className="space-y-2">
-          {visibles.map((p) => (
-            <PotreroFila key={p.id} potrero={p} cargaMaxima={cargaMaxima} categoria={f.categoria} />
-          ))}
-        </ul>
+        <>
+          <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-potreros">
+            <table className="w-full min-w-[44rem] border-separate border-spacing-0 text-left text-sm">
+              <thead className="text-xs text-suelo-600">
+                <tr>
+                  {COLUMNAS.map(([c, titulo, derecha], i) => (
+                    <TituloOrdenable key={c} col={c} titulo={titulo} orden={f.orden} onOrdenar={ordenarPor} derecha={derecha} fija={i === 0} />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pagina.filas.map((p, n) => (
+                  <PotreroFila key={p.id} potrero={p} par={n % 2 === 1} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td className={`${pie} left-0 z-20 whitespace-nowrap`}>Total{hayFiltros ? ' filtrado' : ''}</td>
+                  <td className={`${pie} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} potreros</td>
+                  <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
+                  <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.cabezas)}</td>
+                  <td className={`${pie} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>
+                  <td className={`${pie} z-10 text-right tabular-nums`}>{resumen.cabHa == null ? '—' : formatNumero(resumen.cabHa, 2)}</td>
+                  <td className={`${pie} z-10`} />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <Paginador {...pagina} de={visibles.length} onCambiar={(n) => poner({ pagina: n > 1 ? String(n) : '' })} />
+        </>
       )}
     </div>
   );
@@ -183,62 +241,32 @@ function Select({ etiqueta, valor, onChange, opciones }) {
   );
 }
 
-function PotreroFila({ potrero: p, cargaMaxima, categoria }) {
-  const lotes = p.stock?.lotes ?? [];
+// Una fila: tocarla abre la ficha del potrero.
+function PotreroFila({ potrero: p, par, onAbrir }) {
   const cabezas = p.stock?.cabezas ?? 0;
   const vacio = cabezas === 0;
-  const ug = p.stock?.ugHa;
+  const fondo = par ? 'bg-suelo-50' : 'bg-white';
+  const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
   return (
-    <li>
-      <Link
-        to={`/pecuaria/potreros/${p.id}`}
-        className={`block rounded-lg border px-4 py-3 transition hover:border-campo-400 ${vacio ? 'border-suelo-200 bg-suelo-50' : 'border-suelo-200 bg-white'}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className={`font-semibold ${vacio ? 'text-suelo-600' : ''}`}>
-              {p.nombre}
-              {p.tipo === 'CORRAL' && <span className="ml-2 text-xs font-medium text-amber-800">corral</span>}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <UsoBadge uso={p.usoActual} />
-              <Hectareas hectareas={p.hectareas} aConfirmar={p.hectareasAConfirmar} />
-              {p.stock && !p.stock.kilosCompletos && (
-                <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs text-amber-800">sin peso</span>
-              )}
-            </div>
-          </div>
-          <div className="shrink-0 text-right">
-            <p className={`text-xl font-bold ${vacio ? 'text-suelo-400' : ''}`}>{vacio ? 'vacío' : formatNumero(cabezas)}</p>
-            {!vacio && <p className="text-xs text-suelo-500">cabezas</p>}
-          </div>
-        </div>
-
-        {lotes.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {lotes.map((l) => (
-              <span
-                key={l.loteId}
-                title={`Lote ${l.lote}`}
-                className={`rounded px-2 py-0.5 text-xs ${String(l.categoriaId) === categoria ? 'bg-campo-100 text-campo-800' : 'bg-suelo-200/70 text-suelo-700'}`}
-              >
-                {l.categoria} <strong>{formatNumero(l.cabezas)}</strong>
-              </span>
-            ))}
-          </div>
-        )}
-
-        {!vacio && ug != null && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-suelo-600">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true">
-              <div className="h-full rounded-full bg-campo-400" style={{ width: `${Math.min(100, (ug / cargaMaxima) * 100)}%` }} />
-            </div>
-            <span className="shrink-0">
-              {formatNumero(p.stock.cabHa, 2)} cab/ha · {p.stock.kilosCompletos ? `${formatNumero(ug, 2)} UG/ha` : 'UG sin peso'}
-            </span>
-          </div>
-        )}
-      </Link>
-    </li>
+    <tr onClick={onAbrir} className={`cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
+      <td className={`${celda} ${fondo} sticky left-0 z-[5] whitespace-nowrap font-semibold`}>
+        <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-campo-700 hover:underline">
+          {p.nombre}
+        </Link>
+        {p.tipo === 'CORRAL' && <span className="ml-1.5 text-xs font-medium text-amber-800">corral</span>}
+      </td>
+      <td className={`${celda} ${fondo} whitespace-nowrap`}>
+        <UsoBadge uso={p.usoActual} />
+      </td>
+      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
+        {p.hectareasAConfirmar ? <span className="text-xs text-amber-800">a confirmar</span> : formatNumero(p.hectareas, 2)}
+      </td>
+      <td className={`${celda} ${fondo} text-right font-semibold tabular-nums`}>{vacio ? '—' : formatNumero(cabezas)}</td>
+      <td className={`${celda} ${fondo} min-w-[12rem]`}>{vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}</td>
+      <td className={`${celda} ${fondo} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
+      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
+        {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}
+      </td>
+    </tr>
   );
 }

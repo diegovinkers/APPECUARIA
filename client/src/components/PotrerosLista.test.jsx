@@ -54,7 +54,7 @@ describe('la tabla de potreros', () => {
     const { search } = useLocation();
     return <p data-testid="donde">{search}</p>;
   }
-  const montar = (potreros, ruta = '/pecuaria/potreros') =>
+  const montar = (potreros, ruta = '/pecuaria/potreros', todas = false) =>
     act(() =>
       root.render(
         <MemoryRouter initialEntries={[ruta]}>
@@ -63,7 +63,7 @@ describe('la tabla de potreros', () => {
               path="/pecuaria/potreros"
               element={
                 <ConPanel>
-                  <PotrerosLista potreros={potreros} />
+                  <PotrerosLista potreros={potreros} todas={todas} />
                   <Donde />
                 </ConPanel>
               }
@@ -75,6 +75,18 @@ describe('la tabla de potreros', () => {
   const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr:not([data-testid="fila-vacia"])')].map((tr) => tr.querySelector('td a').textContent);
   const titulo = (t) => [...contenedor.querySelectorAll('thead button')].find((b) => b.textContent.startsWith(t));
   const donde = () => contenedor.querySelector('[data-testid="donde"]').textContent;
+
+  it('con "Todas las estancias": la sigla adelante, por estancia, y la búsqueda la encuentra', () => {
+    const EG = { sigla: 'EG', orden: 0 };
+    const ES = { sigla: 'ES', orden: 1 };
+    // Llegan desordenados: van primero los de EG (orden 0) y después los de ES.
+    montar([potrero(1, '8.1', 10, 5, { campo: ES }), potrero(2, '8.1', 20, 5, { campo: EG }), potrero(3, '9', 0, 4, { campo: EG })], undefined, true);
+    expect(primeraColumna()).toEqual(['EG8.1', 'EG9', 'ES8.1']);
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    montar([potrero(1, '8.1', 10, 5, { campo: ES }), potrero(2, '8.1', 20, 5, { campo: EG })], '/pecuaria/potreros?q=es%208', true);
+    expect(primeraColumna()).toEqual(['ES8.1']);
+  });
 
   it('una fila por potrero con cabezas de qué, y los totales abajo', () => {
     montar([potrero(1, '1', 10, 5), potrero(2, '2', 50, 10), potrero(3, '3', 0, 4)]);

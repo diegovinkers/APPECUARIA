@@ -93,17 +93,30 @@ export async function findPotrero(id) {
   return toPotrero(await prisma.potrero.findUnique({ where: { id: potreroId }, select: potreroSelect }));
 }
 
-// null si el campo no existe. Cada potrero trae su uso de suelo vigente y los
-// cálculos de su última versión de stock (null si nunca tuvo).
+// null si el campo no existe. Cada potrero trae su estancia (con la sigla),
+// su uso de suelo vigente y los cálculos de su última versión de stock (null
+// si nunca tuvo).
 export async function listPotreros(campoId) {
   const campo = await findCampo(campoId);
   if (!campo) return null;
+  return listarPotreros({ campoId: campo.id });
+}
+
+// Los de todas las estancias del usuario ("Todas las estancias" arriba).
+// filtro: lo de alcance.js (filtroCampos); undefined = todas. En el orden de
+// las estancias y, dentro de cada una, el de la planilla.
+export function listPotrerosTodas(filtro) {
+  return listarPotreros(filtro ? { campo: filtro } : {});
+}
+
+async function listarPotreros(where) {
   // Los dados de baja (activo: false: un potrero que ya no se usa) no se
   // listan; su historial queda y se pueden reactivar por la API.
   const rows = await prisma.potrero.findMany({
-    where: { campoId: campo.id, activo: true },
+    where: { ...where, activo: true },
     select: {
       ...potreroSelect,
+      campo: { select: { id: true, sigla: true, nombre: true, orden: true } },
       usos: {
         where: { hasta: null },
         orderBy: { desde: 'desc' },
@@ -127,7 +140,7 @@ export async function listPotreros(campoId) {
         },
       },
     },
-    orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
+    orderBy: [{ campo: { orden: 'asc' } }, { campo: { sigla: 'asc' } }, { orden: 'asc' }, { nombre: 'asc' }],
   });
   const parametro = await prisma.parametro.findUnique({ where: { clave: 'KG_POR_UG' } });
   const kgPorUg = parametro ? Number(parametro.valor) : 380;

@@ -2,6 +2,9 @@ import api from './axios';
 
 export const getCampos = () => api.get('/pecuaria/campos');
 export const getPotreros = (campoId) => api.get(`/pecuaria/campos/${campoId}/potreros`);
+// "Todas las estancias": los potreros y los movimientos de todas las del usuario.
+export const getPotrerosTodas = () => api.get('/pecuaria/potreros');
+export const getMovimientosTodas = (filtros = {}) => api.get('/pecuaria/movimientos', { params: filtros });
 
 // La planilla va tal cual en el cuerpo; el nombre y la hoja, en la URL.
 export const subirPlanilla = (archivo, { hoja } = {}) =>

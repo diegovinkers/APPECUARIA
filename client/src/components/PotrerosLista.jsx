@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { UsoBadge, cabezasPorCategoria, formatNumero } from './pecuaria';
+import { UsoBadge, cabezasPorCategoria, formatNumero, nombreConSigla } from './pecuaria';
+import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { Paginador, TituloOrdenable, celda, paginar, useFilasQueEntran } from './tabla';
 import PanelFiltros from './PanelFiltros';
 
@@ -75,10 +76,10 @@ const grupoDe = (p) => (p.tipo === 'CORRAL' ? 'CORRAL' : (p.usoActual?.grupo ?? 
 const incompleto = (p) => p.hectareasAConfirmar || (p.stock && !p.stock.kilosCompletos);
 
 // Ordena los potreros por una columna. "Potrero" sigue el orden de la planilla
-// (y el nombre); en las demás, a igualdad, por nombre. Los que no tienen el
-// dato van siempre al final.
+// (con "Todas las estancias", primero por estancia); en las demás, a igualdad,
+// por nombre. Los que no tienen el dato van siempre al final.
 export function ordenarPotreros(lista, { col, dir }) {
-  const porNombre = (a, b) => a.orden - b.orden || ordenNatural.compare(a.nombre, b.nombre);
+  const porNombre = porEstanciaYPlanilla;
   const signo = dir === 'asc' ? 1 : -1;
   const valor = COLUMNAS.find(([c]) => c === col)?.[3];
   if (!valor) return [...lista].sort((a, b) => porNombre(a, b) * signo);
@@ -94,8 +95,9 @@ export function ordenarPotreros(lista, { col, dir }) {
 // Lista de potreros como una tabla tipo Excel (pedido de Diego, 19/11), con
 // filtros arriba, totales abajo y paginador. Los filtros, el orden y la página
 // viven en la dirección (?grupo=VERDEO&orden=cabezas&pagina=2): al volver de
-// un potrero siguen puestos.
-export default function PotrerosLista({ potreros }) {
+// un potrero siguen puestos. todas: "Todas las estancias" elegido arriba (cada
+// potrero con la sigla de su estancia).
+export default function PotrerosLista({ potreros, todas = false }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const ordenUrl = params.get('orden') ?? 'potrero';
@@ -141,7 +143,7 @@ export default function PotrerosLista({ potreros }) {
     const lista = potreros.filter((p) => {
       const lotes = p.stock?.lotes ?? [];
       const cabezas = p.stock?.cabezas ?? 0;
-      if (q && !sinTildes(p.nombre).includes(q) && !lotes.some((l) => sinTildes(l.lote).includes(q))) return false;
+      if (q && !sinTildes(nombreConSigla(p, todas)).includes(q) && !lotes.some((l) => sinTildes(l.lote).includes(q))) return false;
       if (f.grupo && grupoDe(p) !== f.grupo) return false;
       if (f.animales === 'con' && cabezas === 0) return false;
       if (f.animales === 'vacios' && cabezas > 0) return false;
@@ -150,7 +152,7 @@ export default function PotrerosLista({ potreros }) {
       return true;
     });
     return ordenarPotreros(lista, f.orden);
-  }, [potreros, f.q, f.grupo, f.animales, f.categoria, f.incompletos, f.orden.col, f.orden.dir]);
+  }, [potreros, todas, f.q, f.grupo, f.animales, f.categoria, f.incompletos, f.orden.col, f.orden.dir]);
 
   // Lo que suma lo filtrado. Con una categoría elegida, cuenta solo esa.
   const resumen = useMemo(() => {
@@ -250,7 +252,7 @@ export default function PotrerosLista({ potreros }) {
               </thead>
               <tbody>
                 {pagina.filas.map((p, n) => (
-                  <PotreroFila key={p.id} potrero={p} par={n % 2 === 1} cargaMaxima={cargaMaxima} estilo={altoFila} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
+                  <PotreroFila key={p.id} potrero={p} todas={todas} par={n % 2 === 1} cargaMaxima={cargaMaxima} estilo={altoFila} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
                 ))}
                 {Array.from({ length: relleno }, (_, n) => (
                   <tr key={`vacia${n}`} aria-hidden="true" className={ALTO_FILA} style={altoFila} data-testid="fila-vacia">
@@ -323,7 +325,7 @@ function Select({ etiqueta, valor, onChange, opciones }) {
 }
 
 // Una fila: tocarla abre la ficha del potrero.
-function PotreroFila({ potrero: p, par, cargaMaxima, estilo, onAbrir }) {
+function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
   const cabezas = p.stock?.cabezas ?? 0;
   const vacio = cabezas === 0;
   const fondo = par ? 'bg-suelo-50' : 'bg-white';
@@ -335,6 +337,7 @@ function PotreroFila({ potrero: p, par, cargaMaxima, estilo, onAbrir }) {
         {/* Arriba el nombre; abajo, en el celular, el uso y qué hay. Lo que no entra se corta con "…". */}
         <div className="flex min-w-0 items-center gap-1.5">
           <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 text-campo-700 hover:underline">
+            {todas && p.campo?.sigla && <span className="mr-1 font-normal text-suelo-500">{p.campo.sigla}</span>}
             {p.nombre}
           </Link>
           {p.tipo === 'CORRAL' && <span className="shrink-0 text-xs font-medium text-amber-800">corral</span>}

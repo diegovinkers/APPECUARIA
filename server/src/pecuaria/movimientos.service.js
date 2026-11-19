@@ -474,8 +474,8 @@ export async function registrarMultiple(body, usuarioId) {
 export const incluir = {
   loteOrigen: { select: { id: true, nombre: true } },
   loteDestino: { select: { id: true, nombre: true } },
-  potreroOrigen: { select: { id: true, nombre: true, campoId: true } },
-  potreroDestino: { select: { id: true, nombre: true, campoId: true } },
+  potreroOrigen: { select: { id: true, nombre: true, campoId: true, campo: { select: { sigla: true } } } },
+  potreroDestino: { select: { id: true, nombre: true, campoId: true, campo: { select: { sigla: true } } } },
   usuario: { select: { nombre: true } },
   evento: { select: { id: true, tipo: true, nota: true, revierteAId: true, revertidoPor: { select: { id: true } } } },
   revertidoPor: { select: { id: true } },
@@ -582,13 +582,26 @@ const ORDEN = [{ fecha: 'desc' }, { id: 'desc' }];
 // Todos los movimientos de un campo, del más nuevo al más viejo. Filtros:
 // desde / hasta (fecha), potreroId, loteId y categoriaId (de origen o de
 // destino) y tipoId.
-export async function listar(campoId, { desde, hasta, potreroId, loteId, categoriaId, tipoId } = {}) {
+export async function listar(campoId, filtros = {}) {
   const id = parseId(campoId);
   const campo = id && (await prisma.campo.findUnique({ where: { id }, select: { id: true } }));
   if (!campo) throw notFound('Campo no encontrado');
-  // Lo de esta estancia y lo que llegó o salió entre campos (un movimiento
+  return listarDonde({ id: campo.id }, filtros);
+}
+
+// Los de todas las estancias del usuario ("Todas las estancias" arriba), con
+// los mismos filtros. filtro: lo de alcance.js (filtroCampos); undefined =
+// todas. Un movimiento entre campos es un solo registro: aparece una vez.
+export function listarTodas(filtro, filtros = {}) {
+  return listarDonde(filtro, filtros);
+}
+
+// campos: el filtro de las estancias ({ id } o { id: { in } }); undefined = todas.
+async function listarDonde(campos, { desde, hasta, potreroId, loteId, categoriaId, tipoId } = {}) {
+  const y = [];
+  // Lo de estas estancias y lo que llegó o salió entre campos (un movimiento
   // entre campos tiene un potrero en cada una).
-  const y = [{ OR: [{ campoId: campo.id }, { potreroOrigen: { campoId: campo.id } }, { potreroDestino: { campoId: campo.id } }] }];
+  if (campos) y.push({ OR: [{ campo: campos }, { potreroOrigen: { campo: campos } }, { potreroDestino: { campo: campos } }] });
   if (tipoId) y.push({ tipoId });
   if (desde) y.push({ fecha: { gte: aFecha(desde) } });
   if (hasta) y.push({ fecha: { lte: aFecha(hasta) } });

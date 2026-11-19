@@ -6,14 +6,16 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, inputClass } from '../../components/ui';
 import PotrerosLista from '../../components/PotrerosLista';
-import { ElegirEstancia, Encabezado, PantallaTabla, SinEstancia } from './comun';
+import { Encabezado, PantallaTabla, SinEstancia } from './comun';
 
 // Los potreros de la estancia con su uso, cabezas, lotes y carga, con filtros.
-// Tocar un potrero abre su ficha. La pantalla no scrollea: solo la tabla.
+// Con "Todas las estancias", los de todas, cada uno con la sigla de su
+// estancia (pedido de Diego, 19/11). Tocar un potrero abre su ficha. La
+// pantalla no scrollea: solo la tabla.
 export default function PotrerosPage() {
   const navigate = useNavigate();
   const { campoId, todas } = useEstancia();
-  const { potreros, errors: erroresCarga } = usePotreros(campoId);
+  const { potreros, errors: erroresCarga } = usePotreros(campoId, todas);
   const [nuevoCorral, setNuevoCorral] = useState(null);
   const [errors, setErrors] = useState([]);
 
@@ -30,7 +32,8 @@ export default function PotrerosPage() {
   return (
     <PantallaTabla>
       <Encabezado titulo="Potreros">
-        {potreros && nuevoCorral == null && (
+        {/* Un corral se agrega en una estancia: con "Todas", no. */}
+        {potreros && campoId && nuevoCorral == null && (
           <button type="button" onClick={() => setNuevoCorral('Feedlot')} className="text-sm text-campo-600 hover:underline">
             + Corral
           </button>
@@ -48,10 +51,9 @@ export default function PotrerosPage() {
         </form>
       )}
       <ErrorList errors={[...erroresCarga, ...errors]} />
-      {todas && <ElegirEstancia />}
       {!campoId && !todas && <SinEstancia />}
-      {campoId && !potreros && !erroresCarga.length && <p className="text-suelo-600">Cargando…</p>}
-      {potreros && <PotrerosLista potreros={potreros} />}
+      {(campoId || todas) && !potreros && !erroresCarga.length && <p className="text-suelo-600">Cargando…</p>}
+      {potreros && <PotrerosLista potreros={potreros} todas={todas} />}
     </PantallaTabla>
   );
 }

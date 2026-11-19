@@ -113,6 +113,11 @@ export async function listPotreros(req, res) {
   res.json(potreros);
 }
 
+// "Todas las estancias": los potreros de todas las del usuario.
+export async function listPotrerosTodas(req, res) {
+  res.json(await lugares.listPotrerosTodas(filtroCampos(req.user)));
+}
+
 export async function createPotrero(req, res) {
   const potrero = await lugares.createPotrero(req.params.campoId, req.body);
   if (!potrero) throw notFound(CAMPO_NO_ENCONTRADO);
@@ -273,6 +278,13 @@ export async function getMovimientos(req, res) {
   const filtros = filtrosMovimientosSchema.safeParse(req.query);
   if (!filtros.success) throw badRequest(filtros.error.issues[0].message);
   res.json(await movimientos.listar(req.params.campoId, filtros.data));
+}
+
+// "Todas las estancias": los movimientos de todas las del usuario.
+export async function getMovimientosTodas(req, res) {
+  const filtros = filtrosMovimientosSchema.safeParse(req.query);
+  if (!filtros.success) throw badRequest(filtros.error.issues[0].message);
+  res.json(await movimientos.listarTodas(filtroCampos(req.user), filtros.data));
 }
 
 // --- Entradas y salidas ---

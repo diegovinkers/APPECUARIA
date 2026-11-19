@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { cabezasPorCategoria } from './pecuaria.jsx';
+import { cabezasPorCategoria, nombreConSigla } from './pecuaria.jsx';
+
+describe('nombreConSigla', () => {
+  const p = { nombre: '8.1', campo: { sigla: 'EG' } };
+  it('con "Todas las estancias", la sigla adelante; con una, solo el nombre', () => {
+    expect(nombreConSigla(p, true)).toBe('EG 8.1');
+    expect(nombreConSigla(p, false)).toBe('8.1');
+    expect(nombreConSigla({ nombre: '8.1' }, true)).toBe('8.1');
+  });
+});
 
 describe('cabezasPorCategoria', () => {
   it('dice cabezas de qué, sumando los lotes de la misma categoría, de mayor a menor', () => {

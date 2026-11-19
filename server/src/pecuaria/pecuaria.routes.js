@@ -10,6 +10,7 @@ import {
   getImportacion,
   getLote,
   getMovimientos,
+  getMovimientosTodas,
   getParametros,
   getPotrero,
   getResumen,
@@ -21,6 +22,7 @@ import {
   postVistaPreviaEntreCampos,
   postVistaPreviaMultiple,
   listPotreros,
+  listPotrerosTodas,
   patchLote,
   postEntradaSalida,
   postMovimiento,
@@ -117,6 +119,8 @@ router.get('/campos/:campoId/potreros', ver, alcance('campo', 'campoId'), listPo
 router.get('/campos/:campoId/resumen', ver, alcance('campo', 'campoId'), getResumen);
 // Todas sus estancias juntas (cada uno, las que tiene).
 router.get('/resumen', ver, getResumenTodas);
+router.get('/potreros', ver, listPotrerosTodas);
+router.get('/movimientos', ver, getMovimientosTodas);
 // Agregar un corral (feedlot) es parte del trabajo diario.
 router.post('/campos/:campoId/potreros', registrar, alcance('campo', 'campoId'), validateBody(crearPotreroSchema), createPotrero);
 router.get('/potreros/:id', ver, alcance('potrero'), getPotrero);

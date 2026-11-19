@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const estado = vi.hoisted(() => ({ user: null, datos: null }));
 const api = vi.hoisted(() => ({
   getMovimientos: vi.fn(),
+  getMovimientosTodas: vi.fn(),
   getTiposMovimiento: vi.fn(),
   revertirEvento: vi.fn(),
   revertirMovimiento: vi.fn(),
@@ -21,7 +22,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const EG = { id: 1, sigla: 'EG', nombre: 'La Gateada' };
 const LS = { id: 2, sigla: 'ELS', nombre: 'La Seda' };
-const p = (id, nombre, campoId = 1) => ({ id, nombre, campoId });
+const p = (id, nombre, campoId = 1) => ({ id, nombre, campoId, campo: { sigla: campoId === 1 ? 'EG' : 'ELS' } });
 const lote = (id, nombre) => ({ id, nombre });
 const base = {
   causa: null,
@@ -131,6 +132,13 @@ describe('armarFilas', () => {
     expect(enDestino.destino).toBe('Feedlot · A');
   });
 
+  it('con "Todas las estancias" (sin campoId), cada potrero con la sigla de su estancia', () => {
+    const [entre, multiple, suelto] = armarFilas(MOVIMIENTOS, null);
+    expect([entre.origen, entre.destino]).toEqual(['EG 10.3 · A', 'ELS Feedlot · A']);
+    expect([multiple.origenCorto, multiple.destinoCorto]).toEqual(['EG 10.3, EG 2', 'EG 2, EG 3']);
+    expect(suelto.origen).toBe('EG 2 · B');
+  });
+
   it('para la segunda línea del celular, solo los potreros (sin repetir la categoría del lote)', () => {
     const [entre, multiple, suelto] = armarFilas(MOVIMIENTOS, EG.id);
     expect([multiple.origenCorto, multiple.destinoCorto]).toEqual(['10.3, 2', '2, 3']);
@@ -169,12 +177,12 @@ describe('la tabla', () => {
     contenedor.remove();
   });
 
-  async function montar() {
+  async function montar({ todas = false, potreros = [] } = {}) {
     act(() =>
       root.render(
         <MemoryRouter>
           <ConPanel>
-            <MovimientosLista campoId={EG.id} potreros={[]} />
+            <MovimientosLista campoId={todas ? null : EG.id} potreros={potreros} todas={todas} />
           </ConPanel>
         </MemoryRouter>,
       ),
@@ -190,6 +198,20 @@ describe('la tabla', () => {
     expect(contenedor.querySelector('tfoot').textContent).toMatch(/4 movimientos · 230 cabezas movidas · \+0 entraron · −3 salieron/);
     // Ya no están Mover / Entrada / Salida arriba: todo se registra desde el "+".
     expect(boton('Mover')).toBeUndefined();
+  });
+
+  it('con "Todas las estancias" pide los de todas y el filtro de potrero lleva la sigla', async () => {
+    api.getMovimientosTodas.mockResolvedValue({ data: { movimientos: MOVIMIENTOS, resumen: { movimientos: 4, cabezas: 230, entradas: 0, salidas: 3 } } });
+    const potreros = [
+      { id: 1, nombre: '10.3', campo: { sigla: 'EG' } },
+      { id: 9, nombre: 'Feedlot', campo: { sigla: 'ELS' } },
+    ];
+    await montar({ todas: true, potreros });
+    expect(api.getMovimientosTodas).toHaveBeenCalled();
+    expect(api.getMovimientos).not.toHaveBeenCalled();
+    expect(filasDelCuerpo()[0]).toMatch(/EG 10\.3 · A.*ELS Feedlot · A/);
+    const opciones = [...document.querySelectorAll('option')].map((o) => o.textContent);
+    expect(opciones).toEqual(expect.arrayContaining(['EG 10.3', 'ELS Feedlot']));
   });
 
   it('el evento se despliega con sus pasos', async () => {

@@ -43,8 +43,8 @@ export function SinEstancia() {
   );
 }
 
-// Con "Todas las estancias" elegido, las pantallas de una sola estancia
-// (Potreros, Movimientos) piden cuál.
+// Con "Todas las estancias" elegido, las pantallas que necesitan una sola
+// estancia (Movimiento múltiple) piden cuál.
 export function ElegirEstancia({ texto = '¿De qué estancia?' }) {
   const { campos, setCampoId } = useEstancia();
   return (

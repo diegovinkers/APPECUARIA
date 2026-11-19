@@ -6,6 +6,10 @@ export const formatNumero = (n, decimales = 0) =>
 // "2026-11-13" → "13/11/2026"
 export const formatFecha = (iso) => (iso ? iso.split('-').reverse().join('/') : '—');
 
+// Con "Todas las estancias" el potrero lleva adelante la sigla de su estancia
+// ("EG 8.1"): hay nombres repetidos entre estancias (pedido de Diego, 19/11).
+export const nombreConSigla = (potrero, todas) => (todas && potrero.campo?.sigla ? `${potrero.campo.sigla} ${potrero.nombre}` : potrero.nombre);
+
 // Qué hay en un potrero, por categoría: "350 Terneros" o "120 Terneros · 80 Vacas"
 // (los lotes de la misma categoría se suman). Sin animales: "vacío".
 export function cabezasPorCategoria(lotes = []) {

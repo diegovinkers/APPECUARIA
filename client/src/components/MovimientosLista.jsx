@@ -1,9 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { getMovimientos, getTiposMovimiento, revertirEvento, revertirMovimiento } from '../api/pecuaria';
+import { getMovimientos, getMovimientosTodas, getTiposMovimiento, revertirEvento, revertirMovimiento } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice } from './ui';
-import { formatFecha, formatNumero } from './pecuaria';
+import { formatFecha, formatNumero, nombreConSigla } from './pecuaria';
 import usePuede from '../hooks/usePuede';
 import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
 import PanelFiltros from './PanelFiltros';
@@ -56,15 +56,19 @@ const fechaCorta = (f) => formatFecha(f).slice(0, 5);
 
 // "potrero · lote" de un lado del movimiento. Si el potrero es de otra
 // estancia (movimiento entre campos), con su estancia: "← La Gateada · 10.3".
+// Sin campoId ("Todas las estancias"), cada potrero con su sigla: "EG 10.3".
 // corto: solo el potrero (para la segunda línea del celular).
 function lado(m, cual, campoId, corto = false) {
   const potrero = cual === 'origen' ? m.potreroOrigen : m.potreroDestino;
   const lote = cual === 'origen' ? m.loteOrigen : m.loteDestino;
   if (!potrero) return '—';
+  const sigla = campoId == null && potrero.campo?.sigla ? `${potrero.campo.sigla} ` : '';
   // Los lotes que armó la planilla ya llevan el potrero en el nombre
   // ("10.3 · Terneros"): no se repite.
-  const texto = !lote || corto ? potrero.nombre : lote.nombre.startsWith(`${potrero.nombre} · `) ? lote.nombre : `${potrero.nombre} · ${lote.nombre}`;
-  if (potrero.campoId == null || potrero.campoId === campoId) return texto;
+  const texto =
+    sigla +
+    (!lote || corto ? potrero.nombre : lote.nombre.startsWith(`${potrero.nombre} · `) ? lote.nombre : `${potrero.nombre} · ${lote.nombre}`);
+  if (campoId == null || potrero.campoId == null || potrero.campoId === campoId) return texto;
   const campo = [m.campo, m.campoOtro].find((c) => c?.id === potrero.campoId);
   return `${cual === 'origen' ? '←' : '→'} ${campo?.nombre ?? 'otro campo'} · ${texto}`;
 }
@@ -180,7 +184,7 @@ function Selector({ etiqueta, valor, onChange, children }) {
 // se despliega con sus pasos. Se ordena tocando el título de la columna; abajo,
 // los totales de lo filtrado. En el celular se desplaza de costado con la
 // fecha fija. Registrar se hace desde el botón "+".
-export default function MovimientosLista({ campoId, potreros }) {
+export default function MovimientosLista({ campoId, potreros, todas = false }) {
   const puedo = usePuede();
   const [params, setParams] = useSearchParams();
   const f = {
@@ -218,10 +222,10 @@ export default function MovimientosLista({ campoId, potreros }) {
 
   const cargar = useCallback(
     () =>
-      getMovimientos(campoId, filtrosApi)
+      (todas ? getMovimientosTodas(filtrosApi) : getMovimientos(campoId, filtrosApi))
         .then(({ data }) => setDatos(data))
         .catch((error) => setErrors(getErrorMessages(error, 'No se pudieron cargar los movimientos'))),
-    [campoId, filtrosApi],
+    [campoId, todas, filtrosApi],
   );
   useEffect(() => {
     cargar();
@@ -232,14 +236,18 @@ export default function MovimientosLista({ campoId, potreros }) {
       .catch(() => setTipos([]));
   }, []);
 
-  const ordenados = useMemo(() => [...potreros].sort((a, b) => ordenNatural.compare(a.nombre, b.nombre)), [potreros]);
+  const ordenados = useMemo(
+    () => [...potreros].sort((a, b) => ordenNatural.compare(nombreConSigla(a, todas), nombreConSigla(b, todas))),
+    [potreros, todas],
+  );
   const categorias = useMemo(() => {
     const m = new Map();
     for (const p of potreros) for (const l of p.stock?.lotes ?? []) m.set(String(l.categoriaId), l.categoria);
     return [...m].sort((a, b) => a[1].localeCompare(b[1]));
   }, [potreros]);
 
-  const filas = useMemo(() => (datos ? ordenarFilas(armarFilas(datos.movimientos, campoId), orden) : []), [datos, campoId, orden]);
+  const lugar = todas ? null : campoId;
+  const filas = useMemo(() => (datos ? ordenarFilas(armarFilas(datos.movimientos, lugar), orden) : []), [datos, lugar, orden]);
   // Cambiar un filtro o el orden vuelve a la página 1.
   useEffect(() => setPagina(1), [filtrosApi, orden]);
   const pag = paginar(filas, pagina);
@@ -309,7 +317,7 @@ export default function MovimientosLista({ campoId, potreros }) {
             <option value="">Todos</option>
             {ordenados.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre}
+                {nombreConSigla(p, todas)}
               </option>
             ))}
           </Selector>
@@ -371,7 +379,7 @@ export default function MovimientosLista({ campoId, potreros }) {
                     {fila.pasos &&
                       abierto &&
                       fila.pasos.map((m, n) => (
-                        <Paso key={m.id} m={m} n={n + 1} campoId={campoId} conRevertir={conRevertir} />
+                        <Paso key={m.id} m={m} n={n + 1} campoId={lugar} conRevertir={conRevertir} />
                       ))}
                   </Fragment>
                 );

@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCategorias, getPotrero, getPotreros, registrarMovimiento, vistaPreviaMovimiento } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, buttonClass, inputClass } from '../components/ui';
-import { UsoBadge, formatNumero } from '../components/pecuaria';
+import { UsoBadge, cabezasPorCategoria, formatNumero } from '../components/pecuaria';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -195,7 +195,7 @@ export default function MoverPage() {
           {potreros.map((p) => (
             <option key={p.id} value={p.id}>
               {p.nombre}
-              {p.id === origen.id ? ' (este mismo)' : ''} · {p.usoActual?.nombre ?? 'sin uso'} · {formatNumero(p.stock?.cabezas ?? 0)} cab
+              {p.id === origen.id ? ' (este mismo)' : ''} · {cabezasPorCategoria(p.stock?.lotes)} · {p.usoActual?.nombre ?? 'sin uso'}
             </option>
           ))}
         </select>

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useEstancia } from '../context/EstanciaContext';
 import usePotreros from '../hooks/usePotreros';
 import { ErrorList } from './ui';
-import { formatNumero } from './pecuaria';
+import { cabezasPorCategoria, formatNumero } from './pecuaria';
 import Icono from './Icono';
 
 const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -146,9 +146,13 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
                 <ul className="-mx-1 min-h-0 flex-1 divide-y divide-suelo-200 overflow-y-auto">
                   {lista.map((p) => (
                     <li key={p.id}>
-                      <button type="button" onClick={() => elegirPotrero(p)} className="flex w-full items-center justify-between gap-3 px-2 py-2.5 text-left hover:bg-suelo-100">
-                        <span className="font-medium">{p.nombre}</span>
-                        <span className="text-sm text-suelo-500">{formatNumero(p.stock?.cabezas ?? 0)} cab</span>
+                      <button type="button" onClick={() => elegirPotrero(p)} className="flex w-full items-baseline justify-between gap-3 px-2 py-2.5 text-left hover:bg-suelo-100">
+                        <span className="min-w-0">
+                          <span className="block font-medium">{p.nombre}</span>
+                          {/* Cabezas de qué: por categoría. */}
+                          <span className="block text-xs text-suelo-500">{cabezasPorCategoria(p.stock?.lotes)}</span>
+                        </span>
+                        <span className="shrink-0 text-sm text-suelo-500">{formatNumero(p.stock?.cabezas ?? 0)} cab</span>
                       </button>
                     </li>
                   ))}

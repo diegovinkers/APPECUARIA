@@ -173,6 +173,14 @@ describe('Marco: el botón +', () => {
     expect(donde()).toBe('/pecuaria/mover?potrero=10&lote=102');
   });
 
+  it('cada potrero dice cabezas de qué (por categoría)', () => {
+    montar();
+    click(boton('Registrar'));
+    elegir('Entrada');
+    const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
+    expect(opciones).toEqual(['10.380 Terneros · 40 Vacas120 cab', '1250 Novillos50 cab', '14vacío0 cab']);
+  });
+
   it('con un solo lote en el potrero, va directo', () => {
     montar();
     click(boton('Registrar'));

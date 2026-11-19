@@ -6,6 +6,18 @@ export const formatNumero = (n, decimales = 0) =>
 // "2026-11-13" → "13/11/2026"
 export const formatFecha = (iso) => (iso ? iso.split('-').reverse().join('/') : '—');
 
+// Qué hay en un potrero, por categoría: "350 Terneros" o "120 Terneros · 80 Vacas"
+// (los lotes de la misma categoría se suman). Sin animales: "vacío".
+export function cabezasPorCategoria(lotes = []) {
+  const porCategoria = new Map();
+  for (const l of lotes) if (l.cabezas > 0) porCategoria.set(l.categoria, (porCategoria.get(l.categoria) ?? 0) + l.cabezas);
+  if (!porCategoria.size) return 'vacío';
+  return [...porCategoria]
+    .sort((a, b) => b[1] - a[1])
+    .map(([categoria, n]) => `${formatNumero(n)} ${categoria}`)
+    .join(' · ');
+}
+
 const COLOR_GRUPO = {
   CN: 'bg-lime-500/15 text-lime-800',
   VERDEO: 'bg-emerald-500/15 text-emerald-800',

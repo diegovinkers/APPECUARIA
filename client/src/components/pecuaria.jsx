@@ -6,6 +6,14 @@ export const formatNumero = (n, decimales = 0) =>
 // Dólares: "USD 93.500".
 export const formatUsd = (n) => (n == null ? '—' : `USD ${formatNumero(n)}`);
 
+// Dólares en corto, para las tablas del celular: "2,74 M", "391 mil", "800".
+export function formatUsdCorto(n) {
+  if (n == null) return '—';
+  if (n >= 1_000_000) return `${formatNumero(n / 1_000_000, 2)} M`;
+  if (n >= 10_000) return `${formatNumero(n / 1_000, 0)} mil`;
+  return formatNumero(n);
+}
+
 // Kilos, kg/ha o UG/ha que salen (en parte) del peso promedio de la
 // categoría: con "≈" adelante.
 export const aprox = (estimado, texto) => (estimado ? `≈${texto}` : texto);

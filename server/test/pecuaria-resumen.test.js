@@ -53,8 +53,8 @@ describe('resumen por campo', () => {
 
     expect(body).toMatchObject({ campo: { sigla: 'EJ', nombre: 'Estancia Ejemplo' }, fecha: '2026-11-13', kgPorUg: 380 });
     expect(body.filas).toEqual([
-      { categoriaId: expect.any(Number), categoria: 'Terneros', CN: 50, VERDEO: 80, CORRAL: 0, OTRO: 0, total: 130 },
-      { categoriaId: expect.any(Number), categoria: 'Vacas', CN: 100, VERDEO: 0, CORRAL: 20, OTRO: 5, total: 125 },
+      { categoriaId: expect.any(Number), categoria: 'Terneros', CN: 50, VERDEO: 80, CORRAL: 0, OTRO: 0, total: 130, valorUsd: 0, valorCompleto: false },
+      { categoriaId: expect.any(Number), categoria: 'Vacas', CN: 100, VERDEO: 0, CORRAL: 20, OTRO: 5, total: 125, valorUsd: 0, valorCompleto: false },
     ]);
     expect(body.totales).toEqual({ CN: 150, VERDEO: 80, CORRAL: 20, OTRO: 5, total: 255 });
   });

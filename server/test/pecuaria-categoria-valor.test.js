@@ -93,6 +93,11 @@ describe('valor del ganado', () => {
     const una = (await agent.get(`/api/pecuaria/campos/${campo.id}/resumen`).expect(200)).body;
     expect(una.valor).toEqual({ usd: 93500, completo: true });
     expect(una.porGrupo.find((g) => g.grupo === 'CN')).toMatchObject({ valorUsd: 93500 });
+    // Y el de cada categoría (para la columna Valor de la tabla).
+    expect(una.filas.map((f) => [f.categoria, f.valorUsd, f.valorCompleto])).toEqual([
+      ['Terneros', 80000, true],
+      ['Vacas', 13500, true],
+    ]);
     const todas = (await agent.get('/api/pecuaria/resumen').expect(200)).body;
     expect(todas.valor.usd).toBe(93500);
     expect(todas.estancias.find((e) => e.id === campo.id)).toMatchObject({ valorUsd: 93500 });

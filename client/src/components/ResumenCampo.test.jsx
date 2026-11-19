@@ -99,3 +99,35 @@ describe('valor del ganado', () => {
     expect(cuadro().querySelector('a').getAttribute('href')).toBe('/pecuaria/configuracion');
   });
 });
+
+describe('columna Valor', () => {
+  const montar = (resumen) =>
+    act(() =>
+      root.render(
+        <MemoryRouter>
+          <TablaResumen resumen={resumen} />
+        </MemoryRouter>,
+      ),
+    );
+  const titulos = () => [...contenedor.querySelectorAll('thead th')].map((th) => th.textContent);
+
+  it('va entre los grupos y el Total, con el valor de la categoría y por cabeza', () => {
+    montar({
+      ...RESUMEN,
+      valor: { usd: 2_224_000, completo: true },
+      filas: [
+        { ...RESUMEN.filas[0], valorUsd: 120_000, valorCompleto: true },
+        { ...RESUMEN.filas[1], valorUsd: 104_000, valorCompleto: true },
+      ],
+    });
+    expect(titulos()).toEqual(['Categoría', 'CN', 'Verdeos', 'Valor USD', 'Total']);
+    const celdas = [...contenedor.querySelectorAll('[data-testid="valor-categoria"]')].map((c) => c.textContent);
+    // Terneros: 120.000 / 150 = 800 por cabeza; total: 2,22 M / 230.
+    expect(celdas).toEqual(['120 mil800/cab', '104 mil1.300/cab', '2,22 M9.670/cab']);
+  });
+
+  it('sin precios cargados no aparece', () => {
+    montar({ ...RESUMEN, valor: { usd: 0, completo: false } });
+    expect(titulos()).not.toContain('Valor USD');
+  });
+});

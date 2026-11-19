@@ -165,7 +165,7 @@ En `client/`: `npm run dev`.
       - Archivo del bastón dentro del registro y en una bandeja aparte.
       - Registro por animal, de a poco.
       - Plan de 8 fases y 10 preguntas para el encargado.
-    - **Fase 1, lote repartido ("familia de lotes", 19/11), hecha en desarrollo, sin commitear:**
+    - **Fase 1, lote repartido ("familia de lotes", 19/11), publicada (`f2a8887`):**
       - Plan: `docs/superpowers/plans/2026-11-19-familia-de-lotes.md`.
       - Migración `familia_de_lotes`: `lote.raiz_id`.
       - Mover con `mismoLote: true` (modo NUEVO): la parte toma la categoría del lote y se llama "<raíz> · <potrero>". Solo una parte y a otro potrero.
@@ -173,7 +173,7 @@ En `client/`: `npm run dev`.
       - En Mover, "Sigue siendo el mismo lote" se propone primero cuando el destino está vacío. Si en el destino hay una parte de la misma familia, se propone sumarse a ella.
       - La ficha del lote muestra "Repartido en N potreros". En la ficha del potrero, si dos partes quedan juntas, aparece "Unirlas" (`familiasJuntas`).
       - Tests: `pecuaria-familia.test.js` (8) y 90 en el front.
-    - **Área utilizable (19/11), hecha en desarrollo, sin commitear:**
+    - **Área utilizable (19/11), publicada (`f2a8887`):**
       - Diseño: `docs/superpowers/specs/2026-11-19-area-utilizable-design.md`.
       - Migración `area_utilizable`: `potrero.area_utilizable`. null = todas las hectáreas, y así arrancan todos los potreros.
       - La carga (cab/ha, kg/ha, UG/ha, la barra, la carga por grupo del Resumen y la vista previa de los movimientos) se calcula sobre `hectareasDeCarga()` de `calculos.js`: el área utilizable o, si no hay, las hectáreas.
@@ -183,7 +183,7 @@ En `client/`: `npm run dev`.
       - Auditoría: `POTRERO_EDITADO` y `USO_SUELO_CAMBIADO` guardan el área de antes y la de después.
       - Tests: `pecuaria-area.test.js` (5) y 91 en el front.
       - Pedido siguiente de Diego: UG y valor promedio por categoría.
-    - **Peso promedio y precio por categoría (19/11), hecho en desarrollo, sin commitear:**
+    - **Peso promedio y precio por categoría (19/11), publicado (`f2a8887`):**
       - Diseño: `docs/superpowers/specs/2026-11-19-peso-y-precio-por-categoria-design.md`.
       - Diego entendió la UG así: kilos ÷ 380, con un peso promedio por categoría para los lotes sin peso.
       - Migración `peso_y_precio_por_categoria`: `categoria.peso_promedio_kg`, `precio_usd` y `precio_por` (enum `PrecioPor`: KG / CABEZA).
@@ -199,7 +199,12 @@ En `client/`: `npm run dev`.
         - Receta `docs/info santi/pesos-precios-categorias.mjs` (fuera de git; se puede repetir y audita `CATEGORIA_EDITADA`).
         - Salen de la hoja KG.$ del DICOSE al 30/06. Diego aprobó la correspondencia; las "supuesto" (Terneros/Terneras chicos, Vacas, Vacas CUT, Vaquillonas paridas, Novillos y Vaquillonas generales) no tienen fila propia en la hoja.
         - Resultado: **USD 11,84 M** por 10.934 cabezas (EG 6,99 M · ES 1,32 M · ER 1,16 M · ELS 1,52 M · LA PALMA 0,45 M · ESP 0,39 M). UG/ha estimada: CN 0,81 y Verdeos 0,89.
-        - En Render falta: subir el código y correr la misma receta con `correr-en-render.mjs`.
+        - En Render falta correr la misma receta con `correr-en-render.mjs`: el código ya está publicado.
+      - **Columna Valor en la tabla del Resumen (19/11), hecha en desarrollo, sin commitear:**
+        - Va entre los grupos y el Total, y solo aparece si hay precios cargados.
+        - Cada celda muestra arriba el valor de la categoría ("2,74 M", "391 mil") y abajo, en chico, el valor por cabeza ("800/cab"). Lleva un "*" si está incompleto.
+        - `formatUsdCorto` en `components/pecuaria.jsx`. Cada fila del resumen trae `valorUsd` y `valorCompleto`.
+        - Tests: 98 en el front.
     - Para levantar la app desde la app de escritorio: `.claude/launch.json` (configuraciones `api` y `web`).
     - `exceljs` trae un `uuid` viejo: está forzado a `^11.1.1` con `overrides` en `server/package.json`.
   - **Módulo Parcelas:** en diseño (`docs/DECISIONES.md` §9).

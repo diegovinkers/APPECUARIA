@@ -59,6 +59,8 @@ async function resumen(where) {
   });
 
   const filas = new Map();
+  // Las líneas de cada categoría, para su valor (cabezas × precio o kilos × precio).
+  const lineasPorCategoria = new Map();
   const totales = vacio();
   const porCampo = new Map();
   const grupos = Object.fromEntries(GRUPOS.map((g) => [g, { potreros: 0, hectareas: 0, todas: [], conHa: [] }]));
@@ -99,6 +101,7 @@ async function resumen(where) {
         filas.set(l.categoria.id, { orden: l.categoria.orden, categoriaId: l.categoria.id, categoria: l.categoria.nombre, ...vacio() });
       }
       const fila = filas.get(l.categoria.id);
+      lineasPorCategoria.set(l.categoria.id, [...(lineasPorCategoria.get(l.categoria.id) ?? []), l]);
       fila[grupo] += l.cabezas;
       fila.total += l.cabezas;
       totales[grupo] += l.cabezas;
@@ -115,7 +118,10 @@ async function resumen(where) {
     kgPorUg: kg.kgPorUg,
     filas: [...filas.values()]
       .sort((a, b) => a.orden - b.orden || a.categoria.localeCompare(b.categoria))
-      .map(({ orden, ...fila }) => fila),
+      .map(({ orden, ...fila }) => {
+        const v = calcularPotrero({ hectareas: null, hectareasAConfirmar: true, lineas: lineasPorCategoria.get(fila.categoriaId) }, kg);
+        return { ...fila, valorUsd: v.valorUsd, valorCompleto: v.valorCompleto };
+      }),
     totales,
     // La carga (por hectárea) se calcula solo con los potreros que tienen
     // hectáreas conocidas; cabezas y kilos, con todos.

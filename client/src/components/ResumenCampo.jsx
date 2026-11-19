@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getResumen } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList } from './ui';
-import { formatFecha, formatNumero, formatUsd } from './pecuaria';
+import { formatFecha, formatNumero, formatUsd, formatUsdCorto } from './pecuaria';
 
 const NOMBRE_GRUPO = { CN: 'CN', VERDEO: 'Verdeos', CORRAL: 'Corral', OTRO: 'Otro' };
 
@@ -58,12 +58,27 @@ export function ValorGanado({ valor }) {
   );
 }
 
+// Una celda de la columna Valor: arriba lo que vale la categoría entera y,
+// abajo en chico, lo que vale cada cabeza (pedido de Diego, 19/11).
+function Valor({ usd, cabezas, completo }) {
+  if (!(usd > 0)) return <span className="text-suelo-400" title="Sin precio en Configuración">—</span>;
+  return (
+    <span className="whitespace-nowrap" data-testid="valor-categoria">
+      {formatUsdCorto(usd)}
+      {!completo && <span className="text-amber-800" title="Hay lotes sin precio o sin peso">*</span>}
+      {cabezas > 0 && <span className="block text-[11px] font-normal leading-4 text-suelo-500">{formatNumero(usd / cabezas)}/cab</span>}
+    </span>
+  );
+}
+
 // La tabla y la carga por grupo, de una estancia o de todas juntas.
 export function TablaResumen({ resumen }) {
   if (!resumen.filas.length) return <p className="text-suelo-600">Todavía no hay animales cargados.</p>;
 
   // CN y Verdeos siempre; Corral y Otro, solo si tienen animales (en el celular no sobra lugar).
   const columnas = ['CN', 'VERDEO', ...['CORRAL', 'OTRO'].filter((g) => resumen.totales[g] > 0)];
+  // La columna Valor (entre los grupos y el Total), solo si hay precios cargados.
+  const conValor = resumen.valor?.usd > 0;
   const celda = (n, filtro) =>
     n ? (
       <Link to={aPotreros(filtro)} className={linkCelda}>
@@ -94,6 +109,7 @@ export function TablaResumen({ resumen }) {
                   {NOMBRE_GRUPO[g]}
                 </th>
               ))}
+              {conValor && <th className="px-2 py-2 sm:px-3">Valor USD</th>}
               <th className="px-2 py-2 sm:px-3 text-suelo-900">Total</th>
             </tr>
           </thead>
@@ -110,6 +126,11 @@ export function TablaResumen({ resumen }) {
                     {celda(f[g], { categoriaId: f.categoriaId, grupo: g })}
                   </td>
                 ))}
+                {conValor && (
+                  <td className="px-2 py-2 sm:px-3">
+                    <Valor usd={f.valorUsd} cabezas={f.total} completo={f.valorCompleto} />
+                  </td>
+                )}
                 <td className="px-2 py-2 sm:px-3 font-semibold">{celda(f.total, { categoriaId: f.categoriaId })}</td>
               </tr>
             ))}
@@ -122,6 +143,11 @@ export function TablaResumen({ resumen }) {
                   {celda(resumen.totales[g], { grupo: g })}
                 </td>
               ))}
+              {conValor && (
+                <td className="px-2 py-2 sm:px-3">
+                  <Valor usd={resumen.valor.usd} cabezas={resumen.totales.total} completo={resumen.valor.completo} />
+                </td>
+              )}
               <td className="px-2 py-2 sm:px-3 text-lg">{formatNumero(resumen.totales.total)}</td>
             </tr>
           </tfoot>

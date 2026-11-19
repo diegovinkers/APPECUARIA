@@ -2,25 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { paginar, paginasVisibles } from './tabla.jsx';
 
 describe('paginasVisibles', () => {
-  it('en la 1 de 100: las 5 siguientes, el 30%, el 50% y la última', () => {
-    expect(paginasVisibles(1, 100)).toEqual([1, 2, 3, 4, 5, 6, '…', 30, '…', 50, '…', 100]);
+  it('con 7 páginas, como pidió Diego', () => {
+    const en = (p) => paginasVisibles(p, 7);
+    expect(en(1)).toEqual([1, 2, 3, '…', 7]);
+    expect(en(2)).toEqual([1, 2, 3, '…', 7]);
+    expect(en(3)).toEqual([1, 2, 3, 4, '…', 7]);
+    expect(en(4)).toEqual([1, '…', 3, 4, 5, '…', 7]);
+    expect(en(5)).toEqual([1, '…', 4, 5, 6, 7]);
+    expect(en(6)).toEqual([1, '…', 5, 6, 7]);
+    expect(en(7)).toEqual([1, '…', 5, 6, 7]);
   });
 
-  it('los saltos se cuentan desde donde estás, y la 1 siempre está', () => {
-    expect(paginasVisibles(40, 100)).toEqual([1, '…', 40, 41, 42, 43, 44, 45, '…', 69, '…', 89, '…', 100]);
-  });
-
-  it('cerca del final, los saltos que se pasan no aparecen', () => {
-    expect(paginasVisibles(97, 100)).toEqual([1, '…', 97, 98, 99, 100]);
-  });
-
-  it('con pocas páginas, todas seguidas', () => {
-    expect(paginasVisibles(1, 4)).toEqual([1, 2, 3, 4]);
+  it('con pocas páginas, todas seguidas; con una sola, nada', () => {
+    expect(paginasVisibles(1, 3)).toEqual([1, 2, 3]);
+    expect(paginasVisibles(2, 2)).toEqual([1, 2]);
     expect(paginasVisibles(1, 1)).toEqual([]);
-  });
-
-  it('con 20 páginas, el salto del 30% cae dentro de las siguientes y no se repite', () => {
-    expect(paginasVisibles(1, 20)).toEqual([1, 2, 3, 4, 5, 6, '…', 10, '…', 20]);
   });
 });
 

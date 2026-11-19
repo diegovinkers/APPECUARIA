@@ -110,7 +110,7 @@ describe('la tabla de potreros', () => {
     expect(cabezas.textContent).toBe('505/ha');
     expect(cabezas.className).toContain('align-middle');
     // Todas las filas del mismo alto; lo largo se corta con "…" (no baja de renglón).
-    for (const tr of contenedor.querySelectorAll('tbody tr')) expect(tr.className).toContain('h-[3.25rem]');
+    for (const tr of contenedor.querySelectorAll('tbody tr')) expect(tr.className).toContain('h-[4.5rem]');
     expect(contenedor.querySelector('[data-testid="linea-celular"] span.truncate')).not.toBeNull();
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
     expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías', 'cab/ha']);

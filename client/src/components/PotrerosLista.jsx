@@ -35,9 +35,10 @@ const COLUMNAS = [
 ];
 const SOLO_COMPU = 'hidden md:table-cell';
 // Las filas, todas del mismo alto y con todo centrado (pedido de Diego, 19/11):
-// en el celular dos líneas (lo que no entra se corta con "…"), en la compu una.
+// en el celular tres líneas (nombre, uso y qué hay; lo que no entra se corta
+// con "…"), en la compu una.
 const celdaFila = celda.replace('align-top', 'align-middle');
-const ALTO_FILA = 'h-[3.25rem] md:h-10';
+const ALTO_FILA = 'h-[4.5rem] md:h-10';
 // En el celular la tabla tiene ancho fijo: Cabezas y UG/ha con su ancho, y
 // Potrero lo que queda (así el "…" corta adentro de la celda).
 const ANCHO_CELULAR = { cabezas: 'w-[5.75rem] md:w-auto', ugHa: 'w-[5.25rem] md:w-auto' };
@@ -302,9 +303,12 @@ function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
           </Link>
           {p.tipo === 'CORRAL' && <span className="shrink-0 text-xs font-medium text-amber-800">corral</span>}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs font-normal text-suelo-600 md:hidden" data-testid="linea-celular">
-          <UsoBadge uso={p.usoActual} chico />
-          <span className="truncate">{vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}</span>
+        {/* Debajo, en renglones propios: el uso y lo que hay (pedido de Diego, 19/11). */}
+        <div className="mt-0.5 text-xs font-normal leading-4 text-suelo-600 md:hidden" data-testid="linea-celular">
+          <div className="flex min-w-0">
+            <UsoBadge uso={p.usoActual} chico />
+          </div>
+          <span className="mt-0.5 block truncate">{vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}</span>
         </div>
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`}>

@@ -40,8 +40,9 @@ export const PANEL = [
   },
 ];
 
-// Botón "+": todo lo que se registra. `pide` dice qué hay que elegir antes de
-// ir a la pantalla: el potrero, o el potrero y el lote.
+// Botón "+": todo lo que se registra, y solo desde acá (DECISIONES §11).
+// `pide` dice qué hay que elegir antes de ir a la pantalla: el potrero, o el
+// potrero y el lote. Sin `pide`, va directo (la pantalla pregunta lo suyo).
 export const REGISTRAR = [
   {
     clave: 'mover',
@@ -50,6 +51,22 @@ export const REGISTRAR = [
     pide: 'lote',
     pregunta: '¿De qué potrero salen?',
     destino: (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}`,
+    requiere: 'pecuaria:CREAR',
+  },
+  {
+    clave: 'entreCampos',
+    texto: 'Mover entre campos',
+    detalle: 'a otra estancia, con su guía',
+    icono: 'traslado',
+    destino: () => '/pecuaria/mover-entre-campos',
+    requiere: 'pecuaria:CREAR',
+  },
+  {
+    clave: 'multiple',
+    texto: 'Movimiento múltiple',
+    detalle: 'A → B, B → C… todo junto',
+    icono: 'multiple',
+    destino: () => '/pecuaria/movimiento-multiple',
     requiere: 'pecuaria:CREAR',
   },
   {

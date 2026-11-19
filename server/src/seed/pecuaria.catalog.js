@@ -62,6 +62,8 @@ export const TIPOS_MOVIMIENTO = [
   { clave: 'LOTE_ENTERO', nombre: 'Mover el lote entero', efecto: 'MUEVE', niveles: ['POTRERO', 'CATEGORIA', 'LOTE'], cigam: '4' },
   { clave: 'CAMBIO_CATEGORIA', nombre: 'Cambio de categoría', efecto: 'CATEGORIA', niveles: MOVER },
   { clave: 'REVERSION', nombre: 'Reversión', efecto: 'MUEVE', niveles: ['LOTE', 'PARTE_LOTE'] },
+  // Paso 5 del rediseño: un lote (o parte) a un potrero de otra estancia.
+  { clave: 'ENTRE_CAMPOS', nombre: 'Movimiento entre campos', efecto: 'MUEVE', niveles: ['LOTE', 'PARTE_LOTE'] },
   // 2. Entradas
   { clave: 'NACIMIENTO', nombre: 'Nacimiento / parto', efecto: 'ENTRA', niveles: ['LOTE', 'PARTE_LOTE'], cigam: '12' },
   { clave: 'COMPRA', nombre: 'Compra', efecto: 'ENTRA', pideGuia: true, niveles: ['LOTE'] },

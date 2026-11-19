@@ -34,7 +34,7 @@ describe('catálogo inicial (seed)', () => {
     const { agent } = await agente();
     const t = await porClave(agent);
 
-    expect(Object.keys(t)).toHaveLength(26);
+    expect(Object.keys(t)).toHaveLength(27);
     const cigam = Object.fromEntries(Object.values(t).filter((x) => x.idTipoEventoCigam).map((x) => [x.nombre, x.idTipoEventoCigam]));
     expect(cigam).toEqual({
       'Caravaneo o señalada': '1',
@@ -112,7 +112,7 @@ describe('catálogo inicial (seed)', () => {
       data: { clave: 'SUMAR_LOTE', nombre: 'Sumar a otro lote', efecto: 'MUEVE', niveles: ['LOTE'] },
     });
     await seedPecuaria(prisma, quiet);
-    expect(await prisma.tipoMovimiento.count()).toBe(26);
+    expect(await prisma.tipoMovimiento.count()).toBe(27);
     // El que ya estaba no se toca.
     expect((await prisma.tipoMovimiento.findUnique({ where: { clave: 'SUMAR_LOTE' } })).niveles).toEqual(['LOTE']);
   });

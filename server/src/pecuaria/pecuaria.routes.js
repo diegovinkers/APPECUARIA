@@ -14,6 +14,12 @@ import {
   getPotrero,
   getResumen,
   getResumenTodas,
+  getDestinosEntreCampos,
+  postEntreCampos,
+  postMultiple,
+  postRevertirEvento,
+  postVistaPreviaEntreCampos,
+  postVistaPreviaMultiple,
   listPotreros,
   patchLote,
   postEntradaSalida,
@@ -44,6 +50,8 @@ import {
   editarTipoSchema,
   editarUsoSchema,
   entradaSalidaSchema,
+  entreCamposSchema,
+  multipleSchema,
   loteSchema,
   movimientoSchema,
   parametroSchema,
@@ -56,6 +64,10 @@ import { validateBody } from '../middlewares/validate.js';
 import {
   alcance,
   alcanceEntradaSalida,
+  alcanceEntreCampos,
+  alcanceEvento,
+  alcanceMultiple,
+  alcanceOrigenQuery,
   alcanceImportacion,
   alcanceMovimiento,
   alcanceSubirPlanilla,
@@ -120,6 +132,15 @@ router.get('/campos/:campoId/movimientos', ver, alcance('campo', 'campoId'), get
 router.post('/movimientos/vista-previa', registrar, validateBody(movimientoSchema), alcanceMovimiento, postVistaPreviaMovimiento);
 router.post('/movimientos', registrar, validateBody(movimientoSchema), alcanceMovimiento, postMovimiento);
 router.post('/movimientos/:id/revertir', revertir, alcance('movimiento'), postRevertirMovimiento);
+// Paso 5 del rediseño: mover entre campos (el destino puede ser una estancia
+// que el usuario no tiene) y movimiento múltiple. Los dos quedan como un
+// evento con sus pasos, que se revierte entero.
+router.get('/movimientos/entre-campos/destinos', registrar, alcanceOrigenQuery, getDestinosEntreCampos);
+router.post('/movimientos/entre-campos/vista-previa', registrar, validateBody(entreCamposSchema), alcanceEntreCampos, postVistaPreviaEntreCampos);
+router.post('/movimientos/entre-campos', registrar, validateBody(entreCamposSchema), alcanceEntreCampos, postEntreCampos);
+router.post('/movimientos/multiple/vista-previa', registrar, validateBody(multipleSchema), alcanceMultiple, postVistaPreviaMultiple);
+router.post('/movimientos/multiple', registrar, validateBody(multipleSchema), alcanceMultiple, postMultiple);
+router.post('/eventos/:id/revertir', revertir, alcanceEvento, postRevertirEvento);
 // Entradas (nacimiento, compra...) y salidas (muerte, venta...). Quedan en la
 // misma lista que los movimientos y se revierten igual.
 router.post('/entradas-salidas/vista-previa', registrar, validateBody(entradaSalidaSchema), alcanceEntradaSalida, postVistaPreviaEntradaSalida);

@@ -8,7 +8,7 @@ import * as movimientos from './movimientos.service.js';
 import * as tipos from './tipos.repository.js';
 import * as entradasSalidas from './entradas-salidas.service.js';
 import { ACCION, cambios, registrar } from '../audit/audit.js';
-import { badRequest, notFound } from '../errors.js';
+import { badRequest, notFound, parseId } from '../errors.js';
 import { filtrosMovimientosSchema } from './pecuaria.schema.js';
 
 // Las claves que vinieron en el body: son las que se comparan para auditar.
@@ -232,6 +232,40 @@ export async function postMovimiento(req, res) {
     entidadId: resultado.movimiento.id,
     detalle: auditoria,
   });
+  res.status(201).json(resultado);
+}
+
+// --- Mover entre campos y movimiento múltiple (paso 5 del rediseño) ---
+
+export async function getDestinosEntreCampos(req, res) {
+  const origen = parseId(req.query.origen);
+  if (!origen) throw badRequest('Elegí el campo de origen');
+  res.json(await movimientos.destinosEntreCampos(origen));
+}
+
+export async function postVistaPreviaEntreCampos(req, res) {
+  res.json(await movimientos.vistaPreviaEntreCampos(req.body));
+}
+
+export async function postEntreCampos(req, res) {
+  const { auditoria, ...resultado } = await movimientos.registrarEntreCampos(req.body, req.user.id);
+  await registrar(req, { accion: ACCION.MOVIMIENTO_ENTRE_CAMPOS, entidad: 'evento_movimiento', entidadId: resultado.evento.id, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+export async function postVistaPreviaMultiple(req, res) {
+  res.json(await movimientos.vistaPreviaMultiple(req.body, req.user.id));
+}
+
+export async function postMultiple(req, res) {
+  const { auditoria, ...resultado } = await movimientos.registrarMultiple(req.body, req.user.id);
+  await registrar(req, { accion: ACCION.MOVIMIENTO_MULTIPLE, entidad: 'evento_movimiento', entidadId: resultado.evento.id, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+export async function postRevertirEvento(req, res) {
+  const { auditoria, ...resultado } = await movimientos.revertirEvento(req.params.id, req.user.id);
+  await registrar(req, { accion: ACCION.EVENTO_REVERTIDO, entidad: 'evento_movimiento', entidadId: auditoria.revierteA, detalle: auditoria });
   res.status(201).json(resultado);
 }
 

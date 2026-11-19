@@ -17,12 +17,23 @@ const LoteLink = ({ lote }) => (
 
 const peso = (m) => (m.pesoPromedioKg ? ` de ${formatNumero(m.pesoPromedioKg)} kg` : '');
 
-// Lo que agregan las entradas y salidas: causa, guía, otro campo, madres.
+const NOMBRE_EVENTO = { MULTIPLE: 'movimiento múltiple', ENTRE_CAMPOS: 'movimiento entre campos', REVERSION: 'reversión' };
+
+// Entre campos: "La Gateada → La Seda" (el campo de cada potrero).
+function entreCampos(m) {
+  const nombre = (potrero) => [m.campo, m.campoOtro].find((c) => c?.id === potrero?.campoId)?.nombre;
+  return `Entre campos: ${nombre(m.potreroOrigen) ?? '?'} → ${nombre(m.potreroDestino) ?? '?'}`;
+}
+
+// Lo que agregan las entradas, salidas y eventos: causa, guía, otro campo,
+// madres, y si es un paso de un movimiento múltiple o entre campos.
 function Extras({ m }) {
+  const deOtroCampo = m.campoOtro && m.potreroOrigen && m.potreroDestino;
   const partes = [
+    m.evento && `Parte de un ${NOMBRE_EVENTO[m.evento.tipo] ?? 'evento'} (#${m.evento.id}): se revierte entero, desde Movimientos`,
     m.causa && `Causa: ${m.causa.codigo} · ${m.causa.nombre}`,
     m.guia && `Guía ${m.guia}`,
-    m.campoOtro && `${m.modo === 'ENTRADA' ? 'Desde' : 'Hacia'} ${m.campoOtro.sigla} (${m.campoOtro.nombre})`,
+    deOtroCampo ? entreCampos(m) : m.campoOtro && `${m.modo === 'ENTRADA' ? 'Desde' : 'Hacia'} ${m.campoOtro.sigla} (${m.campoOtro.nombre})`,
     m.loteMadres && `Madres: ${m.loteMadres.nombre}`,
   ].filter(Boolean);
   return partes.length ? <p className="mt-1 text-suelo-600">{partes.join(' · ')}</p> : null;

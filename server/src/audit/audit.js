@@ -58,6 +58,13 @@ export const ACCION = {
   MOVIMIENTO_REVERTIDO: 'MOVIMIENTO_REVERTIDO',
   // detalle: { antes: { nombre }, despues: { nombre } }
   LOTE_EDITADO: 'LOTE_EDITADO',
+  // Paso 5 del rediseño. entidad = el evento.
+  // detalle: { evento, campoDestino, guia?, fecha, cabezas, modo, origen, destino, categoriaOrigen, categoriaDestino, nota? }
+  MOVIMIENTO_ENTRE_CAMPOS: 'MOVIMIENTO_ENTRE_CAMPOS',
+  // detalle: { evento, fecha, pasos: [{ paso, cabezas, potreroOrigen, potreroDestino, ... }], nota? }
+  MOVIMIENTO_MULTIPLE: 'MOVIMIENTO_MULTIPLE',
+  // entidad_id = el evento que se deshizo. detalle: { revierteA, tipoOriginal, fechaOriginal, pasos }
+  EVENTO_REVERTIDO: 'EVENTO_REVERTIDO',
 };
 
 // Para auditar una edición: de las claves indicadas, solo las que cambiaron.

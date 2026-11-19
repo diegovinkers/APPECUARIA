@@ -181,6 +181,16 @@ describe('Marco: el botón +', () => {
     expect(donde()).toBe('/pecuaria/registrar?efecto=SALE&potrero=12&lote=121');
   });
 
+  it('Mover entre campos y Movimiento múltiple van directo a su pantalla', () => {
+    montar();
+    click(boton('Registrar'));
+    elegir('Mover entre campos');
+    expect(donde()).toBe('/pecuaria/mover-entre-campos');
+    click(boton('Registrar'));
+    elegir('Movimiento múltiple');
+    expect(donde()).toBe('/pecuaria/movimiento-multiple');
+  });
+
   it('Entrada pide solo el potrero (también los vacíos)', () => {
     montar();
     click(boton('Registrar'));

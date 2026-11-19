@@ -113,6 +113,13 @@ export async function updateTipo(id, { niveles, ...data }) {
 
 // El tipo de un modo de la pantalla Mover (SUMAR, NUEVO...). Si falta en el
 // catálogo (una base recién vaciada), lo crea como en el seed.
+// El tipo del catálogo por su clave (lo crea si todavía no existe).
+export async function tipoPorClave(db, clave) {
+  const definicion = TIPOS_MOVIMIENTO.find((t) => t.clave === clave);
+  if (!definicion) throw new Error(`Tipo de movimiento desconocido: ${clave}`);
+  return db.tipoMovimiento.upsert({ where: { clave }, update: {}, create: definicion, select: { id: true, clave: true, nombre: true } });
+}
+
 export async function tipoDeModo(db, modo) {
   const clave = MODO_A_TIPO[modo];
   const definicion = TIPOS_MOVIMIENTO.find((t) => t.clave === clave);

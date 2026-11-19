@@ -93,5 +93,9 @@ describe('la lista', () => {
     expect(por.entrada.destino(3)).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=3');
     expect(por.salida.destino(3, 7)).toBe('/pecuaria/registrar?efecto=SALE&potrero=3&lote=7');
     expect(por.correccion.destino(3)).toBe('/pecuaria/potreros/3');
+    // Paso 5: van directo a su pantalla (cada una pregunta lo suyo).
+    expect(por.entreCampos.pide).toBeUndefined();
+    expect(por.entreCampos.destino()).toBe('/pecuaria/mover-entre-campos');
+    expect(por.multiple.destino()).toBe('/pecuaria/movimiento-multiple');
   });
 });

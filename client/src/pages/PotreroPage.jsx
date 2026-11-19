@@ -123,24 +123,7 @@ export default function PotreroPage() {
           </ul>
         )}
         {stock?.nota && <p className="mt-3 text-sm text-suelo-600">Nota: {stock.nota}</p>}
-        {puedo('pecuaria:CREAR') && (
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <Link
-            to={`/pecuaria/registrar?efecto=ENTRA&potrero=${potrero.id}`}
-            className="rounded-md border border-emerald-300 px-3 py-2 text-center text-sm font-medium text-emerald-800 hover:bg-emerald-50"
-          >
-            + Entrada
-          </Link>
-          {stock?.lineas.length > 0 && (
-            <Link
-              to={`/pecuaria/registrar?efecto=SALE&potrero=${potrero.id}`}
-              className="rounded-md border border-red-300 px-3 py-2 text-center text-sm font-medium text-red-700 hover:bg-red-50"
-            >
-              − Salida
-            </Link>
-          )}
-        </div>
-        )}
+        {/* Mover, entradas y salidas se registran desde el botón "+" (DECISIONES §11). */}
       </section>
 
       {!modo && (
@@ -280,7 +263,7 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
     >
       <p className="text-sm text-suelo-600">
         Se guarda como una versión nueva; la anterior queda en el historial. Para pasar animales a otro lote o a otro
-        potrero, usá el botón Mover del lote.
+        potrero, usá el botón + → Mover entre potreros.
       </p>
       <div className="space-y-3">
         {filas.map((f, i) => (
@@ -514,22 +497,6 @@ function LoteFila({ linea: l, potreroId, puedeRegistrar, onRenombrar }) {
             Ver historial del lote
           </Link>
         </div>
-        {puedeRegistrar && (
-        <div className="flex shrink-0 flex-col gap-1.5">
-          <Link
-            to={`/pecuaria/mover?potrero=${potreroId}&lote=${l.loteId}`}
-            className="rounded-md border border-campo-300 px-3 py-1.5 text-center text-sm font-medium text-campo-700 hover:bg-campo-100"
-          >
-            Mover
-          </Link>
-          <Link
-            to={`/pecuaria/registrar?efecto=SALE&potrero=${potreroId}&lote=${l.loteId}`}
-            className="rounded-md border border-red-300 px-3 py-1.5 text-center text-sm font-medium text-red-700 hover:bg-red-50"
-          >
-            Salida
-          </Link>
-        </div>
-        )}
       </div>
     </li>
   );

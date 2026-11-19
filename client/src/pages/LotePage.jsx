@@ -5,11 +5,9 @@ import { getErrorMessages } from '../api/axios';
 import { ErrorList } from '../components/ui';
 import { formatFecha, formatNumero } from '../components/pecuaria';
 import { MovimientoItem } from '../components/movimientos';
-import usePuede from '../hooks/usePuede';
 
 // Historial de un lote: dónde está, qué tiene y por dónde pasó.
 export default function LotePage() {
-  const puedo = usePuede();
   const { id } = useParams();
   const [datos, setDatos] = useState(null);
   const [errors, setErrors] = useState([]);
@@ -52,22 +50,6 @@ export default function LotePage() {
             {actual.pesoPromedioKg ? ` · ${formatNumero(actual.pesoPromedioKg)} kg promedio` : ''}
             <span className="ml-2 text-xs text-suelo-500">al {formatFecha(actual.fecha)}</span>
           </p>
-          {puedo('pecuaria:CREAR') && (
-          <div className="flex gap-2">
-            <Link
-              to={`/pecuaria/mover?potrero=${lote.potrero.id}&lote=${lote.id}`}
-              className="rounded-md border border-campo-300 px-3 py-1.5 text-sm font-medium text-campo-700 hover:bg-campo-100"
-            >
-              Mover
-            </Link>
-            <Link
-              to={`/pecuaria/registrar?efecto=SALE&potrero=${lote.potrero.id}&lote=${lote.id}`}
-              className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50"
-            >
-              Salida
-            </Link>
-          </div>
-          )}
         </div>
       ) : (
         <p className="mt-4 text-suelo-600">Hoy no tiene animales.</p>

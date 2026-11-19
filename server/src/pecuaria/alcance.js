@@ -9,6 +9,7 @@
 // un lote, un movimiento, una importación, o los ids del cuerpo) y la comparan.
 import { prisma } from '../db.js';
 import { notFound, parseId } from '../errors.js';
+import { campoDeEvento } from './movimientos.service.js';
 
 const NO_ENCONTRADO = 'No encontrado';
 
@@ -62,6 +63,40 @@ export async function alcanceMovimiento(req, res, next) {
     await controlar(req.user, 'lote', b.loteOrigenId);
     await controlar(req.user, 'potrero', b.destinoPotreroId);
     await controlar(req.user, 'lote', b.loteDestinoId);
+  }
+  next();
+}
+
+// Mover entre campos: solo el lote de origen. El destino puede ser cualquier
+// estancia (lo registra quien manda los animales; DECISIONES §11).
+export async function alcanceEntreCampos(req, res, next) {
+  if (!veTodas(req.user)) await controlar(req.user, 'lote', req.body.loteOrigenId);
+  next();
+}
+
+// Los destinos posibles: desde un campo de origen que sea del usuario.
+export async function alcanceOrigenQuery(req, res, next) {
+  if (!veTodas(req.user)) await controlar(req.user, 'campo', req.query.origen);
+  next();
+}
+
+// Movimiento múltiple: todos los lotes y potreros de todos los pasos.
+export async function alcanceMultiple(req, res, next) {
+  if (!veTodas(req.user)) {
+    for (const paso of req.body.pasos ?? []) {
+      await controlar(req.user, 'lote', paso.loteOrigenId);
+      await controlar(req.user, 'potrero', paso.destinoPotreroId);
+      await controlar(req.user, 'lote', paso.loteDestinoId);
+    }
+  }
+  next();
+}
+
+// Revertir un evento: el de la estancia de origen.
+export async function alcanceEvento(req, res, next) {
+  if (!veTodas(req.user)) {
+    const campoId = await campoDeEvento(req.params.id);
+    if (campoId != null && !puedeCampo(req.user, campoId)) throw notFound(NO_ENCONTRADO);
   }
   next();
 }

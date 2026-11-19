@@ -93,7 +93,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
               <li key={a.clave}>
                 <button
                   type="button"
-                  onClick={() => setAccion(a)}
+                  onClick={() => (a.pide ? setAccion(a) : navigate(a.destino()))}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-suelo-100"
                 >
                   <span className={TONO[a.tono] ?? 'text-campo-600'}>

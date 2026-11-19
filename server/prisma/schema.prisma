@@ -57,10 +57,11 @@ model Usuario {
   sesiones  Sesion[]
   auditoria Auditoria[]
 
-  potreroUsos    PotreroUso[]
-  versionesStock VersionStock[]
-  importaciones  Importacion[]
-  movimientos    Movimiento[]
+  potreroUsos       PotreroUso[]
+  versionesStock    VersionStock[]
+  importaciones     Importacion[]
+  movimientos       Movimiento[]
+  eventosMovimiento EventoMovimiento[]
 
   @@map("usuario")
 }
@@ -296,8 +297,9 @@ model Campo {
   lotes          Lote[]
   usuarios       UsuarioCampo[]
   sesionesBaston SesionBaston[]
-  movimientos    Movimiento[]   @relation("MovimientoCampo")
-  trasladosOtro  Movimiento[]   @relation("MovimientoCampoOtro")
+  movimientos    Movimiento[]       @relation("MovimientoCampo")
+  trasladosOtro  Movimiento[]       @relation("MovimientoCampoOtro")
+  eventos        EventoMovimiento[]
 
   @@map("campo")
 }
@@ -508,6 +510,38 @@ model Lote {
 /// un lote entero que cambia de potrero), que entran al campo o que salen.
 /// Genera una versión de stock en cada potrero involucrado. Las entradas no
 /// tienen origen y las salidas no tienen destino.
+/// Movimientos que se hicieron juntos (paso 5 del rediseño): un movimiento
+/// múltiple (A → B, B → C...), un movimiento entre campos, o la reversión de
+/// uno de ellos. Cada paso es un Movimiento normal con este eventoId; se
+/// guardan y se revierten todos juntos.
+model EventoMovimiento {
+  id          Int        @id @default(autoincrement())
+  tipo        TipoEvento
+  /// La estancia de origen (en un múltiple, la única).
+  campoId     Int        @map("campo_id")
+  fecha       DateTime   @db.Date
+  nota        String?    @db.VarChar(255)
+  /// Si es una reversión: el evento que deshace.
+  revierteAId Int?       @unique @map("revierte_a_id")
+  usuarioId   Int?       @map("usuario_id")
+  creadoEn    DateTime   @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  campo        Campo             @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  usuario      Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  revierteA    EventoMovimiento? @relation("ReversionEvento", fields: [revierteAId], references: [id], onDelete: Restrict)
+  revertidoPor EventoMovimiento? @relation("ReversionEvento")
+  movimientos  Movimiento[]
+
+  @@index([campoId, fecha])
+  @@map("evento_movimiento")
+}
+
+enum TipoEvento {
+  MULTIPLE
+  ENTRE_CAMPOS
+  REVERSION
+}
+
 model Movimiento {
   id                 Int      @id @default(autoincrement())
   campoId            Int      @map("campo_id")
@@ -538,28 +572,32 @@ model Movimiento {
   loteMadresId       Int?     @map("lote_madres_id")
   /// Si es una reversión: el movimiento que deshace (uno solo por movimiento).
   revierteAId        Int?     @unique @map("revierte_a_id")
+  /// Si es un paso de un movimiento múltiple o de un movimiento entre campos.
+  eventoId           Int?     @map("evento_id")
   nota               String?  @db.VarChar(255)
   versionOrigenId    Int?     @map("version_origen_id")
   versionDestinoId   Int?     @map("version_destino_id")
   usuarioId          Int?     @map("usuario_id")
   creadoEn           DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
 
-  campo          Campo            @relation("MovimientoCampo", fields: [campoId], references: [id], onDelete: Restrict)
-  loteOrigen     Lote?            @relation("MovimientoLoteOrigen", fields: [loteOrigenId], references: [id], onDelete: Restrict)
-  loteDestino    Lote?            @relation("MovimientoLoteDestino", fields: [loteDestinoId], references: [id], onDelete: Restrict)
-  potreroOrigen  Potrero?         @relation("MovimientoPotreroOrigen", fields: [potreroOrigenId], references: [id], onDelete: Restrict)
-  potreroDestino Potrero?         @relation("MovimientoPotreroDestino", fields: [potreroDestinoId], references: [id], onDelete: Restrict)
-  versionOrigen  VersionStock?    @relation("MovimientoVersionOrigen", fields: [versionOrigenId], references: [id], onDelete: Restrict)
-  versionDestino VersionStock?    @relation("MovimientoVersionDestino", fields: [versionDestinoId], references: [id], onDelete: Restrict)
-  usuario        Usuario?         @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
-  tipo           TipoMovimiento   @relation(fields: [tipoId], references: [id], onDelete: Restrict)
-  causa          CausaMovimiento? @relation(fields: [causaId], references: [id], onDelete: Restrict)
-  campoOtro      Campo?           @relation("MovimientoCampoOtro", fields: [campoOtroId], references: [id], onDelete: Restrict)
-  loteMadres     Lote?            @relation("MovimientoLoteMadres", fields: [loteMadresId], references: [id], onDelete: Restrict)
-  revierteA      Movimiento?      @relation("Reversion", fields: [revierteAId], references: [id], onDelete: Restrict)
-  revertidoPor   Movimiento?      @relation("Reversion")
+  campo          Campo             @relation("MovimientoCampo", fields: [campoId], references: [id], onDelete: Restrict)
+  loteOrigen     Lote?             @relation("MovimientoLoteOrigen", fields: [loteOrigenId], references: [id], onDelete: Restrict)
+  loteDestino    Lote?             @relation("MovimientoLoteDestino", fields: [loteDestinoId], references: [id], onDelete: Restrict)
+  potreroOrigen  Potrero?          @relation("MovimientoPotreroOrigen", fields: [potreroOrigenId], references: [id], onDelete: Restrict)
+  potreroDestino Potrero?          @relation("MovimientoPotreroDestino", fields: [potreroDestinoId], references: [id], onDelete: Restrict)
+  versionOrigen  VersionStock?     @relation("MovimientoVersionOrigen", fields: [versionOrigenId], references: [id], onDelete: Restrict)
+  versionDestino VersionStock?     @relation("MovimientoVersionDestino", fields: [versionDestinoId], references: [id], onDelete: Restrict)
+  usuario        Usuario?          @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  tipo           TipoMovimiento    @relation(fields: [tipoId], references: [id], onDelete: Restrict)
+  causa          CausaMovimiento?  @relation(fields: [causaId], references: [id], onDelete: Restrict)
+  campoOtro      Campo?            @relation("MovimientoCampoOtro", fields: [campoOtroId], references: [id], onDelete: Restrict)
+  loteMadres     Lote?             @relation("MovimientoLoteMadres", fields: [loteMadresId], references: [id], onDelete: Restrict)
+  revierteA      Movimiento?       @relation("Reversion", fields: [revierteAId], references: [id], onDelete: Restrict)
+  revertidoPor   Movimiento?       @relation("Reversion")
+  evento         EventoMovimiento? @relation(fields: [eventoId], references: [id], onDelete: Restrict)
 
   @@index([campoId, fecha])
+  @@index([eventoId])
   @@index([loteOrigenId])
   @@index([loteDestinoId])
   @@index([potreroOrigenId, fecha])

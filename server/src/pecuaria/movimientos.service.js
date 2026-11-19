@@ -10,12 +10,12 @@
 // `planificar` arma el resultado sin guardar: lo usan la vista previa y el
 // registro (dentro de la transacción), así lo que se ve es lo que se guarda.
 import { prisma } from '../db.js';
-import { badRequest, conflict, notFound, parseId } from '../errors.js';
+import { HttpError, badRequest, conflict, notFound, parseId } from '../errors.js';
 import { calcularPotrero } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, fotoActual, nombreLibre, nombreOcupado } from './lotes.js';
 import { detallePotrero, fechaUY, kgPorUg } from './stock.service.js';
-import { tipoDeModo } from './tipos.repository.js';
+import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const potreroSelect = { id: true, nombre: true, campoId: true, hectareas: true, hectareasAConfirmar: true };
@@ -27,7 +27,10 @@ async function categoriaActiva(db, id) {
   return c;
 }
 
-async function planificar(db, body) {
+// entreCampos: el destino es de otra estancia (paso 5 del rediseño). Solo se
+// puede formar un lote nuevo o llevar el lote entero: el que registra puede no
+// ver la estancia de destino, así que no se suma a un lote de allá.
+async function planificar(db, body, { entreCampos = false } = {}) {
   const { loteOrigenId, cabezas: m, destinoPotreroId, modo } = body;
 
   const lote = await db.lote.findUnique({
@@ -45,7 +48,14 @@ async function planificar(db, body) {
 
   const destino = await db.potrero.findUnique({ where: { id: destinoPotreroId }, select: potreroSelect });
   if (!destino) throw badRequest('El potrero de destino no existe');
-  if (destino.campoId !== origen.campoId) throw badRequest('Por ahora los movimientos son dentro del mismo campo');
+  if (entreCampos) {
+    if (destino.campoId === origen.campoId) {
+      throw badRequest('El destino tiene que ser de otro campo: para moverlos dentro del mismo, usá "Mover entre potreros"');
+    }
+    if (modo !== 'NUEVO' && modo !== 'ENTERO') throw badRequest('Entre campos se forma un lote nuevo o se lleva el lote entero');
+  } else if (destino.campoId !== origen.campoId) {
+    throw badRequest('El potrero de destino es de otro campo: usá "Mover entre campos"');
+  }
   const mismoPotrero = destino.id === origen.id;
   const fotoDestino = mismoPotrero ? fotoOrigen : await fotoActual(db, destino.id);
 
@@ -118,8 +128,9 @@ async function planificar(db, body) {
     const c = await categoriaActiva(db, body.nuevoLote.categoriaId);
     categoriaDestino = { id: c.id, nombre: c.nombre };
     const nombre = body.nuevoLote.nombre?.trim();
-    if (nombre && (await nombreOcupado(db, lote.campoId, nombre))) throw badRequest(`Ya existe un lote "${nombre}" en este campo`);
-    loteDestino = { id: null, nombre: nombre || (await nombreLibre(db, lote.campoId, `${destino.nombre} · ${c.nombre}`)), nombreElegido: nombre };
+    // El lote nuevo es de la estancia del destino (la misma, salvo entre campos).
+    if (nombre && (await nombreOcupado(db, destino.campoId, nombre))) throw badRequest(`Ya existe un lote "${nombre}" en ese campo`);
+    loteDestino = { id: null, nombre: nombre || (await nombreLibre(db, destino.campoId, `${destino.nombre} · ${c.nombre}`)), nombreElegido: nombre };
     lineasDestino.push({ loteId: null, lote: loteDestino.nombre, categoriaId: c.id, categoria: c.nombre, cabezas: m, pesoPromedioKg: pm });
   } else {
     if (m !== n) throw badRequest(`Para mover el lote entero tienen que ser todas sus cabezas (${n})`);
@@ -133,6 +144,8 @@ async function planificar(db, body) {
   return {
     dia,
     modo,
+    entreCampos,
+    guia: entreCampos ? (body.guia ?? null) : null,
     cabezas: m,
     pesoPromedioKg: body.pesoPromedioKg ?? null,
     nota: body.nota ?? null,
@@ -174,60 +187,77 @@ export async function vistaPrevia(body) {
   };
 }
 
-export async function registrar(body, usuarioId) {
-  const plan = await prisma.$transaction(
-    async (tx) => {
-      const plan = await planificar(tx, body);
-      const { lote, origen, destino, dia } = plan;
-      const fecha = aFecha(dia);
+// Planifica y guarda un movimiento dentro de una transacción ya abierta. Lo
+// usan mover, mover entre campos y cada paso de un movimiento múltiple.
+async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = null } = {}) {
+  const plan = await planificar(tx, body, { entreCampos });
+  const { lote, origen, destino, dia } = plan;
+  const fecha = aFecha(dia);
 
-      if (plan.modo === 'NUEVO') {
-        const nuevo = await crearLote(tx, {
-          campoId: lote.campoId,
-          potrero: destino,
-          categoria: plan.categoriaDestino,
-          nombre: plan.loteDestino.nombreElegido || plan.loteDestino.nombre,
-        });
-        plan.loteDestino.id = nuevo.id;
-        for (const l of plan.lineasDestino) if (l.loteId === null) l.loteId = nuevo.id;
-      }
-      if (plan.modo === 'ENTERO' || plan.modo === 'CATEGORIA') {
-        await tx.lote.update({ where: { id: lote.id }, data: { potreroId: destino.id, categoriaId: plan.categoriaDestino.id } });
-      } else if (!plan.lineasOrigen.some((l) => l.loteId === lote.id)) {
-        // Se movió todo: el lote de origen queda cerrado.
-        await tx.lote.update({ where: { id: lote.id }, data: { activo: false } });
-      }
+  if (plan.modo === 'NUEVO') {
+    const nuevo = await crearLote(tx, {
+      campoId: destino.campoId,
+      potrero: destino,
+      categoria: plan.categoriaDestino,
+      nombre: plan.loteDestino.nombreElegido || plan.loteDestino.nombre,
+    });
+    plan.loteDestino.id = nuevo.id;
+    for (const l of plan.lineasDestino) if (l.loteId === null) l.loteId = nuevo.id;
+  }
+  if (plan.modo === 'ENTERO' || plan.modo === 'CATEGORIA') {
+    // Entre campos, el lote entero pasa a la otra estancia.
+    await tx.lote.update({ where: { id: lote.id }, data: { potreroId: destino.id, campoId: destino.campoId, categoriaId: plan.categoriaDestino.id } });
+  } else if (!plan.lineasOrigen.some((l) => l.loteId === lote.id)) {
+    // Se movió todo: el lote de origen queda cerrado.
+    await tx.lote.update({ where: { id: lote.id }, data: { activo: false } });
+  }
 
-      const comun = { fecha, origen: 'MOVIMIENTO', usuarioId, nota: plan.nota };
-      const vOrigen = await crearVersion(tx, { ...comun, potreroId: origen.id, lineas: plan.lineasOrigen });
-      const vDestino = plan.mismoPotrero ? vOrigen : await crearVersion(tx, { ...comun, potreroId: destino.id, lineas: plan.lineasDestino });
+  const comun = { fecha, origen: 'MOVIMIENTO', usuarioId, nota: plan.nota };
+  const vOrigen = await crearVersion(tx, { ...comun, potreroId: origen.id, lineas: plan.lineasOrigen });
+  const vDestino = plan.mismoPotrero ? vOrigen : await crearVersion(tx, { ...comun, potreroId: destino.id, lineas: plan.lineasDestino });
 
-      const tipo = await tipoDeModo(tx, plan.modo);
-      plan.movimiento = await tx.movimiento.create({
-        data: {
-          campoId: lote.campoId,
-          tipoId: tipo.id,
-          fecha,
-          loteOrigenId: lote.id,
-          loteDestinoId: plan.loteDestino.id,
-          potreroOrigenId: origen.id,
-          potreroDestinoId: destino.id,
-          cabezas: plan.cabezas,
-          pesoPromedioKg: plan.pesoPromedioKg,
-          categoriaOrigenId: plan.categoriaOrigen.id,
-          categoriaDestinoId: plan.categoriaDestino.id,
-          modo: plan.modo,
-          nota: plan.nota,
-          versionOrigenId: vOrigen.id,
-          versionDestinoId: vDestino.id,
-          usuarioId,
-        },
-      });
-      return plan;
+  const tipo = entreCampos ? await tipoPorClave(tx, 'ENTRE_CAMPOS') : await tipoDeModo(tx, plan.modo);
+  plan.movimiento = await tx.movimiento.create({
+    data: {
+      campoId: lote.campoId,
+      tipoId: tipo.id,
+      fecha,
+      loteOrigenId: lote.id,
+      loteDestinoId: plan.loteDestino.id,
+      potreroOrigenId: origen.id,
+      potreroDestinoId: destino.id,
+      cabezas: plan.cabezas,
+      pesoPromedioKg: plan.pesoPromedioKg,
+      categoriaOrigenId: plan.categoriaOrigen.id,
+      categoriaDestinoId: plan.categoriaDestino.id,
+      modo: plan.modo,
+      nota: plan.nota,
+      // Entre campos: la otra estancia (así aparece también en su lista) y la guía.
+      ...(entreCampos && { campoOtroId: destino.campoId, guia: plan.guia }),
+      eventoId,
+      versionOrigenId: vOrigen.id,
+      versionDestinoId: vDestino.id,
+      usuarioId,
     },
-    { timeout: 30_000, maxWait: 10_000 },
-  );
+  });
+  return plan;
+}
 
+// Lo que se audita de un paso.
+const auditoriaPaso = (plan) => ({
+  fecha: plan.dia,
+  cabezas: plan.cabezas,
+  pesoPromedioKg: plan.pesoPromedioKg,
+  modo: plan.modo,
+  origen: { lote: plan.lote.nombre, potrero: plan.origen.nombre },
+  destino: { lote: plan.loteDestino.nombre, potrero: plan.destino.nombre },
+  categoriaOrigen: plan.categoriaOrigen.nombre,
+  categoriaDestino: plan.categoriaDestino.nombre,
+  ...(plan.nota && { nota: plan.nota }),
+});
+
+export async function registrar(body, usuarioId) {
+  const plan = await prisma.$transaction((tx) => aplicar(tx, body, usuarioId), { timeout: 30_000, maxWait: 10_000 });
   const movimiento = {
     id: plan.movimiento.id,
     fecha: plan.dia,
@@ -245,17 +275,197 @@ export async function registrar(body, usuarioId) {
     movimiento,
     origen: await detallePotrero(plan.origen.id),
     destino: plan.mismoPotrero ? null : await detallePotrero(plan.destino.id),
-    auditoria: {
-      fecha: plan.dia,
-      cabezas: plan.cabezas,
-      pesoPromedioKg: plan.pesoPromedioKg,
-      modo: plan.modo,
-      origen: { lote: plan.lote.nombre, potrero: plan.origen.nombre },
-      destino: { lote: plan.loteDestino.nombre, potrero: plan.destino.nombre },
-      categoriaOrigen: plan.categoriaOrigen.nombre,
-      categoriaDestino: plan.categoriaDestino.nombre,
-      ...(plan.nota && { nota: plan.nota }),
+    auditoria: auditoriaPaso(plan),
+  };
+}
+
+// --- Mover entre campos (paso 5 del rediseño) ---
+
+// A dónde se puede mandar desde una estancia: las demás estancias activas con
+// los nombres de sus potreros (nada de su stock: el que registra puede no
+// tener esas estancias).
+export async function destinosEntreCampos(origenCampoId) {
+  return prisma.campo.findMany({
+    where: { activo: true, id: { not: origenCampoId } },
+    select: {
+      id: true,
+      sigla: true,
+      nombre: true,
+      potreros: { where: { activo: true }, select: { id: true, nombre: true }, orderBy: [{ orden: 'asc' }, { nombre: 'asc' }] },
     },
+    orderBy: [{ orden: 'asc' }, { sigla: 'asc' }],
+  });
+}
+
+const campoDe = (db, id) => db.campo.findUnique({ where: { id }, select: { id: true, sigla: true, nombre: true } });
+
+// Del origen, el antes y el después; del destino, solo lo que llega.
+export async function vistaPreviaEntreCampos(body) {
+  const plan = await planificar(prisma, body, { entreCampos: true });
+  const kg = await kgPorUg();
+  return {
+    fecha: plan.dia,
+    origen: {
+      campo: await campoDe(prisma, plan.origen.campoId),
+      potreroId: plan.origen.id,
+      potrero: plan.origen.nombre,
+      antes: calc(plan.origen, plan.fotoOrigen.lineas, kg),
+      despues: calc(plan.origen, plan.lineasOrigen, kg),
+      lineas: sinOrden(plan.lineasOrigen),
+    },
+    destino: {
+      campo: await campoDe(prisma, plan.destino.campoId),
+      potreroId: plan.destino.id,
+      potrero: plan.destino.nombre,
+      lote: plan.loteDestino.nombre,
+      categoria: plan.categoriaDestino.nombre,
+      cabezas: plan.cabezas,
+      loteEntero: plan.modo === 'ENTERO',
+    },
+  };
+}
+
+export async function registrarEntreCampos(body, usuarioId) {
+  const { evento, plan } = await prisma.$transaction(
+    async (tx) => {
+      const lote = await tx.lote.findUnique({ where: { id: body.loteOrigenId }, select: { campoId: true } });
+      if (!lote) throw badRequest('El lote de origen no existe');
+      const evento = await tx.eventoMovimiento.create({
+        data: { tipo: 'ENTRE_CAMPOS', campoId: lote.campoId, fecha: aFecha(body.fecha ?? hoyISO()), nota: body.nota ?? null, usuarioId },
+      });
+      const plan = await aplicar(tx, body, usuarioId, { entreCampos: true, eventoId: evento.id });
+      return { evento, plan };
+    },
+    { timeout: 30_000, maxWait: 10_000 },
+  );
+  const campoDestino = await campoDe(prisma, plan.destino.campoId);
+  return {
+    evento: { id: evento.id, tipo: evento.tipo },
+    movimiento: {
+      id: plan.movimiento.id,
+      cabezas: plan.cabezas,
+      loteOrigen: plan.lote.nombre,
+      potreroOrigen: plan.origen.nombre,
+      campoDestino: campoDestino.nombre,
+      potreroDestino: plan.destino.nombre,
+      loteDestino: plan.loteDestino.nombre,
+    },
+    origen: await detallePotrero(plan.origen.id),
+    auditoria: { evento: evento.id, campoDestino: campoDestino.sigla, ...(plan.guia && { guia: plan.guia }), ...auditoriaPaso(plan) },
+  };
+}
+
+// --- Movimiento múltiple (paso 5 del rediseño) ---
+// Una cadena de movimientos simples dentro de una estancia (A → B, B → C...),
+// que se guardan todos juntos o ninguno. Cada paso mueve lo que había antes de
+// empezar: no puede salir de un lote que recibió animales en un paso anterior.
+
+class Simulacion extends Error {
+  constructor(resultado) {
+    super('simulación');
+    this.resultado = resultado;
+  }
+}
+
+async function aplicarMultiple(tx, body, usuarioId, eventoId, kg) {
+  const recibieron = new Map(); // loteId → número de paso
+  const antes = new Map(); // potreroId → { potrero, lineas } antes de empezar
+  const planes = [];
+  let campoId = null;
+  for (const [i, paso] of body.pasos.entries()) {
+    const n = i + 1;
+    try {
+      if (recibieron.has(paso.loteOrigenId)) {
+        throw badRequest(`ese lote recibió animales en el paso ${recibieron.get(paso.loteOrigenId)}: cada paso mueve lo que había antes de empezar`);
+      }
+      const lote = await tx.lote.findUnique({ where: { id: paso.loteOrigenId }, select: { campoId: true, potreroId: true } });
+      if (lote) {
+        if (campoId === null) campoId = lote.campoId;
+        else if (lote.campoId !== campoId) throw badRequest('todos los pasos tienen que ser de la misma estancia');
+      }
+      for (const potreroId of [lote?.potreroId, paso.destinoPotreroId]) {
+        if (potreroId && !antes.has(potreroId)) {
+          const p = await tx.potrero.findUnique({ where: { id: potreroId }, select: potreroSelect });
+          if (p) antes.set(potreroId, { potrero: p, lineas: (await fotoActual(tx, potreroId)).lineas });
+        }
+      }
+      const plan = await aplicar(tx, { ...paso, fecha: body.fecha, nota: body.nota }, usuarioId, { eventoId });
+      recibieron.set(plan.loteDestino.id, n);
+      planes.push(plan);
+    } catch (error) {
+      if (error instanceof HttpError) error.message = `Paso ${n}: ${error.message}`;
+      throw error;
+    }
+  }
+
+  // Cómo queda cada potrero que tocó la cadena, y si quedan categorías mezcladas.
+  const potreros = [];
+  for (const { potrero, lineas } of antes.values()) {
+    const despues = (await fotoActual(tx, potrero.id)).lineas;
+    const categorias = [...new Set(despues.filter((l) => l.cabezas > 0).map((l) => l.categoria))];
+    potreros.push({
+      potreroId: potrero.id,
+      potrero: potrero.nombre,
+      antes: calc(potrero, lineas, kg),
+      despues: calc(potrero, despues, kg),
+      lineas: sinOrden(despues),
+      ...(categorias.length > 1 && { aviso: `En ${potrero.nombre} quedan juntos: ${categorias.join(', ')}` }),
+    });
+  }
+  return { campoId, planes, potreros };
+}
+
+const resumenPaso = (plan, i) => ({
+  paso: i + 1,
+  cabezas: plan.cabezas,
+  modo: plan.modo,
+  loteOrigen: plan.lote.nombre,
+  categoriaOrigen: plan.categoriaOrigen.nombre,
+  potreroOrigen: plan.origen.nombre,
+  potreroDestino: plan.destino.nombre,
+  loteDestino: plan.loteDestino.nombre,
+  categoriaDestino: plan.categoriaDestino.nombre,
+});
+
+// La vista previa hace la cadena de verdad dentro de una transacción y la
+// deshace al final: lo que se ve es exactamente lo que se guardaría.
+export async function vistaPreviaMultiple(body, usuarioId) {
+  const kg = await kgPorUg();
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        const r = await aplicarMultiple(tx, body, usuarioId, null, kg);
+        throw new Simulacion({ fecha: body.fecha ?? hoyISO(), pasos: r.planes.map(resumenPaso), potreros: r.potreros });
+      },
+      { timeout: 60_000, maxWait: 10_000 },
+    );
+  } catch (error) {
+    if (error instanceof Simulacion) return error.resultado;
+    throw error;
+  }
+  throw new Error('La simulación no devolvió nada');
+}
+
+export async function registrarMultiple(body, usuarioId) {
+  const kg = await kgPorUg();
+  const { evento, r } = await prisma.$transaction(
+    async (tx) => {
+      const primero = await tx.lote.findUnique({ where: { id: body.pasos[0].loteOrigenId }, select: { campoId: true } });
+      if (!primero) throw badRequest('Paso 1: el lote de origen no existe');
+      const evento = await tx.eventoMovimiento.create({
+        data: { tipo: 'MULTIPLE', campoId: primero.campoId, fecha: aFecha(body.fecha ?? hoyISO()), nota: body.nota ?? null, usuarioId },
+      });
+      const r = await aplicarMultiple(tx, body, usuarioId, evento.id, kg);
+      return { evento, r };
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
+  const pasos = r.planes.map(resumenPaso);
+  return {
+    evento: { id: evento.id, tipo: evento.tipo },
+    pasos,
+    potreros: r.potreros,
+    auditoria: { evento: evento.id, fecha: fechaISO(evento.fecha), pasos, ...(body.nota && { nota: body.nota }) },
   };
 }
 
@@ -264,12 +474,14 @@ export async function registrar(body, usuarioId) {
 export const incluir = {
   loteOrigen: { select: { id: true, nombre: true } },
   loteDestino: { select: { id: true, nombre: true } },
-  potreroOrigen: { select: { id: true, nombre: true } },
-  potreroDestino: { select: { id: true, nombre: true } },
+  potreroOrigen: { select: { id: true, nombre: true, campoId: true } },
+  potreroDestino: { select: { id: true, nombre: true, campoId: true } },
   usuario: { select: { nombre: true } },
+  evento: { select: { id: true, tipo: true, nota: true, revierteAId: true, revertidoPor: { select: { id: true } } } },
   revertidoPor: { select: { id: true } },
   tipo: { select: { id: true, clave: true, nombre: true, efecto: true } },
   causa: { select: { id: true, codigo: true, nombre: true } },
+  campo: { select: { id: true, sigla: true, nombre: true } },
   campoOtro: { select: { id: true, sigla: true, nombre: true } },
   loteMadres: { select: { id: true, nombre: true } },
 };
@@ -295,10 +507,47 @@ async function ultimasVersiones(db, potreroIds) {
 const sePuedeRevertir = (m, ultimas) =>
   m.modo !== 'REVERSION' && !m.revertidoPor && lados(m).every(([potreroId, versionId]) => ultimas.get(potreroId) === versionId);
 
+// La última versión que dejó un evento en cada potrero que tocó (la del último
+// paso que pasó por ahí). Sirve para saber si después hubo otros cambios.
+function ultimasDelEvento(pasos) {
+  const porPotrero = new Map();
+  for (const m of [...pasos].sort((a, b) => a.id - b.id)) {
+    for (const [potreroId, versionId] of lados(m)) porPotrero.set(potreroId, versionId);
+  }
+  return porPotrero;
+}
+
+// Para cada evento: si ya se revirtió y si se puede revertir hoy.
+async function estadoEventos(db, eventoIds) {
+  const estado = new Map();
+  if (!eventoIds.length) return estado;
+  const eventos = await db.eventoMovimiento.findMany({
+    where: { id: { in: eventoIds } },
+    select: {
+      id: true,
+      tipo: true,
+      revertidoPor: { select: { id: true } },
+      movimientos: { select: { id: true, potreroOrigenId: true, potreroDestinoId: true, versionOrigenId: true, versionDestinoId: true } },
+    },
+  });
+  for (const e of eventos) {
+    const deEvento = ultimasDelEvento(e.movimientos);
+    const ultimas = await ultimasVersiones(db, [...deEvento.keys()]);
+    const intacto = [...deEvento].every(([potreroId, versionId]) => ultimas.get(potreroId) === versionId);
+    estado.set(e.id, {
+      pasos: e.movimientos.length,
+      revertido: Boolean(e.revertidoPor),
+      puedeRevertir: e.tipo !== 'REVERSION' && !e.revertidoPor && intacto,
+    });
+  }
+  return estado;
+}
+
 export async function aItems(db, movimientos) {
   const ids = [...new Set(movimientos.flatMap((m) => [m.categoriaOrigenId, m.categoriaDestinoId]).filter((c) => c != null))];
   const categorias = new Map((await db.categoria.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((c) => [c.id, c.nombre]));
   const ultimas = await ultimasVersiones(db, movimientos.flatMap((m) => [m.potreroOrigenId, m.potreroDestinoId]));
+  const eventos = await estadoEventos(db, [...new Set(movimientos.map((m) => m.eventoId).filter((e) => e != null))]);
   return movimientos.map((m) => ({
     id: m.id,
     fecha: fechaISO(m.fecha),
@@ -314,6 +563,7 @@ export async function aItems(db, movimientos) {
     categoriaDestino: categorias.get(m.categoriaDestinoId) ?? null,
     causa: m.causa ?? null,
     guia: m.guia ?? null,
+    campo: m.campo ?? null,
     campoOtro: m.campoOtro ?? null,
     loteMadres: m.loteMadres ?? null,
     nota: m.nota,
@@ -321,7 +571,9 @@ export async function aItems(db, movimientos) {
     creadoEn: m.creadoEn,
     revierteA: m.revierteAId,
     revertido: Boolean(m.revertidoPor),
-    puedeRevertir: sePuedeRevertir(m, ultimas),
+    // Un paso de un evento no se revierte suelto: se revierte el evento entero.
+    puedeRevertir: m.eventoId == null && sePuedeRevertir(m, ultimas),
+    evento: m.evento ? { id: m.evento.id, tipo: m.evento.tipo, nota: m.evento.nota, revierteA: m.evento.revierteAId, ...eventos.get(m.evento.id) } : null,
   }));
 }
 
@@ -334,7 +586,9 @@ export async function listar(campoId, { desde, hasta, potreroId, loteId, categor
   const id = parseId(campoId);
   const campo = id && (await prisma.campo.findUnique({ where: { id }, select: { id: true } }));
   if (!campo) throw notFound('Campo no encontrado');
-  const y = [{ campoId: campo.id }];
+  // Lo de esta estancia y lo que llegó o salió entre campos (un movimiento
+  // entre campos tiene un potrero en cada una).
+  const y = [{ OR: [{ campoId: campo.id }, { potreroOrigen: { campoId: campo.id } }, { potreroDestino: { campoId: campo.id } }] }];
   if (tipoId) y.push({ tipoId });
   if (desde) y.push({ fecha: { gte: aFecha(desde) } });
   if (hasta) y.push({ fecha: { lte: aFecha(hasta) } });
@@ -369,15 +623,80 @@ async function versionAnterior(db, potreroId, version) {
   });
 }
 
-// Deshace un movimiento: los potreros vuelven a su foto de antes y los lotes
-// a su estado (potrero, categoría, activo). Se registra como un movimiento
-// REVERSION; nada se borra. Solo si después no hubo otros cambios.
+// Deshace un movimiento dentro de una transacción: los potreros vuelven a su
+// foto de antes y los lotes a su estado (potrero, estancia, categoría,
+// activo). Se registra como un movimiento REVERSION; nada se borra. Quien
+// llama controla antes que se pueda (que después no hubo otros cambios).
+async function deshacer(tx, m, usuarioId, eventoId = null) {
+  // Una entrada no tiene origen y una salida no tiene destino.
+  const conOrigen = m.potreroOrigenId != null;
+  const conDestino = m.potreroDestinoId != null;
+  const mismo = conOrigen && m.potreroOrigenId === m.potreroDestinoId;
+  const antesOrigen = conOrigen ? await versionAnterior(tx, m.potreroOrigenId, m.versionOrigen) : null;
+  const antesDestino = mismo ? antesOrigen : conDestino ? await versionAnterior(tx, m.potreroDestinoId, m.versionDestino) : null;
+
+  // Cada lote vuelve a como estaba en esas fotos (o queda cerrado si no
+  // estaba). Entre campos, el lote entero vuelve también a su estancia.
+  for (const loteId of new Set([m.loteOrigenId, m.loteDestinoId].filter((l) => l != null))) {
+    const enOrigen = antesOrigen?.lineas.find((l) => l.loteId === loteId);
+    const enDestino = antesDestino?.lineas.find((l) => l.loteId === loteId);
+    const linea = enOrigen ?? enDestino;
+    const potrero = enOrigen ? m.potreroOrigen : m.potreroDestino;
+    await tx.lote.update({
+      where: { id: loteId },
+      data: linea ? { activo: true, categoriaId: linea.categoriaId, potreroId: potrero.id, campoId: potrero.campoId } : { activo: false },
+    });
+  }
+
+  const fecha = aFecha(hoyISO());
+  const nota = `Reversión del movimiento del ${fechaUY(fechaISO(m.fecha))}`;
+  const copiar = (v) => (v?.lineas ?? []).map((l) => ({ loteId: l.loteId, categoriaId: l.categoriaId, cabezas: l.cabezas, pesoPromedioKg: l.pesoPromedioKg }));
+  const comun = { fecha, origen: 'MOVIMIENTO', usuarioId, nota };
+  const vOrigen = conOrigen ? await crearVersion(tx, { ...comun, potreroId: m.potreroOrigenId, lineas: copiar(antesOrigen) }) : null;
+  let vDestino = null;
+  if (mismo) vDestino = vOrigen;
+  else if (conDestino) vDestino = await crearVersion(tx, { ...comun, potreroId: m.potreroDestinoId, lineas: copiar(antesDestino) });
+
+  const tipo = await tipoDeModo(tx, 'REVERSION');
+  return tx.movimiento.create({
+    data: {
+      campoId: m.campoId,
+      tipoId: tipo.id,
+      fecha,
+      modo: 'REVERSION',
+      revierteAId: m.id,
+      loteOrigenId: m.loteDestinoId,
+      loteDestinoId: m.loteOrigenId,
+      potreroOrigenId: m.potreroDestinoId,
+      potreroDestinoId: m.potreroOrigenId,
+      cabezas: m.cabezas,
+      categoriaOrigenId: m.categoriaDestinoId,
+      categoriaDestinoId: m.categoriaOrigenId,
+      // Entre campos: así la reversión también se ve en la otra estancia.
+      campoOtroId: m.campoOtroId,
+      nota,
+      eventoId,
+      versionOrigenId: vDestino?.id ?? null,
+      versionDestinoId: vOrigen?.id ?? null,
+      usuarioId,
+    },
+    include: incluir,
+  });
+}
+
+const ladoAuditoria = (lote, potrero) => (potrero ? { lote: lote?.nombre ?? null, potrero: potrero.nombre } : null);
+
+// Revierte un movimiento suelto. Solo si después no hubo otros cambios en sus
+// potreros; un paso de un evento (múltiple, entre campos) no se revierte solo.
 export async function revertir(id, usuarioId) {
   const movId = parseId(id);
   const resultado = await prisma.$transaction(
     async (tx) => {
       const m = movId && (await tx.movimiento.findUnique({ where: { id: movId }, include: { ...incluir, versionOrigen: true, versionDestino: true } }));
       if (!m) throw notFound('Movimiento no encontrado');
+      if (m.eventoId != null) {
+        throw badRequest('Este movimiento es parte de un movimiento múltiple o entre campos: revertí el evento entero');
+      }
       if (m.modo === 'REVERSION') throw badRequest('No se puede revertir una reversión: hacé un movimiento nuevo');
       if (m.revertidoPor) throw conflict('Este movimiento ya fue revertido');
       const ultimas = await ultimasVersiones(tx, [m.potreroOrigenId, m.potreroDestinoId]);
@@ -389,66 +708,13 @@ export async function revertir(id, usuarioId) {
           throw conflict(`Después de este movimiento hubo otros cambios en ${potrero.nombre}: no se puede revertir solo. Corregilo con un movimiento nuevo.`);
         }
       }
-
-      // Una entrada no tiene origen y una salida no tiene destino.
-      const conOrigen = m.potreroOrigenId != null;
-      const conDestino = m.potreroDestinoId != null;
-      const mismo = conOrigen && m.potreroOrigenId === m.potreroDestinoId;
-      const antesOrigen = conOrigen ? await versionAnterior(tx, m.potreroOrigenId, m.versionOrigen) : null;
-      const antesDestino = mismo ? antesOrigen : conDestino ? await versionAnterior(tx, m.potreroDestinoId, m.versionDestino) : null;
-
-      // Cada lote vuelve a como estaba en esas fotos (o queda cerrado si no estaba).
-      for (const loteId of new Set([m.loteOrigenId, m.loteDestinoId].filter((l) => l != null))) {
-        const enOrigen = antesOrigen?.lineas.find((l) => l.loteId === loteId);
-        const enDestino = antesDestino?.lineas.find((l) => l.loteId === loteId);
-        const linea = enOrigen ?? enDestino;
-        await tx.lote.update({
-          where: { id: loteId },
-          data: linea
-            ? { activo: true, categoriaId: linea.categoriaId, potreroId: enOrigen ? m.potreroOrigenId : m.potreroDestinoId }
-            : { activo: false },
-        });
-      }
-
-      const fecha = aFecha(hoyISO());
-      const nota = `Reversión del movimiento del ${fechaUY(fechaISO(m.fecha))}`;
-      const copiar = (v) => (v?.lineas ?? []).map((l) => ({ loteId: l.loteId, categoriaId: l.categoriaId, cabezas: l.cabezas, pesoPromedioKg: l.pesoPromedioKg }));
-      const comun = { fecha, origen: 'MOVIMIENTO', usuarioId, nota };
-      const vOrigen = conOrigen ? await crearVersion(tx, { ...comun, potreroId: m.potreroOrigenId, lineas: copiar(antesOrigen) }) : null;
-      let vDestino = null;
-      if (mismo) vDestino = vOrigen;
-      else if (conDestino) vDestino = await crearVersion(tx, { ...comun, potreroId: m.potreroDestinoId, lineas: copiar(antesDestino) });
-
-      const tipo = await tipoDeModo(tx, 'REVERSION');
-      const reversion = await tx.movimiento.create({
-        data: {
-          campoId: m.campoId,
-          tipoId: tipo.id,
-          fecha,
-          modo: 'REVERSION',
-          revierteAId: m.id,
-          loteOrigenId: m.loteDestinoId,
-          loteDestinoId: m.loteOrigenId,
-          potreroOrigenId: m.potreroDestinoId,
-          potreroDestinoId: m.potreroOrigenId,
-          cabezas: m.cabezas,
-          categoriaOrigenId: m.categoriaDestinoId,
-          categoriaDestinoId: m.categoriaOrigenId,
-          nota,
-          versionOrigenId: vDestino?.id ?? null,
-          versionDestinoId: vOrigen?.id ?? null,
-          usuarioId,
-        },
-        include: incluir,
-      });
-      return { m, reversion };
+      return { m, reversion: await deshacer(tx, m, usuarioId) };
     },
     { timeout: 30_000, maxWait: 10_000 },
   );
 
   const [movimiento] = await aItems(prisma, [resultado.reversion]);
   const { m } = resultado;
-  const lado = (lote, potrero) => (potrero ? { lote: lote?.nombre ?? null, potrero: potrero.nombre } : null);
   return {
     movimiento,
     origen: m.potreroOrigenId ? await detallePotrero(m.potreroOrigenId) : null,
@@ -459,8 +725,78 @@ export async function revertir(id, usuarioId) {
       cabezas: m.cabezas,
       modoOriginal: m.modo,
       tipoOriginal: m.tipo.nombre,
-      origen: lado(m.loteOrigen, m.potreroOrigen),
-      destino: lado(m.loteDestino, m.potreroDestino),
+      origen: ladoAuditoria(m.loteOrigen, m.potreroOrigen),
+      destino: ladoAuditoria(m.loteDestino, m.potreroDestino),
+    },
+  };
+}
+
+const NOMBRE_EVENTO = { MULTIPLE: 'movimiento múltiple', ENTRE_CAMPOS: 'movimiento entre campos', REVERSION: 'reversión' };
+
+// La estancia de un evento (para el control de alcance de la ruta).
+export async function campoDeEvento(id) {
+  const evId = parseId(id);
+  return evId ? ((await prisma.eventoMovimiento.findUnique({ where: { id: evId }, select: { campoId: true } }))?.campoId ?? null) : null;
+}
+
+// Revierte un evento entero (todos sus pasos, del último al primero), como un
+// evento REVERSION. Solo si en ninguno de sus potreros hubo cambios después.
+export async function revertirEvento(id, usuarioId) {
+  const evId = parseId(id);
+  const r = await prisma.$transaction(
+    async (tx) => {
+      const ev =
+        evId &&
+        (await tx.eventoMovimiento.findUnique({
+          where: { id: evId },
+          include: {
+            revertidoPor: { select: { id: true } },
+            movimientos: { include: { ...incluir, versionOrigen: true, versionDestino: true }, orderBy: { id: 'asc' } },
+          },
+        }));
+      if (!ev) throw notFound('Evento no encontrado');
+      if (ev.tipo === 'REVERSION') throw badRequest('No se puede revertir una reversión: hacé un movimiento nuevo');
+      if (ev.revertidoPor) throw conflict('Este evento ya fue revertido');
+
+      const deEvento = ultimasDelEvento(ev.movimientos);
+      const ultimas = await ultimasVersiones(tx, [...deEvento.keys()]);
+      for (const [potreroId, versionId] of deEvento) {
+        if (ultimas.get(potreroId) !== versionId) {
+          const m = ev.movimientos.find((x) => x.potreroOrigenId === potreroId || x.potreroDestinoId === potreroId);
+          const nombre = (m.potreroOrigenId === potreroId ? m.potreroOrigen : m.potreroDestino).nombre;
+          throw conflict(`Después de este ${NOMBRE_EVENTO[ev.tipo]} hubo otros cambios en ${nombre}: no se puede revertir. Corregilo con un movimiento nuevo.`);
+        }
+      }
+
+      const reversion = await tx.eventoMovimiento.create({
+        data: {
+          tipo: 'REVERSION',
+          campoId: ev.campoId,
+          fecha: aFecha(hoyISO()),
+          nota: `Reversión del ${NOMBRE_EVENTO[ev.tipo]} del ${fechaUY(fechaISO(ev.fecha))}`,
+          revierteAId: ev.id,
+          usuarioId,
+        },
+      });
+      const pasos = [];
+      for (const m of [...ev.movimientos].reverse()) pasos.push(await deshacer(tx, m, usuarioId, reversion.id));
+      return { ev, reversion, pasos };
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
+
+  return {
+    evento: { id: r.reversion.id, tipo: 'REVERSION', revierteA: r.ev.id },
+    movimientos: await aItems(prisma, r.pasos),
+    auditoria: {
+      revierteA: r.ev.id,
+      tipoOriginal: r.ev.tipo,
+      fechaOriginal: fechaISO(r.ev.fecha),
+      pasos: r.ev.movimientos.map((m) => ({
+        cabezas: m.cabezas,
+        origen: ladoAuditoria(m.loteOrigen, m.potreroOrigen),
+        destino: ladoAuditoria(m.loteDestino, m.potreroDestino),
+      })),
     },
   };
 }

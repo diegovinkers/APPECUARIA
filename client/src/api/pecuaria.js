@@ -52,3 +52,12 @@ export const editarCausa = (id, datos) => api.patch(`/pecuaria/causas/${id}`, da
 // Entradas (nacimiento, compra...) y salidas (muerte, venta...).
 export const vistaPreviaEntradaSalida = (datos) => api.post('/pecuaria/entradas-salidas/vista-previa', datos);
 export const registrarEntradaSalida = (datos) => api.post('/pecuaria/entradas-salidas', datos);
+
+// Paso 5 del rediseño: mover entre campos y movimiento múltiple. Los dos se
+// guardan como un evento con sus pasos, que se revierte entero.
+export const getDestinosEntreCampos = (origen) => api.get('/pecuaria/movimientos/entre-campos/destinos', { params: { origen } });
+export const vistaPreviaEntreCampos = (datos) => api.post('/pecuaria/movimientos/entre-campos/vista-previa', datos);
+export const registrarEntreCampos = (datos) => api.post('/pecuaria/movimientos/entre-campos', datos);
+export const vistaPreviaMultiple = (datos) => api.post('/pecuaria/movimientos/multiple/vista-previa', datos);
+export const registrarMultiple = (datos) => api.post('/pecuaria/movimientos/multiple', datos);
+export const revertirEvento = (id) => api.post(`/pecuaria/eventos/${id}/revertir`);

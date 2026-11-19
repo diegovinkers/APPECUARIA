@@ -307,6 +307,22 @@ export const movimientoSchema = z.object({
   nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
 });
 
+// Paso 5 del rediseño. Mover entre campos: como mover, con la guía (opcional).
+export const entreCamposSchema = movimientoSchema.extend({
+  modo: z.enum(['NUEVO', 'ENTERO'], { error: 'Entre campos se forma un lote nuevo (NUEVO) o se lleva el lote entero (ENTERO)' }),
+  guia: textoOpcional(30, 'La guía no puede superar los 30 caracteres').optional(),
+});
+
+// Movimiento múltiple: varios movimientos simples, con una fecha y una nota.
+export const multipleSchema = z.object({
+  fecha: fechaDato.optional(),
+  nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+  pasos: z
+    .array(movimientoSchema.omit({ fecha: true, nota: true }), { error: 'Los pasos tienen que ser una lista de movimientos' })
+    .min(1, 'Agregá al menos un movimiento')
+    .max(20, 'Hasta 20 movimientos en un movimiento múltiple'),
+});
+
 // --- Entradas y salidas ---
 // Qué hace falta depende del tipo (lo controla el servicio): una salida sale
 // de un lote (loteId + cabezas); una entrada llega a un potrero (potreroId +

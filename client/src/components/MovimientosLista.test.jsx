@@ -226,10 +226,10 @@ describe('la tabla', () => {
     await montar();
     expect(filasDelCuerpo()).toHaveLength(50);
     const paginas = contenedor.querySelector('nav[aria-label="Páginas"]');
-    expect(paginas.textContent).toContain('Filas 1–50 de 120');
+    expect(paginas.textContent).toContain('1–50 de 120');
     act(() => [...paginas.querySelectorAll('button')].find((b) => b.textContent === '3').click());
     expect(filasDelCuerpo()).toHaveLength(20);
-    expect(paginas.textContent).toContain('Filas 101–120 de 120');
+    expect(paginas.textContent).toContain('101–120 de 120');
   });
 
   it('sin permiso de revertir no hay columna de acciones', async () => {

@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UsoBadge, cabezasPorCategoria, formatNumero } from './pecuaria';
-import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
+import { Paginador, TituloOrdenable, celda, paginar, useFilasQueEntran } from './tabla';
 import PanelFiltros from './PanelFiltros';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
@@ -34,8 +34,13 @@ const COLUMNAS = [
   ['ugHa', 'UG/ha', true, (p) => p.stock?.ugHa ?? null, false],
 ];
 const SOLO_COMPU = 'hidden md:table-cell';
-// Las filas, con todo centrado a lo alto (pedido de Diego, 19/11).
+// Las filas, todas del mismo alto y con todo centrado (pedido de Diego, 19/11):
+// en el celular dos líneas (lo que no entra se corta con "…"), en la compu una.
 const celdaFila = celda.replace('align-top', 'align-middle');
+const ALTO_FILA = 'h-[3.25rem] md:h-10';
+// En el celular la tabla tiene ancho fijo: Cabezas y UG/ha con su ancho, y
+// Potrero lo que queda (así el "…" corta adentro de la celda).
+const ANCHO_CELULAR = { cabezas: 'w-[5.75rem] md:w-auto', ugHa: 'w-[5.25rem] md:w-auto' };
 const NUMERICAS = new Set(['hectareas', 'cabezas', 'cabHa', 'ugHa']);
 // Las direcciones viejas (?orden=carga) siguen andando.
 const ALIAS_ORDEN = { nombre: 'potrero', carga: 'ugHa' };
@@ -145,7 +150,14 @@ export default function PotrerosLista({ potreros }) {
     () => Math.max(0, ...potreros.filter((p) => p.stock?.kilosCompletos && p.stock?.ugHa != null).map((p) => p.stock.ugHa)),
     [potreros],
   );
-  const pagina = paginar(visibles, f.pagina);
+  // Tantas filas por página como entran en la pantalla.
+  const [caja, setCaja] = useState(null);
+  const [hayPaginador, setHayPaginador] = useState(false);
+  const { filas: porPagina, medido } = useFilasQueEntran(caja, hayPaginador);
+  const pagina = paginar(visibles, f.pagina, porPagina);
+  if (hayPaginador !== pagina.total > 1) setHayPaginador(pagina.total > 1);
+  // En la última página, filas vacías hasta completar: la planilla queda derecha.
+  const relleno = medido ? Math.max(0, porPagina - pagina.filas.length) : 0;
   const pie = `${celda} sticky bottom-0 border-t-2 border-t-suelo-300 bg-suelo-100`;
 
   return (
@@ -180,10 +192,11 @@ export default function PotrerosLista({ potreros }) {
       {visibles.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">Ningún potrero cumple esos filtros.</p>
       ) : (
-        <>
-          {/* Se achica para que entre en la pantalla; lo que no entra, scrollea adentro. */}
+        // La caja ocupa el alto libre (tabla + paginador); la tabla mide lo que
+        // sus filas, así el paginador queda pegado debajo.
+        <div ref={setCaja} className="flex min-h-0 flex-1 flex-col" data-testid="caja-potreros">
           <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-potreros">
-            <table className="w-full border-separate md:min-w-[44rem] border-spacing-0 text-left text-sm">
+            <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm md:min-w-[44rem] md:table-auto">
               <thead className="text-xs text-suelo-600">
                 <tr>
                   {COLUMNAS.map(([c, titulo, derecha, , soloCompu], i) => (
@@ -195,7 +208,7 @@ export default function PotrerosLista({ potreros }) {
                       onOrdenar={ordenarPor}
                       derecha={derecha}
                       fija={i === 0}
-                      className={soloCompu ? SOLO_COMPU : ''}
+                      className={soloCompu ? SOLO_COMPU : (ANCHO_CELULAR[c] ?? '')}
                     />
                   ))}
                 </tr>
@@ -204,15 +217,23 @@ export default function PotrerosLista({ potreros }) {
                 {pagina.filas.map((p, n) => (
                   <PotreroFila key={p.id} potrero={p} par={n % 2 === 1} cargaMaxima={cargaMaxima} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
                 ))}
+                {Array.from({ length: relleno }, (_, n) => (
+                  <tr key={`vacia${n}`} aria-hidden="true" className={ALTO_FILA} data-testid="fila-vacia">
+                    {/* Una celda por columna (con las mismas que se esconden en el celular). */}
+                    {COLUMNAS.map(([c, , , , soloCompu]) => (
+                      <td key={c} className={`border-b border-suelo-100 ${soloCompu ? SOLO_COMPU : ''}`} />
+                    ))}
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr className="font-semibold">
-                  <td className={`${pie} left-0 z-20`}>
+                  <td className={`${pie} left-0 z-20 truncate`}>
                     Total{hayFiltros ? ' filtrado' : ''}
                     <span className="text-xs font-normal text-suelo-600 md:hidden">
                       {' · '}
-                      {visibles.length} de {potreros.length} potreros · {formatNumero(resumen.hectareas)} ha
-                      {nombreCategoria && ` · con ${nombreCategoria}`}
+                      {visibles.length} de {potreros.length} · {formatNumero(resumen.hectareas)} ha
+                      {nombreCategoria && ` · ${nombreCategoria}`}
                     </span>
                   </td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} de {potreros.length} potreros</td>
@@ -226,7 +247,7 @@ export default function PotrerosLista({ potreros }) {
             </table>
           </div>
           <Paginador {...pagina} de={visibles.length} onCambiar={(n) => poner({ pagina: n > 1 ? String(n) : '' })} />
-        </>
+        </div>
       )}
     </div>
   );
@@ -272,18 +293,18 @@ function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
   const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
   const celda = celdaFila;
   return (
-    <tr onClick={onAbrir} className={`cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
+    <tr onClick={onAbrir} className={`${ALTO_FILA} cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
       <td className={`${celda} ${fondo} sticky left-0 z-[5] font-semibold md:whitespace-nowrap`}>
-        {/* El nombre y, en el celular, el uso y qué hay en el mismo renglón; si no entra, baja. */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-campo-700 hover:underline">
+        {/* Arriba el nombre; abajo, en el celular, el uso y qué hay. Lo que no entra se corta con "…". */}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="truncate text-campo-700 hover:underline">
             {p.nombre}
           </Link>
-          {p.tipo === 'CORRAL' && <span className="text-xs font-medium text-amber-800">corral</span>}
-          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal text-suelo-600 md:hidden" data-testid="linea-celular">
-            <UsoBadge uso={p.usoActual} />
-            {vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}
-          </span>
+          {p.tipo === 'CORRAL' && <span className="shrink-0 text-xs font-medium text-amber-800">corral</span>}
+        </div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs font-normal text-suelo-600 md:hidden" data-testid="linea-celular">
+          <UsoBadge uso={p.usoActual} chico />
+          <span className="truncate">{vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}</span>
         </div>
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`}>
@@ -294,19 +315,23 @@ function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
       </td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right font-semibold tabular-nums`}>
         {vacio ? '—' : formatNumero(cabezas)}
-        {/* En el celular: cab/ha al lado (en la compu tiene su columna). */}
+        {/* En el celular: cab/ha debajo (en la compu tiene su columna). */}
         {!vacio && p.stock?.cabHa != null && (
-          <span className="ml-1 text-xs font-normal text-suelo-500 md:hidden">· {formatNumero(p.stock.cabHa, 1)}/ha</span>
+          <span className="mt-0.5 block text-xs font-normal leading-4 text-suelo-500 md:hidden">{formatNumero(p.stock.cabHa, 1)}/ha</span>
         )}
       </td>
-      <td className={`${celda} ${fondo} ${SOLO_COMPU} min-w-[12rem]`}>{vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}</td>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} min-w-[12rem]`}>
+        <div className="max-w-[18rem] truncate" title={vacio ? undefined : cabezasPorCategoria(p.stock.lotes)}>
+          {vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}
+        </div>
+      </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
-        {/* El número y, al lado, la barra de carga. */}
-        <span className="inline-flex items-center justify-end gap-1.5">
+        {/* En el celular el número y debajo la barra de carga; en la compu, al lado. */}
+        <span className="flex flex-col items-end gap-1.5 md:flex-row md:items-center md:justify-end">
           {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}
           {!vacio && !sinPeso && p.stock?.ugHa != null && cargaMaxima > 0 && (
-            <span className="block h-1.5 w-8 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true" data-testid="barra-carga">
+            <span className="block h-1.5 w-full max-w-12 overflow-hidden rounded-full bg-suelo-200/70 md:w-10" aria-hidden="true" data-testid="barra-carga">
               <span className="block h-full rounded-full bg-campo-500" style={{ width: `${Math.min(100, (p.stock.ugHa / cargaMaxima) * 100)}%` }} />
             </span>
           )}

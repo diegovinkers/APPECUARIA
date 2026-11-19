@@ -1,5 +1,6 @@
 // Piezas de las tablas tipo Excel (Potreros y Movimientos): títulos que
 // ordenan, celdas con líneas y el paginador.
+import { useLayoutEffect, useState } from 'react';
 
 export const FILAS_POR_PAGINA = 50;
 
@@ -9,14 +10,15 @@ export const FILAS_POR_PAGINA = 50;
 // seguidos va "…".
 // Ej.: en la 1 de 100 → 1 2 3 4 5 6 … 30 … 50 … 100
 //      en la 40 de 100 → 1 … 40 41 42 43 44 45 … 69 … 89 … 100
-export function paginasVisibles(actual, total) {
+// siguientes: cuántas después de la actual (5; en el celular, 2 para que entre en una línea).
+export function paginasVisibles(actual, total, siguientes = 5) {
   if (total <= 1) return [];
   const p = Math.min(Math.max(1, actual), total);
   const numeros = new Set([1, total]);
-  for (let n = p; n <= Math.min(total, p + 5); n++) numeros.add(n);
+  for (let n = p; n <= Math.min(total, p + siguientes); n++) numeros.add(n);
   for (const salto of [0.3, 0.5]) {
     const n = p - 1 + Math.round(total * salto);
-    if (n > p + 5 && n < total) numeros.add(n);
+    if (n > p + siguientes && n < total) numeros.add(n);
   }
   const orden = [...numeros].sort((a, b) => a - b);
   const salida = [];
@@ -25,6 +27,34 @@ export function paginasVisibles(actual, total) {
     salida.push(n);
   });
   return salida;
+}
+
+// Cuántas filas entran en la caja de la tabla sin scrollear (pedido de Diego,
+// 19/11: "un paginado prolijo, la planilla siempre derecha"). Mide el alto
+// libre (la caja, que tiene la tabla y el paginador, menos los títulos, el
+// total y el paginador) y lo divide por el alto de una fila, que es fijo. Se
+// recalcula si cambia el tamaño de la pantalla o si aparece o desaparece el
+// paginador. Sin ResizeObserver (los tests) queda en FILAS_POR_PAGINA.
+export function useFilasQueEntran(caja, hayPaginador) {
+  const [estado, setEstado] = useState({ filas: FILAS_POR_PAGINA, medido: false });
+  useLayoutEffect(() => {
+    if (!caja || typeof ResizeObserver === 'undefined') return undefined;
+    const medir = () => {
+      const fila = caja.querySelector('tbody tr');
+      if (!fila?.offsetHeight) return;
+      const alto = (sel) => caja.querySelector(sel)?.offsetHeight ?? 0;
+      const paginador = caja.querySelector('nav[aria-label="Páginas"]') ? alto('nav[aria-label="Páginas"]') + 8 : 0;
+      // 2: el borde de la caja de la tabla.
+      const libre = caja.clientHeight - alto('thead') - alto('tfoot') - paginador - 2;
+      const filas = Math.max(3, Math.floor(libre / fila.offsetHeight));
+      setEstado((e) => (e.filas === filas && e.medido ? e : { filas, medido: true }));
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(caja);
+    return () => observador.disconnect();
+  }, [caja, hayPaginador]);
+  return estado;
 }
 
 export const totalPaginas = (filas, tam = FILAS_POR_PAGINA) => Math.max(1, Math.ceil(filas / tam));
@@ -38,17 +68,18 @@ export function paginar(filas, pagina, tam = FILAS_POR_PAGINA) {
 
 export function Paginador({ pagina, total, onCambiar, desde, hasta, de }) {
   if (total <= 1) return null;
-  const boton = 'min-w-9 rounded-md px-2 py-1.5 text-sm tabular-nums';
+  const angosta = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 639px)').matches;
+  const boton = 'min-w-8 rounded-md px-1.5 py-1 text-sm tabular-nums';
   return (
     // Una sola línea si entra: queda fija debajo de la tabla, siempre a la vista.
     <nav aria-label="Páginas" className="mt-2 flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1">
-      <div className="flex flex-wrap items-center justify-center gap-1">
+      <div className="flex items-center justify-center gap-0.5">
         <button type="button" disabled={pagina <= 1} onClick={() => onCambiar(pagina - 1)} aria-label="Página anterior" className={`${boton} text-campo-700 hover:bg-suelo-100 disabled:opacity-30`}>
           ‹
         </button>
-        {paginasVisibles(pagina, total).map((n, i) =>
+        {paginasVisibles(pagina, total, angosta ? 2 : 5).map((n, i) =>
           n === '…' ? (
-            <span key={`s${i}`} className="px-1 text-suelo-400" aria-hidden="true">
+            <span key={`s${i}`} className="px-0.5 text-suelo-400" aria-hidden="true">
               …
             </span>
           ) : (
@@ -68,7 +99,7 @@ export function Paginador({ pagina, total, onCambiar, desde, hasta, de }) {
         </button>
       </div>
       <p className="text-xs text-suelo-500">
-        Filas {desde}–{hasta} de {de}
+        {desde}–{hasta} de {de}
       </p>
     </nav>
   );

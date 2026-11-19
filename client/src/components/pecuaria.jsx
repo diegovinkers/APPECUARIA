@@ -25,10 +25,13 @@ const COLOR_GRUPO = {
   OTRO: 'bg-suelo-200 text-suelo-700',
 };
 
-export function UsoBadge({ uso }) {
+// chico: sin alto de más (para las filas de alto fijo de la tabla).
+export function UsoBadge({ uso, chico = false }) {
   if (!uso) return <span className="text-xs text-suelo-500">Sin uso</span>;
   return (
-    <span className={`rounded px-2 py-0.5 text-xs font-medium ${COLOR_GRUPO[uso.grupo] ?? COLOR_GRUPO.OTRO}`}>{uso.nombre}</span>
+    <span className={`rounded px-2 ${chico ? 'min-w-0 max-w-[75%] shrink-0 truncate py-0 leading-4' : 'py-0.5'} text-xs font-medium ${COLOR_GRUPO[uso.grupo] ?? COLOR_GRUPO.OTRO}`}>
+      {uso.nombre}
+    </span>
   );
 }
 

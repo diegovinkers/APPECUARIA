@@ -72,7 +72,7 @@ describe('la tabla de potreros', () => {
         </MemoryRouter>,
       ),
     );
-  const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td a').textContent);
+  const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr:not([data-testid="fila-vacia"])')].map((tr) => tr.querySelector('td a').textContent);
   const titulo = (t) => [...contenedor.querySelectorAll('thead button')].find((b) => b.textContent.startsWith(t));
   const donde = () => contenedor.querySelector('[data-testid="donde"]').textContent;
 
@@ -106,15 +106,47 @@ describe('la tabla de potreros', () => {
     // El uso va como etiqueta de color.
     expect(contenedor.querySelector('[data-testid="linea-celular"] span').className).toContain('bg-lime');
     const cabezas = contenedor.querySelectorAll('tbody tr')[0].querySelectorAll('td')[3];
-    // cab/ha al lado de las cabezas (un solo renglón), y todo centrado a lo alto.
-    expect(cabezas.textContent).toBe('50· 5/ha');
+    // cab/ha debajo de las cabezas, y todo centrado a lo alto.
+    expect(cabezas.textContent).toBe('505/ha');
     expect(cabezas.className).toContain('align-middle');
-    // El nombre y el uso en el mismo bloque que baja de renglón solo si no entra.
-    const primera = contenedor.querySelector('tbody td > div');
-    expect(primera.className).toContain('flex-wrap');
-    expect(primera.querySelector('[data-testid="linea-celular"]')).not.toBeNull();
+    // Todas las filas del mismo alto; lo largo se corta con "…" (no baja de renglón).
+    for (const tr of contenedor.querySelectorAll('tbody tr')) expect(tr.className).toContain('h-[3.25rem]');
+    expect(contenedor.querySelector('[data-testid="linea-celular"] span.truncate')).not.toBeNull();
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
     expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías', 'cab/ha']);
+  });
+
+  it('por página, tantos potreros como entran en la pantalla; la última se completa con filas vacías', () => {
+    // La caja mide 30 (títulos) + 40 (total) + 5 filas de 52 + 10 de sobra.
+    const alto = { TR: 52, THEAD: 30, TFOOT: 40 };
+    const original = {
+      ro: globalThis.ResizeObserver,
+      offset: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight'),
+      client: Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight'),
+    };
+    globalThis.ResizeObserver = class {
+      observe() {}
+      disconnect() {}
+    };
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return alto[this.tagName] ?? 0; } });
+    Object.defineProperty(Element.prototype, 'clientHeight', {
+      configurable: true,
+      get() { return this.dataset?.testid === 'caja-potreros' ? 30 + 40 + 5 * 52 + 10 : 0; },
+    });
+    try {
+      const doce = Array.from({ length: 12 }, (_, i) => potrero(i + 1, String(i + 1), 10, 5));
+      montar(doce);
+      expect(primeraColumna()).toEqual(['1', '2', '3', '4', '5']);
+      expect(contenedor.querySelector('nav[aria-label="Páginas"]').textContent).toContain('1–5 de 12');
+      const tres = [...contenedor.querySelectorAll('nav[aria-label="Páginas"] button')].find((b) => b.textContent === '3');
+      act(() => tres.click());
+      expect(primeraColumna()).toEqual(['11', '12']);
+      expect(contenedor.querySelectorAll('[data-testid="fila-vacia"]')).toHaveLength(3);
+    } finally {
+      globalThis.ResizeObserver = original.ro;
+      if (original.offset) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', original.offset);
+      if (original.client) Object.defineProperty(Element.prototype, 'clientHeight', original.client);
+    }
   });
 
   it('la barra de carga se llena según el potrero más cargado (los sin peso no tienen barra)', () => {

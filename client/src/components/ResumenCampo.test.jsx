@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TablaResumen } from './ResumenCampo.jsx';
 import PotrerosLista from './PotrerosLista.jsx';
+import { ConPanel } from '../test-utils.jsx';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let contenedor;
@@ -58,7 +59,9 @@ describe('filtros de Potreros', () => {
     act(() =>
       root.render(
         <MemoryRouter initialEntries={['/pecuaria/potreros?categoria=7']}>
-          <PotrerosLista potreros={potreros} />
+          <ConPanel>
+            <PotrerosLista potreros={potreros} />
+          </ConPanel>
         </MemoryRouter>,
       ),
     );

@@ -4,24 +4,19 @@ import { useAuth } from '../context/AuthContext';
 import { TODAS, useEstancia } from '../context/EstanciaContext';
 import { menuPara } from '../navegacion/menu';
 import HojaRegistrar from './HojaRegistrar';
+import { DestinoFiltros, PanelFiltrosProvider, usePanelFiltros } from './PanelFiltros';
 import Icono from './Icono';
 
-// El marco de la app (docs/DECISIONES.md §11):
-// - arriba: logo, selector de estancia y, en la compu, Resumen · Potreros ·
-//   Movimientos + "Registrar";
-// - abajo, en el celular: Resumen · Potreros · + · Movimientos · Menú;
-// - panel izquierdo: fijo en la compu (se achica a íconos); en el celular se
-//   abre con la flechita del borde, con "Menú" o deslizando desde el borde.
+// El marco de la app (docs/DECISIONES.md §11; cambio de Diego del 19/11):
+// - arriba: logo, selector de estancia, en la compu Resumen · Potreros ·
+//   Movimientos + "Registrar", y el botón ☰ que despliega el menú (secciones,
+//   perfil, salir);
+// - abajo, en el celular: Resumen · Potreros · + · Movimientos · Menú (abre el
+//   mismo menú);
+// - panel izquierdo: los filtros de la pantalla donde estás (PanelFiltros).
+//   En la compu, fijo; en el celular, se abre con la flechita del borde, con
+//   el botón "Filtros" o deslizando desde el borde. Sin filtros, no aparece.
 // El lugar del asistente (✦) queda para el paso 7.
-const ACHICADO = 'sapsa.panelAchicado';
-
-function leerAchicado() {
-  try {
-    return localStorage.getItem(ACHICADO) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export function Logo({ className = 'h-8 w-8 text-lg' }) {
   return (
@@ -138,41 +133,40 @@ function BarraSimple({ onSalir }) {
 }
 
 export default function Marco() {
+  return (
+    <PanelFiltrosProvider>
+      <MarcoInterno />
+    </PanelFiltrosProvider>
+  );
+}
+
+function MarcoInterno() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [panelAbierto, setPanelAbierto] = useState(false);
+  const filtros = usePanelFiltros();
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const [registrarAbierto, setRegistrarAbierto] = useState(false);
-  const [achicado, setAchicado] = useState(leerAchicado);
   const conMenu = Boolean(user && !user.debeCambiarPassword);
   const menu = menuPara(user);
+  const { setAbierto: setFiltrosAbierto, hay: hayFiltros } = filtros;
 
   async function salir() {
-    setPanelAbierto(false);
+    setMenuAbierto(false);
     await logout();
     navigate('/login');
   }
 
-  function alternarAchicado() {
-    setAchicado((a) => {
-      try {
-        localStorage.setItem(ACHICADO, a ? '0' : '1');
-      } catch {
-        // Sin almacenamiento: vuelve a abrirse la próxima vez.
-      }
-      return !a;
-    });
-  }
-
-  // Al cambiar de pantalla se cierran el panel y la hoja del "+".
+  // Al cambiar de pantalla se cierran el menú, los filtros y la hoja del "+".
   useEffect(() => {
-    setPanelAbierto(false);
+    setMenuAbierto(false);
+    setFiltrosAbierto(false);
     setRegistrarAbierto(false);
-  }, [location.pathname]);
+  }, [location.pathname, setFiltrosAbierto]);
 
-  // Deslizar desde el borde izquierdo abre el panel (celular).
+  // Deslizar desde el borde izquierdo abre los filtros (celular).
   useEffect(() => {
-    if (!conMenu) return undefined;
+    if (!conMenu || !hayFiltros) return undefined;
     let inicio = null;
     const empieza = (e) => {
       const t = e.touches[0];
@@ -181,7 +175,7 @@ export default function Marco() {
     const termina = (e) => {
       if (!inicio) return;
       const t = e.changedTouches[0];
-      if (t.clientX - inicio.x > 60 && Math.abs(t.clientY - inicio.y) < 50) setPanelAbierto(true);
+      if (t.clientX - inicio.x > 60 && Math.abs(t.clientY - inicio.y) < 50) setFiltrosAbierto(true);
       inicio = null;
     };
     document.addEventListener('touchstart', empieza, { passive: true });
@@ -190,15 +184,19 @@ export default function Marco() {
       document.removeEventListener('touchstart', empieza);
       document.removeEventListener('touchend', termina);
     };
-  }, [conMenu]);
+  }, [conMenu, hayFiltros, setFiltrosAbierto]);
 
   // Escape cierra lo que esté abierto.
   useEffect(() => {
-    if (!panelAbierto) return undefined;
-    const tecla = (e) => e.key === 'Escape' && setPanelAbierto(false);
+    if (!menuAbierto && !filtros.abierto) return undefined;
+    const tecla = (e) => {
+      if (e.key !== 'Escape') return;
+      setMenuAbierto(false);
+      setFiltrosAbierto(false);
+    };
     document.addEventListener('keydown', tecla);
     return () => document.removeEventListener('keydown', tecla);
-  }, [panelAbierto]);
+  }, [menuAbierto, filtros.abierto, setFiltrosAbierto]);
 
   if (!conMenu) {
     return (
@@ -239,44 +237,67 @@ export default function Marco() {
             <Icono nombre="mas" className="h-4 w-4" /> Registrar
           </button>
         )}
-        <Link to="/profile" className="hidden items-center gap-2 rounded-md px-2 py-1.5 text-sm text-campo-100 hover:bg-white/10 lg:flex">
-          <Icono nombre="perfil" />
-          {user.nombre}
-        </Link>
+        <span className="hidden text-sm text-campo-100 lg:inline">{user.nombre}</span>
+        <button
+          type="button"
+          onClick={() => setMenuAbierto((a) => !a)}
+          aria-label="Menú"
+          aria-expanded={menuAbierto}
+          className="rounded-md p-1.5 hover:bg-white/15"
+        >
+          <Icono nombre={menuAbierto ? 'cerrar' : 'menu'} className="h-6 w-6" />
+        </button>
       </header>
 
-      <div className="lg:flex">
-        <aside
-          className={`sticky top-[52px] hidden h-[calc(100vh-52px)] shrink-0 border-r border-suelo-200 bg-white p-3 lg:block ${achicado ? 'w-16' : 'w-60'}`}
-        >
-          <div className="flex h-full flex-col">
-            <button
-              type="button"
-              onClick={alternarAchicado}
-              aria-label={achicado ? 'Agrandar el menú' : 'Achicar el menú'}
-              className={`mb-1 flex rounded-md p-1.5 text-suelo-500 hover:bg-suelo-200/70 ${achicado ? 'self-center' : 'self-end'}`}
-            >
-              <Icono nombre={achicado ? 'agrandar' : 'achicar'} />
-            </button>
-            <div className="min-h-0 flex-1">
-              <ContenidoPanel menu={menu} achicado={achicado} onSalir={salir} />
-            </div>
+      {/* El menú: se despliega desde el botón ☰ de arriba (o "Menú" abajo). */}
+      {menuAbierto && (
+        <div className="fixed inset-0 z-40">
+          <button type="button" aria-label="Cerrar el menú" onClick={() => setMenuAbierto(false)} className="absolute inset-0 bg-black/30" />
+          <div
+            role="dialog"
+            aria-label="Menú"
+            className="absolute right-2 top-[56px] flex max-h-[calc(100vh-72px)] w-[min(20rem,calc(100vw-1rem))] flex-col rounded-xl border border-suelo-200 bg-white p-3 shadow-xl"
+          >
+            <ContenidoPanel menu={menu} onCerrar={() => setMenuAbierto(false)} onSalir={salir} />
           </div>
+        </div>
+      )}
+
+      <div className="lg:flex">
+        {/* Panel de filtros: cajón en el celular, fijo en la compu. */}
+        {hayFiltros && filtros.abierto && (
+          <button type="button" aria-label="Cerrar los filtros" onClick={() => setFiltrosAbierto(false)} className="fixed inset-0 z-40 bg-black/40 lg:hidden" />
+        )}
+        <aside
+          aria-label="Filtros"
+          className={`${hayFiltros ? '' : 'hidden'} fixed inset-y-0 left-0 z-40 w-[85%] max-w-xs overflow-y-auto bg-white p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl transition-transform ${
+            filtros.abierto ? 'translate-x-0' : '-translate-x-full'
+          } lg:sticky lg:top-[52px] lg:z-0 lg:h-[calc(100vh-52px)] lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-r lg:border-suelo-200 lg:shadow-none`}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <p className="font-semibold">Filtros</p>
+            <button type="button" onClick={() => setFiltrosAbierto(false)} aria-label="Cerrar" className="rounded-md p-1.5 text-suelo-600 hover:bg-suelo-200/70 lg:hidden">
+              <Icono nombre="cerrar" className="h-6 w-6" />
+            </button>
+          </div>
+          <DestinoFiltros />
         </aside>
         <div className="min-w-0 flex-1 pb-24 lg:pb-0">
           <Outlet />
         </div>
       </div>
 
-      {/* Celular: la flechita del borde, la barra de abajo y el panel. */}
-      <button
-        type="button"
-        onClick={() => setPanelAbierto(true)}
-        aria-label="Abrir el menú"
-        className="fixed left-0 top-1/2 z-20 flex h-12 w-5 -translate-y-1/2 items-center justify-center rounded-r-lg bg-campo-600/90 text-white lg:hidden"
-      >
-        <Icono nombre="derecha" className="h-4 w-4" />
-      </button>
+      {/* Celular: la flechita del borde (solo si la pantalla tiene filtros) y la barra de abajo. */}
+      {hayFiltros && (
+        <button
+          type="button"
+          onClick={() => setFiltrosAbierto(true)}
+          aria-label="Abrir los filtros"
+          className="fixed left-0 top-1/2 z-20 flex h-12 w-5 -translate-y-1/2 items-center justify-center rounded-r-lg bg-campo-600/90 text-white lg:hidden"
+        >
+          <Icono nombre="derecha" className="h-4 w-4" />
+        </button>
+      )}
 
       <nav
         aria-label="Barra de abajo"
@@ -306,29 +327,11 @@ export default function Marco() {
             {item.texto === 'Movimientos' ? 'Movim.' : item.texto}
           </NavLink>
         ))}
-        <button type="button" onClick={() => setPanelAbierto(true)} className={linkAbajo({ isActive: false })}>
+        <button type="button" onClick={() => setMenuAbierto(true)} className={linkAbajo({ isActive: false })}>
           <Icono nombre="menu" className="h-6 w-6" />
           Menú
         </button>
       </nav>
-
-      {panelAbierto && (
-        <div className="fixed inset-0 z-40 lg:hidden">
-          <button type="button" aria-label="Cerrar el menú" onClick={() => setPanelAbierto(false)} className="absolute inset-0 bg-black/40" />
-          <div role="dialog" aria-label="Menú" className="absolute inset-y-0 left-0 flex w-[80%] max-w-xs flex-col bg-white p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-            <div className="mb-2 flex items-center gap-2">
-              <Logo />
-              <span className="flex-1 text-lg font-semibold">SAPSA</span>
-              <button type="button" onClick={() => setPanelAbierto(false)} aria-label="Cerrar" className="rounded-md p-1.5 text-suelo-600 hover:bg-suelo-200/70">
-                <Icono nombre="cerrar" className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1">
-              <ContenidoPanel menu={menu} onCerrar={() => setPanelAbierto(false)} onSalir={salir} />
-            </div>
-          </div>
-        </div>
-      )}
 
       {registrarAbierto && <HojaRegistrar acciones={menu.registrar} onCerrar={() => setRegistrarAbierto(false)} />}
     </div>

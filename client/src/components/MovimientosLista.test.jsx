@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
+import { ConPanel, textoCompu } from '../test-utils.jsx';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const estado = vi.hoisted(() => ({ user: null, datos: null }));
@@ -165,13 +166,15 @@ describe('la tabla', () => {
     act(() =>
       root.render(
         <MemoryRouter>
-          <MovimientosLista campoId={EG.id} potreros={[]} />
+          <ConPanel>
+            <MovimientosLista campoId={EG.id} potreros={[]} />
+          </ConPanel>
         </MemoryRouter>,
       ),
     );
     await act(async () => {});
   }
-  const filasDelCuerpo = () => [...contenedor.querySelectorAll('tbody tr')].map((tr) => tr.textContent);
+  const filasDelCuerpo = () => [...contenedor.querySelectorAll('tbody tr')].map(textoCompu);
   const boton = (texto) => [...contenedor.querySelectorAll('button')].find((b) => b.textContent.includes(texto) || b.getAttribute('aria-label') === texto);
 
   it('una fila por movimiento, con los totales de lo filtrado abajo', async () => {
@@ -194,9 +197,9 @@ describe('la tabla', () => {
 
   it('ordena tocando el título de la columna', async () => {
     await montar();
-    act(() => boton('Cabezas').click());
+    act(() => boton('Cab.').click());
     expect(filasDelCuerpo().map((t) => t.match(/^.\s?(\d\d\/\d\d\/\d{4})|^(\d\d\/\d\d\/\d{4})/)?.slice(1).find(Boolean))).toEqual(['14/11/2026', '15/11/2026', '12/11/2026']);
-    act(() => boton('Cabezas').click());
+    act(() => boton('Cab.').click());
     expect(filasDelCuerpo()[0]).toMatch(/12\/11\/2026/);
   });
 

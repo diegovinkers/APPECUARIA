@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import PotrerosLista, { ordenarPotreros } from './PotrerosLista.jsx';
+import { ConPanel, textoCompu } from '../test-utils.jsx';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -61,26 +62,26 @@ describe('la tabla de potreros', () => {
             <Route
               path="/pecuaria/potreros"
               element={
-                <>
+                <ConPanel>
                   <PotrerosLista potreros={potreros} />
                   <Donde />
-                </>
+                </ConPanel>
               }
             />
           </Routes>
         </MemoryRouter>,
       ),
     );
-  const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td').textContent);
+  const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td a').textContent);
   const titulo = (t) => [...contenedor.querySelectorAll('thead button')].find((b) => b.textContent.startsWith(t));
   const donde = () => contenedor.querySelector('[data-testid="donde"]').textContent;
 
   it('una fila por potrero con cabezas de qué, y los totales abajo', () => {
     montar([potrero(1, '1', 10, 5), potrero(2, '2', 50, 10), potrero(3, '3', 0, 4)]);
-    const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map((td) => td.textContent));
+    const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
     expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '5', '—']);
     expect(filas[2][4]).toBe('vacío');
-    expect(contenedor.querySelector('tfoot').textContent).toMatch(/Total.*3 potreros.*19.*60.*cabezas.*3,16/);
+    expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/Total.*3 potreros.*19.*60.*cabezas.*3,16/);
   });
 
   it('el título ordena y queda en la dirección', () => {
@@ -91,6 +92,20 @@ describe('la tabla de potreros', () => {
     act(() => titulo('Cabezas').click());
     expect(primeraColumna()).toEqual(['3', '1', '2']);
     expect(donde()).toBe('?orden=cabezas&dir=asc');
+  });
+
+  it('en el celular, el uso, las ha y las categorías van debajo del nombre (sin columnas de más)', () => {
+    montar([potrero(2, '2', 50, 10)]);
+    const primera = contenedor.querySelector('tbody td');
+    expect(primera.querySelector('[class*="md:hidden"]').textContent).toBe('Campo natural · 10 ha50 Vacas');
+    const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
+    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías', 'cab/ha']);
+  });
+
+  it('los filtros van al panel izquierdo, con el botón "Filtros" y cuántos hay puestos', () => {
+    montar([potrero(1, '1', 10, 5)], '/pecuaria/potreros?grupo=CN&categoria=9');
+    const botonFiltros = [...contenedor.querySelectorAll('button')].find((b) => b.textContent.startsWith('Filtros'));
+    expect(botonFiltros.textContent).toBe('Filtros2');
   });
 
   it('de a 50 por página; cambiar un filtro vuelve a la 1', () => {

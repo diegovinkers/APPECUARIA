@@ -74,13 +74,13 @@ export function Paginador({ pagina, total, onCambiar, desde, hasta, de }) {
 }
 
 // Un título de columna que ordena al tocarlo (▲ ▼; ↕ si no es la elegida).
-export function TituloOrdenable({ col, titulo, orden, onOrdenar, derecha, fija }) {
+export function TituloOrdenable({ col, titulo, orden, onOrdenar, derecha, fija, className = '' }) {
   const activa = orden.col === col;
   return (
     <th
       scope="col"
       aria-sort={activa ? (orden.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`sticky top-0 border-b border-r border-suelo-300 bg-suelo-100 px-2 py-1.5 font-medium last:border-r-0 ${fija ? 'left-0 z-20' : 'z-10'} ${derecha ? 'text-right' : ''}`}
+      className={`sticky top-0 border-b border-r border-suelo-300 bg-suelo-100 px-2 py-1.5 font-medium last:border-r-0 ${fija ? 'left-0 z-20' : 'z-10'} ${derecha ? 'text-right' : ''} ${className}`}
     >
       <button type="button" onClick={() => onOrdenar(col)} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-suelo-900">
         {titulo}

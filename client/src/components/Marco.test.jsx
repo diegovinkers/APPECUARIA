@@ -26,6 +26,7 @@ vi.mock('../hooks/usePotreros', () => ({
 }));
 
 const { default: Marco } = await import('./Marco.jsx');
+const { default: PanelFiltros } = await import('./PanelFiltros.jsx');
 const { RedirigirPecuaria } = await import('../pages/pecuaria/comun.jsx');
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -87,13 +88,15 @@ describe('Marco: barras y panel', () => {
     expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Movim.', 'Menú']);
   });
 
-  it('el superadmin ve Usuarios en el panel; el capataz no', () => {
+  it('el superadmin ve Usuarios en el menú; el capataz no', () => {
     montar();
+    click(boton('Menú'));
     expect(links()).toContain('Usuarios');
     act(() => root.unmount());
     root = createRoot(contenedor);
     estado.user = capataz;
     montar();
+    click(boton('Menú'));
     expect(links()).not.toContain('Usuarios');
     // El capataz no importa ni configura.
     expect(links()).not.toContain('Configuración');
@@ -121,15 +124,54 @@ describe('Marco: barras y panel', () => {
     expect([...select.options].map((o) => o.textContent)).toEqual(['Todas las estancias', 'La Gateada', 'Otra estancia']);
   });
 
-  it('la flechita del borde abre el panel y la X lo cierra', () => {
+  it('el botón ☰ de arriba despliega el menú, y tocar afuera lo cierra', () => {
     montar();
     expect(contenedor.querySelector('[role="dialog"][aria-label="Menú"]')).toBeNull();
-    click(boton('Abrir el menú'));
+    click(contenedor.querySelector('header button[aria-label="Menú"]'));
     const panel = contenedor.querySelector('[role="dialog"][aria-label="Menú"]');
     expect(panel.textContent).toContain('Tu estancia');
     expect(panel.textContent).toContain('Parcelas · pronto');
-    click(boton('Cerrar'));
+    click(boton('Cerrar el menú'));
     expect(contenedor.querySelector('[role="dialog"][aria-label="Menú"]')).toBeNull();
+  });
+
+  it('"Menú" de la barra de abajo abre el mismo menú', () => {
+    montar();
+    click(contenedor.querySelector('nav[aria-label="Barra de abajo"] > button:last-child'));
+    expect(contenedor.querySelector('[role="dialog"][aria-label="Menú"]')).not.toBeNull();
+  });
+
+  it('una pantalla sin filtros no muestra la flechita ni el panel', () => {
+    montar();
+    expect(boton('Abrir los filtros')).toBeUndefined();
+    expect(contenedor.querySelector('aside[aria-label="Filtros"]').className).toContain('hidden');
+  });
+
+  it('una pantalla con filtros los pone en el panel, que abre la flechita', () => {
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/con-filtros']}>
+          <Routes>
+            <Route element={<Marco />}>
+              <Route
+                path="/con-filtros"
+                element={
+                  <PanelFiltros activos={1}>
+                    <p>Filtro de prueba</p>
+                  </PanelFiltros>
+                }
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>,
+      ),
+    );
+    const panel = contenedor.querySelector('aside[aria-label="Filtros"]');
+    expect(panel.className).not.toMatch(/(^| )hidden( |$)/);
+    expect(panel.textContent).toContain('Filtro de prueba');
+    expect(panel.className).toContain('-translate-x-full');
+    click(boton('Abrir los filtros'));
+    expect(contenedor.querySelector('aside[aria-label="Filtros"]').className).toContain('translate-x-0');
   });
 
   it('sin sesión no hay menú, solo la barra simple', () => {

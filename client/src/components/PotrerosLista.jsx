@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UsoBadge, cabezasPorCategoria, formatNumero } from './pecuaria';
 import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
+import PanelFiltros from './PanelFiltros';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -19,17 +20,20 @@ const ANIMALES = [
   ['vacios', 'Vacíos'],
 ];
 
-// Columnas de la tabla: [clave, título, derecha, valor para ordenar].
-// Las de números se ordenan primero de mayor a menor.
+// Columnas de la tabla: [clave, título, derecha, valor para ordenar, solo en la compu].
+// Las de números se ordenan primero de mayor a menor. En el celular la tabla
+// tiene que entrar sin scroll de costado: las "solo en la compu" se esconden y
+// su dato va como segunda línea, chica, debajo del nombre del potrero.
 const COLUMNAS = [
-  ['potrero', 'Potrero', false, null],
-  ['uso', 'Uso', false, (p) => p.usoActual?.nombre ?? null],
-  ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas)],
-  ['cabezas', 'Cabezas', true, (p) => p.stock?.cabezas ?? 0],
-  ['categorias', 'Categorías', false, (p) => (p.stock?.cabezas ? cabezasPorCategoria(p.stock.lotes) : null)],
-  ['cabHa', 'cab/ha', true, (p) => p.stock?.cabHa ?? null],
-  ['ugHa', 'UG/ha', true, (p) => p.stock?.ugHa ?? null],
+  ['potrero', 'Potrero', false, null, false],
+  ['uso', 'Uso', false, (p) => p.usoActual?.nombre ?? null, true],
+  ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas), true],
+  ['cabezas', 'Cabezas', true, (p) => p.stock?.cabezas ?? 0, false],
+  ['categorias', 'Categorías', false, (p) => (p.stock?.cabezas ? cabezasPorCategoria(p.stock.lotes) : null), true],
+  ['cabHa', 'cab/ha', true, (p) => p.stock?.cabHa ?? null, true],
+  ['ugHa', 'UG/ha', true, (p) => p.stock?.ugHa ?? null, false],
 ];
+const SOLO_COMPU = 'hidden md:table-cell';
 const NUMERICAS = new Set(['hectareas', 'cabezas', 'cabHa', 'ugHa']);
 // Las direcciones viejas (?orden=carga) siguen andando.
 const ALIAS_ORDEN = { nombre: 'potrero', carga: 'ugHa' };
@@ -88,7 +92,9 @@ export default function PotrerosLista({ potreros }) {
     const dir = f.orden.col === c ? (f.orden.dir === 'asc' ? 'desc' : 'asc') : porDefecto;
     poner({ orden: c === 'potrero' ? '' : c, dir: dir === porDefecto ? '' : dir });
   };
-  const hayFiltros = f.q || f.grupo || f.animales || f.categoria || f.incompletos;
+  const activos = [f.q, f.grupo, f.animales, f.categoria, f.incompletos].filter(Boolean).length;
+  const hayFiltros = activos > 0;
+  const limpiar = () => setParams({}, { replace: true });
 
   // Las categorías que hay hoy en el campo, para el filtro.
   const categorias = useMemo(() => {
@@ -127,7 +133,7 @@ export default function PotrerosLista({ potreros }) {
 
   return (
     <div>
-      <div className="mb-3 space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+      <PanelFiltros activos={activos} onLimpiar={limpiar}>
         <input
           type="search"
           value={f.q}
@@ -144,7 +150,7 @@ export default function PotrerosLista({ potreros }) {
             </Chip>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <Select etiqueta="Categoría" valor={f.categoria} onChange={(v) => poner({ categoria: v })} opciones={[['', 'Todas'], ...categorias]} />
           <Select etiqueta="Animales" valor={f.animales} onChange={(v) => poner({ animales: v })} opciones={ANIMALES} />
         </div>
@@ -152,7 +158,7 @@ export default function PotrerosLista({ potreros }) {
           <input type="checkbox" checked={f.incompletos} onChange={(e) => poner({ incompletos: e.target.checked ? '1' : '' })} />
           Solo con datos incompletos (sin hectáreas o sin peso)
         </label>
-      </div>
+      </PanelFiltros>
 
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 text-sm">
         <p>
@@ -164,11 +170,6 @@ export default function PotrerosLista({ potreros }) {
             </>
           )}
         </p>
-        {hayFiltros && (
-          <button type="button" onClick={() => setParams({}, { replace: true })} className="text-campo-600 hover:underline">
-            Limpiar filtros
-          </button>
-        )}
       </div>
 
       {visibles.length === 0 ? (
@@ -176,11 +177,20 @@ export default function PotrerosLista({ potreros }) {
       ) : (
         <>
           <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-potreros">
-            <table className="w-full min-w-[44rem] border-separate border-spacing-0 text-left text-sm">
+            <table className="w-full border-separate md:min-w-[44rem] border-spacing-0 text-left text-sm">
               <thead className="text-xs text-suelo-600">
                 <tr>
-                  {COLUMNAS.map(([c, titulo, derecha], i) => (
-                    <TituloOrdenable key={c} col={c} titulo={titulo} orden={f.orden} onOrdenar={ordenarPor} derecha={derecha} fija={i === 0} />
+                  {COLUMNAS.map(([c, titulo, derecha, , soloCompu], i) => (
+                    <TituloOrdenable
+                      key={c}
+                      col={c}
+                      titulo={titulo}
+                      orden={f.orden}
+                      onOrdenar={ordenarPor}
+                      derecha={derecha}
+                      fija={i === 0}
+                      className={soloCompu ? SOLO_COMPU : ''}
+                    />
                   ))}
                 </tr>
               </thead>
@@ -191,12 +201,17 @@ export default function PotrerosLista({ potreros }) {
               </tbody>
               <tfoot>
                 <tr className="font-semibold">
-                  <td className={`${pie} left-0 z-20 whitespace-nowrap`}>Total{hayFiltros ? ' filtrado' : ''}</td>
-                  <td className={`${pie} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} potreros</td>
-                  <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
+                  <td className={`${pie} left-0 z-20`}>
+                    Total{hayFiltros ? ' filtrado' : ''}
+                    <span className="block text-xs font-normal text-suelo-600 md:hidden">
+                      {visibles.length} potreros · {formatNumero(resumen.hectareas)} ha
+                    </span>
+                  </td>
+                  <td className={`${pie} ${SOLO_COMPU} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} potreros</td>
+                  <td className={`${pie} ${SOLO_COMPU} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
                   <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.cabezas)}</td>
-                  <td className={`${pie} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>
-                  <td className={`${pie} z-10 text-right tabular-nums`}>{resumen.cabHa == null ? '—' : formatNumero(resumen.cabHa, 2)}</td>
+                  <td className={`${pie} ${SOLO_COMPU} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>
+                  <td className={`${pie} ${SOLO_COMPU} z-10 text-right tabular-nums`}>{resumen.cabHa == null ? '—' : formatNumero(resumen.cabHa, 2)}</td>
                   <td className={`${pie} z-10`} />
                 </tr>
               </tfoot>
@@ -249,21 +264,26 @@ function PotreroFila({ potrero: p, par, onAbrir }) {
   const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
   return (
     <tr onClick={onAbrir} className={`cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
-      <td className={`${celda} ${fondo} sticky left-0 z-[5] whitespace-nowrap font-semibold`}>
+      <td className={`${celda} ${fondo} sticky left-0 z-[5] font-semibold md:whitespace-nowrap`}>
         <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-campo-700 hover:underline">
           {p.nombre}
         </Link>
         {p.tipo === 'CORRAL' && <span className="ml-1.5 text-xs font-medium text-amber-800">corral</span>}
+        {/* En el celular: uso, hectáreas y categorías, debajo del nombre. */}
+        <span className="mt-0.5 block text-xs font-normal text-suelo-600 md:hidden">
+          {p.usoActual?.nombre ?? 'Sin uso'} · {p.hectareasAConfirmar ? 'ha a confirmar' : `${formatNumero(p.hectareas, 2)} ha`}
+          {!vacio && <span className="block">{cabezasPorCategoria(p.stock.lotes)}</span>}
+        </span>
       </td>
-      <td className={`${celda} ${fondo} whitespace-nowrap`}>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`}>
         <UsoBadge uso={p.usoActual} />
       </td>
-      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap text-right tabular-nums`}>
         {p.hectareasAConfirmar ? <span className="text-xs text-amber-800">a confirmar</span> : formatNumero(p.hectareas, 2)}
       </td>
       <td className={`${celda} ${fondo} text-right font-semibold tabular-nums`}>{vacio ? '—' : formatNumero(cabezas)}</td>
-      <td className={`${celda} ${fondo} min-w-[12rem]`}>{vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}</td>
-      <td className={`${celda} ${fondo} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} min-w-[12rem]`}>{vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}</td>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
         {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}
       </td>

@@ -6,6 +6,7 @@ import { ErrorList, Notice } from './ui';
 import { formatFecha, formatNumero } from './pecuaria';
 import usePuede from '../hooks/usePuede';
 import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
+import PanelFiltros from './PanelFiltros';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const iso = (d) => d.toLocaleDateString('sv-SE');
@@ -36,16 +37,22 @@ const NOMBRE_MODO = {
 };
 const NOMBRE_EVENTO = { MULTIPLE: 'Múltiple', ENTRE_CAMPOS: 'Entre campos', REVERSION: 'Reversión' };
 
+// [clave, título, solo en la compu]. En el celular la tabla tiene que entrar
+// sin scroll de costado: las "solo en la compu" se esconden y su dato va como
+// segunda línea, chica, debajo del tipo.
 const COLUMNAS = [
-  ['fecha', 'Fecha'],
-  ['tipo', 'Tipo'],
-  ['categoria', 'Categoría'],
-  ['cabezas', 'Cabezas'],
-  ['peso', 'Peso'],
-  ['origen', 'Origen'],
-  ['destino', 'Destino'],
-  ['usuario', 'Usuario'],
+  ['fecha', 'Fecha', false],
+  ['tipo', 'Movimiento', false],
+  ['categoria', 'Categoría', true],
+  ['cabezas', 'Cab.', false],
+  ['peso', 'Peso', true],
+  ['origen', 'Origen', true],
+  ['destino', 'Destino', true],
+  ['usuario', 'Usuario', true],
 ];
+const SOLO_COMPU = 'hidden md:table-cell';
+// "13/11/2026" → "13/11" (en el celular, para que entre).
+const fechaCorta = (f) => formatFecha(f).slice(0, 5);
 
 // "potrero · lote" de un lado del movimiento. Si el potrero es de otra
 // estancia (movimiento entre campos), con su estancia: "← La Gateada · 10.3".
@@ -258,13 +265,15 @@ export default function MovimientosLista({ campoId, potreros }) {
     }
   }
 
-  const hayFiltros = f.periodo || f.potreroId || f.categoriaId || f.tipoId;
+  const activos = [f.periodo, f.potreroId, f.categoriaId, f.tipoId].filter(Boolean).length;
+  const hayFiltros = activos > 0;
+  const limpiar = () => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '', mtipo: '' });
   const conRevertir = puedo('pecuaria:ANULAR');
   const columnas = conRevertir ? COLUMNAS.length + 1 : COLUMNAS.length;
 
   return (
     <div>
-      <div className="mb-3 space-y-3 rounded-lg border border-suelo-200 bg-white p-3">
+      <PanelFiltros activos={activos} onLimpiar={limpiar}>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Período">
           {PERIODOS.map(([valor, texto]) => (
             <button
@@ -290,7 +299,7 @@ export default function MovimientosLista({ campoId, potreros }) {
             </label>
           </div>
         )}
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2">
           <Selector etiqueta="Potrero" valor={f.potreroId} onChange={(v) => poner({ mpotrero: v })}>
             <option value="">Todos</option>
             {ordenados.map((p) => (
@@ -316,16 +325,7 @@ export default function MovimientosLista({ campoId, potreros }) {
             ))}
           </Selector>
         </div>
-        {hayFiltros && (
-          <button
-            type="button"
-            onClick={() => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '', mtipo: '' })}
-            className="text-sm text-campo-600 hover:underline"
-          >
-            Limpiar filtros
-          </button>
-        )}
-      </div>
+      </PanelFiltros>
 
       <ErrorList errors={errors} />
       <Notice tone="ok">{aviso}</Notice>
@@ -338,11 +338,20 @@ export default function MovimientosLista({ campoId, potreros }) {
         </p>
       ) : (
         <div className="max-h-[70vh] overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-movimientos">
-          <table className="w-full min-w-[56rem] border-separate border-spacing-0 text-left text-sm">
+          <table className="w-full border-separate md:min-w-[56rem] border-spacing-0 text-left text-sm">
             <thead className="text-xs text-suelo-600">
               <tr>
-                {COLUMNAS.map(([col, titulo], i) => (
-                  <TituloOrdenable key={col} col={col} titulo={titulo} orden={orden} onOrdenar={ordenarPor} derecha={col === 'cabezas' || col === 'peso'} fija={i === 0} />
+                {COLUMNAS.map(([col, titulo, soloCompu], i) => (
+                  <TituloOrdenable
+                    key={col}
+                    col={col}
+                    titulo={titulo}
+                    orden={orden}
+                    onOrdenar={ordenarPor}
+                    derecha={col === 'cabezas' || col === 'peso'}
+                    fija={i === 0}
+                    className={soloCompu ? SOLO_COMPU : ''}
+                  />
                 ))}
                 {conRevertir && <th scope="col" className="sticky top-0 z-10 border-b border-suelo-300 bg-suelo-100 px-2 py-1.5" aria-label="Acciones" />}
               </tr>
@@ -364,7 +373,7 @@ export default function MovimientosLista({ campoId, potreros }) {
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={columnas} className="sticky bottom-0 left-0 border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
+                <td colSpan={columnas} className="sticky bottom-0 left-0 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
                   <span className="sticky left-3">
                     <strong>Total{hayFiltros ? ' con los filtros' : ''}:</strong> {datos.resumen.movimientos} {datos.resumen.movimientos === 1 ? 'movimiento' : 'movimientos'} ·{' '}
                     <strong>{formatNumero(datos.resumen.cabezas)}</strong> cabezas movidas ·{' '}
@@ -394,23 +403,31 @@ function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
             {abierto ? '▾' : '▸'}
           </button>
         ) : null}
-        {formatFecha(fila.fecha)}
+        <span className="md:hidden">{fechaCorta(fila.fecha)}</span>
+        <span className="hidden md:inline">{formatFecha(fila.fecha)}</span>
       </td>
       <td className={celda}>
         {fila.tipo}
         {fila.revertido && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">revertido</span>}
+        {/* En el celular: categoría, de dónde a dónde, peso y quién, debajo del tipo. */}
+        <span className="block text-xs text-suelo-600 md:hidden">
+          {fila.categoria}
+          {fila.origen !== '—' || fila.destino !== '—' ? ` · ${fila.origen} → ${fila.destino}` : ''}
+          {fila.peso ? ` · ${formatNumero(fila.peso)} kg` : ''}
+          {fila.usuario ? ` · ${fila.usuario}` : ''}
+        </span>
         {fila.guia && <span className="block text-xs text-suelo-500">Guía {fila.guia}</span>}
         {fila.nota && <span className="block text-xs text-suelo-500">{fila.nota}</span>}
       </td>
-      <td className={celda}>{fila.categoria}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{fila.categoria}</td>
       <td className={`${celda} text-right font-semibold tabular-nums ${colorCabezas}`}>
         {fila.signo}
         {formatNumero(fila.cabezas)}
       </td>
-      <td className={`${celda} text-right tabular-nums`}>{fila.peso ? `${formatNumero(fila.peso)} kg` : '—'}</td>
-      <td className={celda}>{fila.m?.loteOrigen ? <LadoConLink m={fila.m} texto={fila.origen} lote={fila.m.loteOrigen} /> : fila.origen}</td>
-      <td className={celda}>{fila.m?.loteDestino ? <LadoConLink m={fila.m} texto={fila.destino} lote={fila.m.loteDestino} /> : fila.destino}</td>
-      <td className={`${celda} whitespace-nowrap text-suelo-600`}>{fila.usuario}</td>
+      <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{fila.peso ? `${formatNumero(fila.peso)} kg` : '—'}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteOrigen ? <LadoConLink m={fila.m} texto={fila.origen} lote={fila.m.loteOrigen} /> : fila.origen}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteDestino ? <LadoConLink m={fila.m} texto={fila.destino} lote={fila.m.loteDestino} /> : fila.destino}</td>
+      <td className={`${celda} ${SOLO_COMPU} whitespace-nowrap text-suelo-600`}>{fila.usuario}</td>
       {conRevertir && (
         <td className={`${celda} whitespace-nowrap`}>
           {fila.puedeRevertir && (
@@ -442,13 +459,18 @@ function Paso({ m, n, campoId, conRevertir }) {
   return (
     <tr className="text-suelo-700 [&>td]:bg-campo-50">
       <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap pl-7 text-xs text-suelo-500`}>Paso {n}</td>
-      <td className={celda}>{tipoDe(m)}</td>
-      <td className={celda}>{categoriaDe(m)}</td>
+      <td className={celda}>
+        {tipoDe(m)}
+        <span className="block text-xs text-suelo-600 md:hidden">
+          {categoriaDe(m)} · {lado(m, 'origen', campoId)} → {lado(m, 'destino', campoId)}
+        </span>
+      </td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{categoriaDe(m)}</td>
       <td className={`${celda} text-right tabular-nums`}>{formatNumero(m.cabezas)}</td>
-      <td className={`${celda} text-right tabular-nums`}>{m.pesoPromedioKg ? `${formatNumero(m.pesoPromedioKg)} kg` : '—'}</td>
-      <td className={celda}>{lado(m, 'origen', campoId)}</td>
-      <td className={celda}>{lado(m, 'destino', campoId)}</td>
-      <td className={celda} />
+      <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{m.pesoPromedioKg ? `${formatNumero(m.pesoPromedioKg)} kg` : '—'}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{lado(m, 'origen', campoId)}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{lado(m, 'destino', campoId)}</td>
+      <td className={`${celda} ${SOLO_COMPU}`} />
       {conRevertir && <td className={celda} />}
     </tr>
   );

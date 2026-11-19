@@ -290,8 +290,8 @@ function MarcoInterno() {
           </div>
           <DestinoFiltros />
         </aside>
-        {/* pb-6: que el "+" de la barra de abajo (sobresale) no tape lo último. */}
-        <div ref={contenido} className="min-w-0 flex-1 overflow-y-auto pb-6 lg:pb-0" data-testid="contenido">
+        {/* pb-5: que el "+" de la barra de abajo (sobresale) no tape lo último. */}
+        <div ref={contenido} className="min-w-0 flex-1 overflow-y-auto pb-5 lg:pb-0" data-testid="contenido">
           <Outlet />
         </div>
       </div>

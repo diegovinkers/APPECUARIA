@@ -32,19 +32,22 @@ export function paginasVisibles(actual, total) {
 // total y el paginador) y lo divide por el alto de una fila, que es fijo. Se
 // recalcula si cambia el tamaño de la pantalla o si aparece o desaparece el
 // paginador. Sin ResizeObserver (los tests) queda en FILAS_POR_PAGINA.
-export function useFilasQueEntran(caja, hayPaginador) {
-  const [estado, setEstado] = useState({ filas: FILAS_POR_PAGINA, medido: false });
+// altoBase(): el alto mínimo de una fila en px. Lo que sobra (menos de una
+// fila) se reparte entre las filas (alto), así el paginador queda pegado abajo.
+export function useFilasQueEntran(caja, hayPaginador, altoBase) {
+  const [estado, setEstado] = useState({ filas: FILAS_POR_PAGINA, medido: false, alto: null });
   useLayoutEffect(() => {
     if (!caja || typeof ResizeObserver === 'undefined') return undefined;
     const medir = () => {
-      const fila = caja.querySelector('tbody tr');
-      if (!fila?.offsetHeight) return;
-      const alto = (sel) => caja.querySelector(sel)?.offsetHeight ?? 0;
-      const paginador = caja.querySelector('nav[aria-label="Páginas"]') ? alto('nav[aria-label="Páginas"]') + 8 : 0;
+      const base = altoBase?.() || caja.querySelector('tbody tr')?.offsetHeight;
+      if (!base) return;
+      const altoDe = (sel) => caja.querySelector(sel)?.offsetHeight ?? 0;
+      const paginador = caja.querySelector('nav[aria-label="Páginas"]') ? altoDe('nav[aria-label="Páginas"]') + 8 : 0;
       // 2: el borde de la caja de la tabla.
-      const libre = caja.clientHeight - alto('thead') - alto('tfoot') - paginador - 2;
-      const filas = Math.max(3, Math.floor(libre / fila.offsetHeight));
-      setEstado((e) => (e.filas === filas && e.medido ? e : { filas, medido: true }));
+      const libre = caja.clientHeight - altoDe('thead') - altoDe('tfoot') - paginador - 2;
+      const filas = Math.max(3, Math.floor(libre / base));
+      const alto = Math.max(base, Math.floor(libre / filas));
+      setEstado((e) => (e.filas === filas && e.alto === alto && e.medido ? e : { filas, alto, medido: true }));
     };
     medir();
     const observador = new ResizeObserver(medir);
@@ -53,7 +56,7 @@ export function useFilasQueEntran(caja, hayPaginador) {
     const nav = caja.querySelector('nav[aria-label="Páginas"]');
     if (nav) observador.observe(nav);
     return () => observador.disconnect();
-  }, [caja, hayPaginador]);
+  }, [caja, hayPaginador, altoBase]);
   return estado;
 }
 
@@ -113,7 +116,7 @@ export function TituloOrdenable({ col, titulo, orden, onOrdenar, derecha, fija, 
     <th
       scope="col"
       aria-sort={activa ? (orden.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`sticky top-0 border-b border-r border-suelo-300 bg-suelo-100 px-2 py-1.5 font-medium last:border-r-0 ${fija ? 'left-0 z-20' : 'z-10'} ${derecha ? 'text-right' : ''} ${className}`}
+      className={`sticky top-0 border-b border-r border-suelo-300 bg-suelo-100 px-1.5 py-1.5 md:px-2 font-medium last:border-r-0 ${fija ? 'left-0 z-20' : 'z-10'} ${derecha ? 'text-right' : ''} ${className}`}
     >
       <button type="button" onClick={() => onOrdenar(col)} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-suelo-900">
         {titulo}
@@ -126,4 +129,4 @@ export function TituloOrdenable({ col, titulo, orden, onOrdenar, derecha, fija, 
 }
 
 // Clase de una celda: líneas como en Excel.
-export const celda = 'border-b border-r border-suelo-200 px-2 py-1.5 align-top last:border-r-0';
+export const celda = 'border-b border-r border-suelo-200 px-1.5 py-1.5 align-top last:border-r-0 md:px-2';

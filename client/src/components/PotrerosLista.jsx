@@ -30,19 +30,30 @@ const COLUMNAS = [
   ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas), true],
   ['cabezas', 'Cabezas', true, (p) => p.stock?.cabezas ?? 0, false],
   ['categorias', 'Categorías', false, (p) => (p.stock?.cabezas ? cabezasPorCategoria(p.stock.lotes) : null), true],
+  ['peso', 'Peso prom.', true, (p) => pesoPromedio(p), false],
   ['cabHa', 'cab/ha', true, (p) => p.stock?.cabHa ?? null, true],
+  ['kgHa', 'kg/ha', true, (p) => (p.stock?.kilosCompletos && p.stock?.cabezas ? (p.stock.kgPvHa ?? null) : null), false],
   ['ugHa', 'UG/ha', true, (p) => p.stock?.ugHa ?? null, false],
 ];
+// En el celular, títulos cortos para que entren.
+const TITULO_CORTO = { cabezas: 'Cab.', peso: 'Peso' };
 const SOLO_COMPU = 'hidden md:table-cell';
 // Las filas, todas del mismo alto y con todo centrado (pedido de Diego, 19/11):
 // en el celular tres líneas (nombre, uso y qué hay; lo que no entra se corta
 // con "…"), en la compu una.
 const celdaFila = celda.replace('align-top', 'align-middle');
 const ALTO_FILA = 'h-[4.5rem] md:h-10';
+// El mismo alto en px, para calcular cuántas filas entran.
+const altoBase = () => (window.matchMedia?.('(min-width: 768px)').matches ? 40 : 72);
 // En el celular la tabla tiene ancho fijo: Cabezas y UG/ha con su ancho, y
 // Potrero lo que queda (así el "…" corta adentro de la celda).
-const ANCHO_CELULAR = { cabezas: 'w-[5.75rem] md:w-auto', ugHa: 'w-[5.25rem] md:w-auto' };
-const NUMERICAS = new Set(['hectareas', 'cabezas', 'cabHa', 'ugHa']);
+const ANCHO_CELULAR = {
+  cabezas: 'w-[3.75rem] md:w-auto',
+  peso: 'w-[3.25rem] md:w-auto',
+  kgHa: 'w-[3.5rem] md:w-auto',
+  ugHa: 'w-[3.5rem] md:w-auto',
+};
+const NUMERICAS = new Set(['hectareas', 'cabezas', 'peso', 'cabHa', 'kgHa', 'ugHa']);
 // Las direcciones viejas (?orden=carga) siguen andando.
 const ALIAS_ORDEN = { nombre: 'potrero', carga: 'ugHa' };
 
@@ -55,6 +66,10 @@ export function categoriasCortas(lotes = []) {
   if (categorias.size === 1) return [...categorias][0];
   return cabezasPorCategoria(lotes);
 }
+
+// Peso promedio del potrero (kilos ÷ cabezas). Si a algún lote le falta el
+// peso, no hay promedio.
+export const pesoPromedio = (p) => (p.stock?.cabezas && p.stock.kilosCompletos && p.stock.kilos != null ? p.stock.kilos / p.stock.cabezas : null);
 
 const grupoDe = (p) => (p.tipo === 'CORRAL' ? 'CORRAL' : (p.usoActual?.grupo ?? 'OTRO'));
 const incompleto = (p) => p.hectareasAConfirmar || (p.stock && !p.stock.kilosCompletos);
@@ -143,7 +158,16 @@ export default function PotrerosLista({ potreros }) {
       (p.stock?.lotes ?? []).filter((l) => !f.categoria || String(l.categoriaId) === f.categoria).reduce((s, l) => s + l.cabezas, 0);
     const cabezas = visibles.reduce((s, p) => s + deCategoria(p), 0);
     const hectareas = visibles.reduce((s, p) => s + (p.hectareasAConfirmar ? 0 : (p.hectareas ?? 0)), 0);
-    return { cabezas, hectareas, cabHa: hectareas > 0 ? cabezas / hectareas : null };
+    // Peso promedio de lo filtrado: solo los lotes que tienen peso.
+    let conPeso = 0;
+    let kilos = 0;
+    for (const p of visibles)
+      for (const l of p.stock?.lotes ?? [])
+        if (l.pesoPromedioKg && (!f.categoria || String(l.categoriaId) === f.categoria)) {
+          conPeso += l.cabezas;
+          kilos += l.cabezas * l.pesoPromedioKg;
+        }
+    return { cabezas, hectareas, cabHa: hectareas > 0 ? cabezas / hectareas : null, peso: conPeso ? kilos / conPeso : null };
   }, [visibles, f.categoria]);
   const nombreCategoria = categorias.find(([id]) => id === f.categoria)?.[1];
   // La barra de carga se llena según el potrero más cargado de la estancia.
@@ -154,7 +178,8 @@ export default function PotrerosLista({ potreros }) {
   // Tantas filas por página como entran en la pantalla.
   const [caja, setCaja] = useState(null);
   const [hayPaginador, setHayPaginador] = useState(false);
-  const { filas: porPagina, medido } = useFilasQueEntran(caja, hayPaginador);
+  const { filas: porPagina, medido, alto } = useFilasQueEntran(caja, hayPaginador, altoBase);
+  const altoFila = medido && alto ? { height: alto } : undefined;
   const pagina = paginar(visibles, f.pagina, porPagina);
   if (hayPaginador !== pagina.total > 1) setHayPaginador(pagina.total > 1);
   // En la última página, filas vacías hasta completar: la planilla queda derecha.
@@ -204,7 +229,16 @@ export default function PotrerosLista({ potreros }) {
                     <TituloOrdenable
                       key={c}
                       col={c}
-                      titulo={titulo}
+                      titulo={
+                        TITULO_CORTO[c] ? (
+                          <>
+                            <span className="hidden md:inline">{titulo}</span>
+                            <span className="md:hidden">{TITULO_CORTO[c]}</span>
+                          </>
+                        ) : (
+                          titulo
+                        )
+                      }
                       orden={f.orden}
                       onOrdenar={ordenarPor}
                       derecha={derecha}
@@ -216,10 +250,10 @@ export default function PotrerosLista({ potreros }) {
               </thead>
               <tbody>
                 {pagina.filas.map((p, n) => (
-                  <PotreroFila key={p.id} potrero={p} par={n % 2 === 1} cargaMaxima={cargaMaxima} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
+                  <PotreroFila key={p.id} potrero={p} par={n % 2 === 1} cargaMaxima={cargaMaxima} estilo={altoFila} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
                 ))}
                 {Array.from({ length: relleno }, (_, n) => (
-                  <tr key={`vacia${n}`} aria-hidden="true" className={ALTO_FILA} data-testid="fila-vacia">
+                  <tr key={`vacia${n}`} aria-hidden="true" className={ALTO_FILA} style={altoFila} data-testid="fila-vacia">
                     {/* Una celda por columna (con las mismas que se esconden en el celular). */}
                     {COLUMNAS.map(([c, , , , soloCompu]) => (
                       <td key={c} className={`border-b border-suelo-100 ${soloCompu ? SOLO_COMPU : ''}`} />
@@ -229,7 +263,7 @@ export default function PotrerosLista({ potreros }) {
               </tbody>
               <tfoot>
                 <tr className="font-semibold">
-                  <td className={`${pie} left-0 z-20 truncate`}>
+                  <td className={`${pie} left-0 z-20`}>
                     Total{hayFiltros ? ' filtrado' : ''}
                     <span className="text-xs font-normal text-suelo-600 md:hidden">
                       {' · '}
@@ -241,7 +275,9 @@ export default function PotrerosLista({ potreros }) {
                   <td className={`${pie} ${SOLO_COMPU} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
                   <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.cabezas)}</td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>
+                  <td className={`${pie} z-10 text-right tabular-nums`}>{resumen.peso == null ? '—' : formatNumero(resumen.peso, 0)}</td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 text-right tabular-nums`}>{resumen.cabHa == null ? '—' : formatNumero(resumen.cabHa, 2)}</td>
+                  <td className={`${pie} z-10`} />
                   <td className={`${pie} z-10`} />
                 </tr>
               </tfoot>
@@ -287,14 +323,14 @@ function Select({ etiqueta, valor, onChange, opciones }) {
 }
 
 // Una fila: tocarla abre la ficha del potrero.
-function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
+function PotreroFila({ potrero: p, par, cargaMaxima, estilo, onAbrir }) {
   const cabezas = p.stock?.cabezas ?? 0;
   const vacio = cabezas === 0;
   const fondo = par ? 'bg-suelo-50' : 'bg-white';
   const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
   const celda = celdaFila;
   return (
-    <tr onClick={onAbrir} className={`${ALTO_FILA} cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
+    <tr onClick={onAbrir} style={estilo} className={`${ALTO_FILA} cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
       <td className={`${celda} ${fondo} sticky left-0 z-[5] font-semibold md:whitespace-nowrap`}>
         {/* Arriba el nombre; abajo, en el celular, el uso y qué hay. Lo que no entra se corta con "…". */}
         <div className="flex min-w-0 items-center gap-1.5">
@@ -329,8 +365,12 @@ function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
           {vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}
         </div>
       </td>
+      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>{pesoPromedio(p) == null ? '—' : formatNumero(pesoPromedio(p), 0)}</td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
+        {vacio || sinPeso || p.stock?.kgPvHa == null ? '—' : formatNumero(p.stock.kgPvHa, 0)}
+      </td>
+      <td className={`${celda} ${fondo} text-right tabular-nums`}>
         {/* En el celular el número y debajo la barra de carga; en la compu, al lado. */}
         <span className="flex flex-col items-end gap-1.5 md:flex-row md:items-center md:justify-end">
           {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}

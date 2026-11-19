@@ -79,9 +79,25 @@ describe('la tabla de potreros', () => {
   it('una fila por potrero con cabezas de qué, y los totales abajo', () => {
     montar([potrero(1, '1', 10, 5), potrero(2, '2', 50, 10), potrero(3, '3', 0, 4)]);
     const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '5', '—']);
+    expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '—', '5', '—', '—']);
     expect(filas[2][4]).toBe('vacío');
     expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/Total.*3 potreros.*19.*60.*cabezas.*3,16/);
+  });
+
+  it('peso promedio y kg/ha (sin peso en algún lote: —); el total promedia los lotes con peso', () => {
+    const conPeso = (id, cabezas, peso, ha, completos = true) => {
+      const p = potrero(id, String(id), cabezas, ha);
+      const lotes = p.stock.lotes.map((l) => ({ ...l, pesoPromedioKg: completos ? peso : null }));
+      return { ...p, stock: { ...p.stock, lotes, kilosCompletos: completos, kilos: completos ? cabezas * peso : 0, kgPvHa: completos ? (cabezas * peso) / ha : 0 } };
+    };
+    montar([conPeso(1, 100, 300, 20), conPeso(2, 50, 400, 10), conPeso(3, 40, 0, 10, false)]);
+    const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
+    // Columnas: potrero, uso, ha, cabezas, categorías, peso, cab/ha, kg/ha, UG/ha.
+    expect([filas[0][5], filas[0][7]]).toEqual(['300', '1.500']);
+    expect([filas[1][5], filas[1][7]]).toEqual(['400', '2.000']);
+    expect([filas[2][5], filas[2][7]]).toEqual(['—', '—']);
+    // Total: (100×300 + 50×400) / 150 = 333.
+    expect([...contenedor.querySelectorAll('tfoot td')].map(textoCompu)[5]).toBe('333');
   });
 
   it('el título ordena y queda en la dirección', () => {
@@ -117,8 +133,8 @@ describe('la tabla de potreros', () => {
   });
 
   it('por página, tantos potreros como entran en la pantalla; la última se completa con filas vacías', () => {
-    // La caja mide 30 (títulos) + 40 (total) + 5 filas de 52 + 10 de sobra.
-    const alto = { TR: 52, THEAD: 30, TFOOT: 40 };
+    // La caja mide 30 (títulos) + 40 (total) + 5 filas de 72 (el alto fijo del celular) + 10 de sobra.
+    const alto = { TR: 72, THEAD: 30, TFOOT: 40 };
     const original = {
       ro: globalThis.ResizeObserver,
       offset: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight'),
@@ -131,7 +147,7 @@ describe('la tabla de potreros', () => {
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return alto[this.tagName] ?? 0; } });
     Object.defineProperty(Element.prototype, 'clientHeight', {
       configurable: true,
-      get() { return this.dataset?.testid === 'caja-potreros' ? 30 + 40 + 5 * 52 + 10 : 0; },
+      get() { return this.dataset?.testid === 'caja-potreros' ? 30 + 40 + 5 * 72 + 10 : 0; },
     });
     try {
       const doce = Array.from({ length: 12 }, (_, i) => potrero(i + 1, String(i + 1), 10, 5));

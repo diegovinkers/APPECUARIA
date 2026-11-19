@@ -34,6 +34,16 @@ const tipoCampo = z.enum(['ESTANCIA', 'GRANJA', 'CONFINAMIENTO'], {
 const tipoPotrero = z.enum(['POTRERO', 'CORRAL'], { error: 'El tipo de potrero tiene que ser POTRERO o CORRAL' });
 
 // Acepta 171.73, "171.73" o "171,73" (como en la planilla). Vacío = sin dato.
+// Área utilizable (ha): lo que usa de verdad el uso de suelo. null = todas.
+const areaUtilizable = z.preprocess(
+  (v) => (v === '' || v == null ? null : typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v),
+  z
+    .number({ error: 'El área utilizable tiene que ser un número mayor que cero' })
+    .positive('El área utilizable tiene que ser un número mayor que cero')
+    .max(99_999_999, 'El área utilizable es demasiada')
+    .nullable(),
+);
+
 const hectareas = z.preprocess(
   (v) => (v === '' || v == null ? null : typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v),
   z
@@ -76,6 +86,16 @@ export const editarUsoSchema = z.object({
 
 // --- Categorías ---
 
+// Peso promedio (kg) y precio (USD) de una categoría: opcionales; null = sin dato.
+const numeroOpcional = (mensaje, max) =>
+  z.preprocess(
+    (v) => (v === '' || v == null ? null : typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v),
+    z.number({ error: mensaje }).positive(mensaje).max(max, mensaje).nullable(),
+  );
+const pesoCategoria = numeroOpcional('El peso promedio tiene que ser un número de kilos mayor que cero', 2000);
+const precioCategoria = numeroOpcional('El precio tiene que ser un número de dólares mayor que cero', 10_000_000);
+const precioPor = z.enum(['KG', 'CABEZA'], { error: 'El precio es por KG o por CABEZA' });
+
 export const crearCategoriaSchema = z.object({
   nombre: nombre(60, 'de la categoría'),
   especie: especie.default('VACUNO'),
@@ -84,6 +104,9 @@ export const crearCategoriaSchema = z.object({
   sexo: sexoCategoria.optional(),
   orden: orden.default(0),
   alias: alias.default([]),
+  pesoPromedioKg: pesoCategoria.optional(),
+  precioUsd: precioCategoria.optional(),
+  precioPor: precioPor.optional(),
 });
 
 export const editarCategoriaSchema = z.object({
@@ -94,6 +117,9 @@ export const editarCategoriaSchema = z.object({
   orden: orden.optional(),
   activo: activo.optional(),
   alias: alias.optional(),
+  pesoPromedioKg: pesoCategoria.optional(),
+  precioUsd: precioCategoria.optional(),
+  precioPor: precioPor.optional(),
 });
 
 // --- Tipos de movimiento y causas ("libro del rodeo") ---
@@ -206,6 +232,7 @@ export const crearPotreroSchema = z.object({
   tipo: tipoPotrero.default('POTRERO'),
   hectareas: hectareas.default(null),
   hectareasAConfirmar: z.boolean({ error: 'hectareasAConfirmar tiene que ser true o false' }).default(false),
+  areaUtilizable: areaUtilizable.default(null),
   idAreaManejoCigam: claveCigam,
   orden: orden.default(0),
   subdivisiones: subdivisiones.default([]),
@@ -216,6 +243,7 @@ export const editarPotreroSchema = z.object({
   tipo: tipoPotrero.optional(),
   hectareas: hectareas.optional(),
   hectareasAConfirmar: z.boolean({ error: 'hectareasAConfirmar tiene que ser true o false' }).optional(),
+  areaUtilizable: areaUtilizable.optional(),
   idAreaManejoCigam: claveCigam.optional(),
   orden: orden.optional(),
   activo: activo.optional(),
@@ -267,6 +295,8 @@ export const stockSchema = z.object({
 export const usoSchema = z.object({
   usoSueloId: z.int({ error: 'Elegí un uso de suelo' }).positive('Elegí un uso de suelo'),
   desde: fechaDato.optional(),
+  // Lo que ocupa el uso nuevo. Si no se manda: todas las hectáreas.
+  areaUtilizable: areaUtilizable.optional(),
 });
 
 // --- Lotes y movimientos ---
@@ -304,6 +334,9 @@ export const movimientoSchema = z.object({
     .optional(),
   // ENTERO: la categoría nueva del lote (opcional). CATEGORIA: la categoría nueva (obligatoria).
   categoriaId: idPositivo('La categoría no es válida').optional(),
+  // NUEVO: la parte sigue siendo del mismo lote (familia de lotes): misma
+  // categoría y nombre automático; nuevoLote no hace falta.
+  mismoLote: z.boolean({ error: 'mismoLote tiene que ser true o false' }).optional(),
   nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
 });
 

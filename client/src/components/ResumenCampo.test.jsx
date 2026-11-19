@@ -71,3 +71,31 @@ describe('filtros de Potreros', () => {
     expect(contenedor.textContent).toContain('1 de 2 potreros');
   });
 });
+
+describe('valor del ganado', () => {
+  const montar = (resumen) =>
+    act(() =>
+      root.render(
+        <MemoryRouter>
+          <TablaResumen resumen={resumen} />
+        </MemoryRouter>,
+      ),
+    );
+  const cuadro = () => contenedor.querySelector('[data-testid="valor-ganado"]');
+
+  it('muestra el valor, avisa si está incompleto, y el UG/ha estimado con ≈', () => {
+    montar({
+      ...RESUMEN,
+      valor: { usd: 93500, completo: false },
+      porGrupo: [{ ...RESUMEN.porGrupo[0], kilosEstimados: true, valorUsd: 93500 }],
+    });
+    expect(cuadro().textContent).toMatch(/USD 93\.500/);
+    expect(cuadro().textContent).toMatch(/Incompleto/);
+    expect(contenedor.textContent).toMatch(/≈0,8 UG\/ha/);
+  });
+
+  it('sin precios cargados, manda a Configuración', () => {
+    montar({ ...RESUMEN, valor: { usd: 0, completo: false } });
+    expect(cuadro().querySelector('a').getAttribute('href')).toBe('/pecuaria/configuracion');
+  });
+});

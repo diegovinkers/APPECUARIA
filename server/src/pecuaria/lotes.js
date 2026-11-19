@@ -54,15 +54,15 @@ export async function nombreLibre(db, campoId, base) {
 }
 
 // Crea un lote. Con nombre: tiene que estar libre en el campo. Sin nombre:
-// "<potrero> · <categoría>".
-export async function crearLote(db, { campoId, potrero, categoria, nombre }) {
+// "<potrero> · <categoría>". raizId: si es una parte de otro lote (familia).
+export async function crearLote(db, { campoId, potrero, categoria, nombre, raizId = null }) {
   let elegido = nombre?.trim();
   if (elegido) {
     if (await nombreOcupado(db, campoId, elegido)) throw badRequest(`Ya existe un lote "${elegido}" en este campo`);
   } else {
     elegido = await nombreLibre(db, campoId, `${potrero.nombre} · ${categoria.nombre}`);
   }
-  return db.lote.create({ data: { campoId, potreroId: potrero.id, categoriaId: categoria.id, nombre: elegido } });
+  return db.lote.create({ data: { campoId, potreroId: potrero.id, categoriaId: categoria.id, nombre: elegido, raizId } });
 }
 
 // Guarda una foto nueva del potrero con estas líneas (las de 0 cabezas no van).

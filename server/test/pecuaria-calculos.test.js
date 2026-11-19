@@ -6,7 +6,18 @@ const KG_POR_UG = 380;
 describe('calcularPotrero', () => {
   it('calcula cabezas, kilos y los valores por hectárea (ejemplo: 350 terneros de 250 kg en 144,5 ha)', () => {
     const r = calcularPotrero({ hectareas: 144.5, hectareasAConfirmar: false, lineas: [{ cabezas: 350, pesoPromedioKg: 250 }] }, KG_POR_UG);
-    expect(r).toEqual({ cabezas: 350, kilos: 87500, kilosCompletos: true, cabHa: 2.42, kgPvHa: 605.54, ugHa: 1.59 });
+    // Sin los datos de las categorías (solo el número de kg por UG) no hay valor.
+    expect(r).toEqual({
+      cabezas: 350,
+      kilos: 87500,
+      kilosCompletos: true,
+      kilosEstimados: false,
+      valorUsd: null,
+      valorCompleto: false,
+      cabHa: 2.42,
+      kgPvHa: 605.54,
+      ugHa: 1.59,
+    });
   });
 
   it('suma varias categorías', () => {
@@ -40,6 +51,9 @@ describe('calcularPotrero', () => {
       cabezas: 0,
       kilos: 0,
       kilosCompletos: true,
+      kilosEstimados: false,
+      valorUsd: null,
+      valorCompleto: false,
       cabHa: 0,
       kgPvHa: 0,
       ugHa: 0,
@@ -49,5 +63,30 @@ describe('calcularPotrero', () => {
   it('las UG siguen al parámetro', () => {
     const r = calcularPotrero({ hectareas: 10, hectareasAConfirmar: false, lineas: [{ cabezas: 10, pesoPromedioKg: 400 }] }, 400);
     expect(r.ugHa).toBe(1);
+  });
+
+  // Peso promedio y precio por categoría (docs/superpowers/specs/2026-11-19-peso-y-precio-por-categoria-design.md).
+  const categorias = new Map([
+    [1, { pesoPromedioKg: 200, precioUsd: 4, precioPor: 'KG' }],
+    [2, { pesoPromedioKg: 500, precioUsd: 1300, precioPor: 'CABEZA' }],
+    [3, { pesoPromedioKg: null, precioUsd: null, precioPor: 'KG' }],
+  ]);
+
+  it('un lote sin peso usa el de su categoría (estimado); con peso propio, el suyo', () => {
+    const lineas = [
+      { categoriaId: 1, cabezas: 100, pesoPromedioKg: null },
+      { categoriaId: 2, cabezas: 10, pesoPromedioKg: 450 },
+    ];
+    const r = calcularPotrero({ hectareas: 50, hectareasAConfirmar: false, lineas }, { kgPorUg: 380, categorias });
+    // 100 × 200 (estimado) + 10 × 450 = 24.500 kg; valor 100 × 200 × 4 + 10 × 1.300 = 93.000.
+    expect(r).toMatchObject({ kilos: 24500, kilosCompletos: true, kilosEstimados: true, valorUsd: 93000, valorCompleto: true });
+  });
+
+  it('sin peso ni en la categoría, o sin precio, queda incompleto', () => {
+    const r = calcularPotrero(
+      { hectareas: 50, hectareasAConfirmar: false, lineas: [{ categoriaId: 3, cabezas: 5, pesoPromedioKg: null }] },
+      { kgPorUg: 380, categorias },
+    );
+    expect(r).toMatchObject({ kilos: 0, kilosCompletos: false, kilosEstimados: false, valorUsd: 0, valorCompleto: false });
   });
 });

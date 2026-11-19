@@ -5,9 +5,9 @@
 // CORRAL) es siempre Corral. Nada se guarda calculado.
 import { prisma } from '../db.js';
 import { notFound } from '../errors.js';
-import { calcularPotrero } from './calculos.js';
+import { calcularPotrero, hectareasDeCarga } from './calculos.js';
 import { findCampo } from './lugares.repository.js';
-import { kgPorUg } from './stock.service.js';
+import { parametrosCarga } from './stock.service.js';
 import { fechaISO } from './importaciones.service.js';
 
 export const GRUPOS = ['CN', 'VERDEO', 'CORRAL', 'OTRO'];
@@ -31,12 +31,12 @@ export async function resumenTodas(filtroCampos) {
     orderBy: [{ orden: 'asc' }, { sigla: 'asc' }],
   });
   const { porCampo, ...r } = await resumen({ campoId: { in: campos.map((c) => c.id) }, activo: true });
-  const estancias = campos.map((c) => ({ ...c, ...(porCampo.get(c.id) ?? { potreros: 0, cabezas: 0, hectareas: 0 }) }));
+  const estancias = campos.map((c) => ({ ...c, ...(porCampo.get(c.id) ?? { potreros: 0, cabezas: 0, hectareas: 0, valorUsd: 0, valorCompleto: true }) }));
   return { campo: null, estancias, ...r };
 }
 
 async function resumen(where) {
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
 
   const potreros = await prisma.potrero.findMany({
     where,
@@ -45,6 +45,7 @@ async function resumen(where) {
       tipo: true,
       hectareas: true,
       hectareasAConfirmar: true,
+      areaUtilizable: true,
       usos: { where: { hasta: null }, orderBy: { desde: 'desc' }, take: 1, select: { usoSuelo: { select: { grupo: true } } } },
       versionesStock: {
         orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
@@ -65,25 +66,31 @@ async function resumen(where) {
 
   for (const p of potreros) {
     const grupo = p.tipo === 'CORRAL' ? 'CORRAL' : (p.usos[0]?.usoSuelo.grupo ?? 'OTRO');
+    // La estancia suma sus hectáreas; la carga por grupo, el área utilizable.
     const ha = !p.hectareasAConfirmar && p.hectareas != null ? Number(p.hectareas) : null;
+    const haCarga = hectareasDeCarga(p);
     const [version] = p.versionesStock;
     const lineas = (version?.lineas ?? []).map((l) => ({
       ...l,
+      categoriaId: l.categoria.id,
       pesoPromedioKg: l.pesoPromedioKg == null ? null : Number(l.pesoPromedioKg),
     }));
     if (version && (!fecha || version.fecha > fecha)) fecha = version.fecha;
 
-    const c = porCampo.get(p.campoId) ?? { potreros: 0, cabezas: 0, hectareas: 0 };
+    const c = porCampo.get(p.campoId) ?? { potreros: 0, cabezas: 0, hectareas: 0, valorUsd: 0, valorCompleto: true };
     c.potreros++;
     c.cabezas += lineas.reduce((n, l) => n + l.cabezas, 0);
     c.hectareas = r2(c.hectareas + (ha ?? 0));
+    const valor = calcularPotrero({ hectareas: null, hectareasAConfirmar: true, lineas }, kg);
+    c.valorUsd = r2(c.valorUsd + valor.valorUsd);
+    c.valorCompleto &&= valor.valorCompleto;
     porCampo.set(p.campoId, c);
 
     const g = grupos[grupo];
     g.potreros++;
     g.todas.push(...lineas);
-    if (ha) {
-      g.hectareas += ha;
+    if (haCarga) {
+      g.hectareas += haCarga;
       g.conHa.push(...lineas);
     }
 
@@ -99,10 +106,13 @@ async function resumen(where) {
     }
   }
 
+  // El valor del ganado: la suma de todos los potreros.
+  const todo = calcularPotrero({ hectareas: null, hectareasAConfirmar: true, lineas: GRUPOS.flatMap((g) => grupos[g].todas) }, kg);
   return {
     porCampo,
     fecha: fechaISO(fecha),
-    kgPorUg: kg,
+    valor: { usd: todo.valorUsd, completo: todo.valorCompleto },
+    kgPorUg: kg.kgPorUg,
     filas: [...filas.values()]
       .sort((a, b) => a.orden - b.orden || a.categoria.localeCompare(b.categoria))
       .map(({ orden, ...fila }) => fila),
@@ -120,6 +130,9 @@ async function resumen(where) {
         cabezas: todo.cabezas,
         kilos: todo.kilos,
         kilosCompletos: todo.kilosCompletos,
+        kilosEstimados: todo.kilosEstimados,
+        valorUsd: todo.valorUsd,
+        valorCompleto: todo.valorCompleto,
         cabHa: carga.cabHa,
         kgPvHa: carga.kgPvHa,
         ugHa: carga.ugHa,

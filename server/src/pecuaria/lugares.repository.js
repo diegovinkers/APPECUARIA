@@ -2,7 +2,8 @@
 import { prisma } from '../db.js';
 import { Prisma } from '../generated/prisma/client.ts';
 import { badRequest, conflict, parseId } from '../errors.js';
-import { calcularPotrero } from './calculos.js';
+import { calcularPotrero, problemaArea } from './calculos.js';
+import { parametrosCarga } from './stock.service.js';
 
 const isPrismaError = (error, code) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 
@@ -70,13 +71,19 @@ const potreroSelect = {
   tipo: true,
   hectareas: true,
   hectareasAConfirmar: true,
+  areaUtilizable: true,
   idAreaManejoCigam: true,
   activo: true,
   orden: true,
   subdivisiones: { select: { id: true, codigo: true, idTalhaoCigam: true }, orderBy: { id: 'asc' } },
 };
 
-const toPotrero = (row) => row && { ...row, hectareas: row.hectareas == null ? null : Number(row.hectareas) };
+const toPotrero = (row) =>
+  row && {
+    ...row,
+    hectareas: row.hectareas == null ? null : Number(row.hectareas),
+    areaUtilizable: row.areaUtilizable == null ? null : Number(row.areaUtilizable),
+  };
 
 async function guardarPotrero(operacion, nombre) {
   try {
@@ -142,8 +149,7 @@ async function listarPotreros(where) {
     },
     orderBy: [{ campo: { orden: 'asc' } }, { campo: { sigla: 'asc' } }, { orden: 'asc' }, { nombre: 'asc' }],
   });
-  const parametro = await prisma.parametro.findUnique({ where: { clave: 'KG_POR_UG' } });
-  const kgPorUg = parametro ? Number(parametro.valor) : 380;
+  const kgPorUg = await parametrosCarga();
   return rows.map(({ usos, versionesStock, ...row }) => {
     const [uso] = usos;
     const [version] = versionesStock;
@@ -173,6 +179,8 @@ async function listarPotreros(where) {
 export async function createPotrero(campoId, { subdivisiones = [], ...data }) {
   const campo = await findCampo(campoId);
   if (!campo) return null;
+  const problema = problemaArea(data);
+  if (problema) throw badRequest(problema);
   return guardarPotrero(
     () =>
       prisma.potrero.create({
@@ -198,6 +206,13 @@ export async function updatePotrero(id, { subdivisiones, ...data }) {
     const cabezas = (ultima?.lineas ?? []).reduce((s, l) => s + l.cabezas, 0);
     if (cabezas > 0) throw badRequest(`${antes.nombre} tiene ${cabezas} cabezas: movelas antes de darlo de baja`);
   }
+  // El área utilizable, contra las hectáreas como quedan después del cambio.
+  const problema = problemaArea({
+    hectareas: 'hectareas' in data ? data.hectareas : antes.hectareas,
+    hectareasAConfirmar: data.hectareasAConfirmar ?? antes.hectareasAConfirmar,
+    areaUtilizable: 'areaUtilizable' in data ? data.areaUtilizable : antes.areaUtilizable,
+  });
+  if (problema) throw badRequest(problema);
   const despues = await guardarPotrero(
     () =>
       prisma.potrero.update({

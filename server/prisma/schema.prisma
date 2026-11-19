@@ -229,6 +229,12 @@ enum Especie {
 }
 
 /// Sexo de una categoría. Vacío (null): mixta o sin definir.
+/// Cómo se cobra una categoría: por kilo de peso vivo o por cabeza.
+enum PrecioPor {
+  KG
+  CABEZA
+}
+
 enum Sexo {
   MACHO
   HEMBRA
@@ -315,6 +321,9 @@ model Potrero {
   hectareas           Decimal?    @db.Decimal(10, 2)
   /// Hectáreas de relleno (la planilla pone 1): no se calcula nada por hectárea.
   hectareasAConfirmar Boolean     @default(false) @map("hectareas_a_confirmar")
+  /// Lo que usa de verdad el uso de suelo (ej. 40 de 50 ha sembradas). La
+  /// carga por hectárea se calcula sobre esto. null = todas las hectáreas.
+  areaUtilizable      Decimal?    @map("area_utilizable") @db.Decimal(10, 2)
   idAreaManejoCigam   String?     @map("id_area_manejo_cigam") @db.VarChar(30)
   activo              Boolean     @default(true)
   orden               Int         @default(0)
@@ -380,6 +389,13 @@ model Categoria {
   especie          Especie @default(VACUNO)
   /// En CIGAM está vacío: al crearla se deduce del nombre, y se puede editar.
   sexo             Sexo?
+  /// Peso típico de un animal de la categoría: se usa para los kilos (y las
+  /// UG) de los lotes que no tienen su peso cargado. Opcional.
+  pesoPromedioKg   Decimal?  @map("peso_promedio_kg") @db.Decimal(8, 2)
+  /// Precio en dólares, por kilo o por cabeza (precioPor): para el valor del
+  /// ganado. Opcional.
+  precioUsd        Decimal?  @map("precio_usd") @db.Decimal(12, 2)
+  precioPor        PrecioPor @default(KG) @map("precio_por")
   idCategoriaCigam String? @unique @map("id_categoria_cigam") @db.VarChar(30)
   activo           Boolean @default(true)
   orden            Int     @default(0)
@@ -490,9 +506,15 @@ model Lote {
   nombre        String   @db.VarChar(80)
   activo        Boolean  @default(true)
   idLoteCigam   String?  @map("id_lote_cigam") @db.VarChar(30)
+  /// Familia de lotes (docs/LOGISTICA_MOVIMIENTOS.md §2): si este lote es una
+  /// parte que se apartó de otro ("sigue siendo el mismo lote"), el lote
+  /// original. Las partes de una familia comparten la raíz; la raíz no tiene.
+  raizId        Int?     @map("raiz_id")
   creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
   actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
 
+  raiz               Lote?               @relation("LoteFamilia", fields: [raizId], references: [id], onDelete: Restrict)
+  partes             Lote[]              @relation("LoteFamilia")
   campo              Campo               @relation(fields: [campoId], references: [id], onDelete: Restrict)
   potrero            Potrero             @relation(fields: [potreroId], references: [id], onDelete: Restrict)
   categoria          Categoria           @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
@@ -503,6 +525,7 @@ model Lote {
 
   @@unique([campoId, nombre])
   @@index([potreroId])
+  @@index([raizId])
   @@map("lote")
 }
 

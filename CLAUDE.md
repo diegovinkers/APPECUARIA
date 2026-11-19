@@ -149,7 +149,7 @@ En `client/`: `npm run dev`.
     - **Tablas tipo Excel (19/11, publicado):** en el "+", cada potrero dice cabezas de qué (`cabezasPorCategoria` en `components/pecuaria.jsx`). Potreros es una tabla (`PotrerosLista.jsx`: Potrero, Uso, ha, Cabezas, Categorías, cab/ha, UG/ha; orden por columna en la URL `?orden=&dir=`; fila de totales; tocar la fila abre la ficha). `components/tabla.jsx`: `Paginador` de a 50 filas (`paginasVisibles`: la 1, la actual y las 5 siguientes, saltos del 30% y 50% del total contados desde donde estás, y la última), `TituloOrdenable`, `celda`; lo usan Potreros (`?pagina=`) y Movimientos. 73 tests del front.
     - **Menú arriba y filtros a la izquierda (19/11), hecho en desarrollo, sin commitear:** el menú (secciones, perfil, salir) se despliega desde el botón ☰ de la barra de arriba (y "Menú" de la barra de abajo); el panel izquierdo muestra los filtros de la pantalla donde estás (`components/PanelFiltros.jsx`: `PanelFiltrosProvider`, `DestinoFiltros`, `<PanelFiltros activos onLimpiar>` que dibuja con un portal; en el celular, cajón con la flechita del borde o el botón "Filtros (N)"; en la compu, fijo). Potreros y Movimientos usan el panel. Tablas en el celular sin scroll de costado: las columnas "solo en la compu" (`hidden md:table-cell`) se esconden y su dato va como segunda línea debajo del nombre / tipo. `src/test-utils.jsx` (`textoCompu`, `ConPanel`). 78 tests del front.
     - **Pantallas de tabla sin scroll (19/11):** el Marco ocupa justo la pantalla (`h-dvh`; scrollea el contenido, no la página). Potreros y Movimientos usan `PantallaTabla` (`pages/pecuaria/comun.jsx`): título en un renglón con la estancia chica y el botón Filtros al lado (`DestinoBotonFiltros`), solo scrollea la tabla y el paginador queda fijo abajo. "+ Corral" va en el renglón del título; "N de M potreros" va en el Total. En Movimientos el total ya no queda tapado por la fecha y la segunda línea del celular dice solo los potreros (`origenCorto`/`destinoCorto`). 82 tests del front. Después, en Potreros (celular): debajo del nombre el uso con su color (`UsoBadge`) y qué hay (`categoriasCortas`: con una categoría solo el nombre; un potrero sin ganado, como arroz, muestra solo el uso); cab/ha debajo de Cabezas; barra de carga debajo de UG/ha (relativa al potrero más cargado, un solo color hasta que el jefe defina cargas máximas por grupo); las ha salen del celular. 83 tests del front. Luego, una fila por renglón: nombre, uso y categoría juntos (bajan si no entran), cab/ha al lado de las cabezas, la barra al lado de UG/ha, celdas centradas (`celdaFila`) y el Total en un renglón. Por último (19/11), paginado prolijo: todas las filas del mismo alto (`ALTO_FILA`; en el celular dos líneas, lo largo se corta con "…", tabla `table-fixed`), `useFilasQueEntran` (tabla.jsx) mide el alto libre y calcula cuántos potreros por página (9 a 375 px), la última página se completa con filas vacías, y el paginador entra en un renglón (en el celular, 2 siguientes en vez de 5). Revisado con una página de prueba temporal (ya borrada). 84 tests del front. Movimientos todavía no tiene este paginado. Ajuste final (19/11): en el celular, la categoría va en su propio renglón debajo del uso (filas de 3 líneas, `h-[4.5rem]`), y `paginasVisibles` sigue la regla de Diego: siempre la primera y la última, la anterior y la siguiente; en la primera, las 2 siguientes; en la última, las 2 anteriores (ej. en la 4 de 9: 1 … 3 4 5 … 9). 81 tests del front. Después: en el celular el paginador no muestra "22–28 de 59" (así entra siempre en un renglón) y se vuelve a medir si cambia de alto; el Total sin filtros dice "Total · 59 · 5.349 ha"; el Marco es `fixed inset-0` y `html, body` tienen `overscroll-behavior: none` (arrastrar de más ya no corre la barra de abajo). Luego: columnas Peso prom. (`pesoPromedio` = kilos ÷ cabezas, solo con todos los pesos) y kg/ha (`kgPvHa`) también en el celular (títulos cortos "Cab."/"Peso", celdas `px-1.5 md:px-2`); el Total trae el peso promedio de los lotes con peso; `useFilasQueEntran(caja, hayPaginador, altoBase)` reparte el sobrante entre las filas (el paginador queda pegado a la barra de abajo); contenido `pb-5`. 82 tests del front. Las hectáreas van al lado del nombre en el celular (`ha-celular`; "ha ?" si están a confirmar; si no entra se corta la ha, nunca el nombre); en el celular la flechita ↕ de las columnas que no ordenan no se muestra y las columnas de números son más angostas.
-    - **"Todas las estancias" en Potreros y Movimientos (19/11), hecho en desarrollo, sin commitear:**
+    - **"Todas las estancias" en Potreros y Movimientos (19/11), publicado (`2ef8054`):**
       - Diseño: `docs/superpowers/specs/2026-11-19-todas-las-estancias-design.md`.
       - Ya no sale el cartel "¿De qué estancia?": se listan los potreros y los movimientos de todas las estancias del usuario.
       - Cada potrero lleva la sigla adelante (`nombreConSigla`: "EG 8.1"), también en la búsqueda y en el filtro de potrero.
@@ -159,6 +159,47 @@ En `client/`: `npm run dev`.
       - "+ Corral" solo aparece con una estancia elegida. El "+" y el Movimiento múltiple siguen pidiendo la estancia.
       - Tests: `pecuaria-todas.test.js` (7) y 86 en el front.
       - Pendiente, de a uno: el "+" con "Todas" y el área utilizable de cada potrero.
+    - **Logística y bastón (19/11):** análisis en `docs/LOGISTICA_MOVIMIENTOS.md` (lo armó un agente con el prompt `docs/superpowers/prompts/2026-11-19-logistica-baston.md`):
+      - Familia de lotes.
+      - Nivel de bastón para cada uno de los 27 tipos: 6 obligatorios, 7 recomendados, 8 opcionales y 6 que no aplican.
+      - Archivo del bastón dentro del registro y en una bandeja aparte.
+      - Registro por animal, de a poco.
+      - Plan de 8 fases y 10 preguntas para el encargado.
+    - **Fase 1, lote repartido ("familia de lotes", 19/11), hecha en desarrollo, sin commitear:**
+      - Plan: `docs/superpowers/plans/2026-11-19-familia-de-lotes.md`.
+      - Migración `familia_de_lotes`: `lote.raiz_id`.
+      - Mover con `mismoLote: true` (modo NUEVO): la parte toma la categoría del lote y se llama "<raíz> · <potrero>". Solo una parte y a otro potrero.
+      - `detallePotrero` trae `familiaId` en cada línea. `GET /lotes/:id` trae `familia`: partes, total y `otrasEstancias`.
+      - En Mover, "Sigue siendo el mismo lote" se propone primero cuando el destino está vacío. Si en el destino hay una parte de la misma familia, se propone sumarse a ella.
+      - La ficha del lote muestra "Repartido en N potreros". En la ficha del potrero, si dos partes quedan juntas, aparece "Unirlas" (`familiasJuntas`).
+      - Tests: `pecuaria-familia.test.js` (8) y 90 en el front.
+    - **Área utilizable (19/11), hecha en desarrollo, sin commitear:**
+      - Diseño: `docs/superpowers/specs/2026-11-19-area-utilizable-design.md`.
+      - Migración `area_utilizable`: `potrero.area_utilizable`. null = todas las hectáreas, y así arrancan todos los potreros.
+      - La carga (cab/ha, kg/ha, UG/ha, la barra, la carga por grupo del Resumen y la vista previa de los movimientos) se calcula sobre `hectareasDeCarga()` de `calculos.js`: el área utilizable o, si no hay, las hectáreas.
+      - `problemaArea()`: el área no puede ser mayor que las hectáreas, salvo que estén "a confirmar".
+      - Se carga al corregir las hectáreas (`PATCH /potreros/:id`) y al cambiar el uso (`PUT /potreros/:id/uso`, campo que arranca con las hectáreas). Cambiar el uso sin mandar el área la vuelve a todas.
+      - Se ve en la ficha ("· 40 ha utilizables") y en la tabla ("40 de 50"; en el celular "40/50 ha"). El cab/ha del Total usa el área.
+      - Auditoría: `POTRERO_EDITADO` y `USO_SUELO_CAMBIADO` guardan el área de antes y la de después.
+      - Tests: `pecuaria-area.test.js` (5) y 91 en el front.
+      - Pedido siguiente de Diego: UG y valor promedio por categoría.
+    - **Peso promedio y precio por categoría (19/11), hecho en desarrollo, sin commitear:**
+      - Diseño: `docs/superpowers/specs/2026-11-19-peso-y-precio-por-categoria-design.md`.
+      - Diego entendió la UG así: kilos ÷ 380, con un peso promedio por categoría para los lotes sin peso.
+      - Migración `peso_y_precio_por_categoria`: `categoria.peso_promedio_kg`, `precio_usd` y `precio_por` (enum `PrecioPor`: KG / CABEZA).
+      - `parametrosCarga()` (`stock.service.js`) devuelve `{ kgPorUg, categorias }`, y `calcularPotrero` lo recibe (también acepta solo el número).
+      - El lote sin peso usa el de su categoría (`kilosEstimados`). `valorUsd` y `valorCompleto` son kilos × precio o cabezas × precio.
+      - En las pantallas:
+        - Configuración → Categorías: peso, precio y "por kilo / por cabeza", al tocar "Editar". La fila dice "≈190 kg · USD 2,5/kg".
+        - Ficha del potrero: "≈" en kg/ha y UG/ha, "≈190 kg" en el lote y "Valor del ganado".
+        - Tabla de Potreros: "≈" en peso, kg/ha y UG/ha.
+        - Resumen: cuadro "Valor del ganado" (`ValorGanado`), el valor de cada grupo y, con "Todas", el de cada estancia.
+      - Tests: `pecuaria-categoria-valor.test.js` (10) y 96 en el front.
+      - **Valores de arranque cargados en la base local (19/11):**
+        - Receta `docs/info santi/pesos-precios-categorias.mjs` (fuera de git; se puede repetir y audita `CATEGORIA_EDITADA`).
+        - Salen de la hoja KG.$ del DICOSE al 30/06. Diego aprobó la correspondencia; las "supuesto" (Terneros/Terneras chicos, Vacas, Vacas CUT, Vaquillonas paridas, Novillos y Vaquillonas generales) no tienen fila propia en la hoja.
+        - Resultado: **USD 11,84 M** por 10.934 cabezas (EG 6,99 M · ES 1,32 M · ER 1,16 M · ELS 1,52 M · LA PALMA 0,45 M · ESP 0,39 M). UG/ha estimada: CN 0,81 y Verdeos 0,89.
+        - En Render falta: subir el código y correr la misma receta con `correr-en-render.mjs`.
     - Para levantar la app desde la app de escritorio: `.claude/launch.json` (configuraciones `api` y `web`).
     - `exceljs` trae un `uuid` viejo: está forzado a `^11.1.1` con `overrides` en `server/package.json`.
   - **Módulo Parcelas:** en diseño (`docs/DECISIONES.md` §9).

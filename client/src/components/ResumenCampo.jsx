@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { getResumen } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList } from './ui';
-import { formatFecha, formatNumero } from './pecuaria';
+import { formatFecha, formatNumero, formatUsd } from './pecuaria';
 
 const NOMBRE_GRUPO = { CN: 'CN', VERDEO: 'Verdeos', CORRAL: 'Corral', OTRO: 'Otro' };
 
@@ -34,6 +34,30 @@ export default function ResumenCampo({ campoId }) {
   return <TablaResumen resumen={resumen} />;
 }
 
+// El valor del ganado (con los precios de cada categoría, en Configuración).
+export function ValorGanado({ valor }) {
+  if (!valor) return null;
+  return (
+    <div className="rounded-lg border border-trigo-400 bg-trigo-100 px-4 py-3" data-testid="valor-ganado">
+      <p className="text-xs text-suelo-600">Valor del ganado</p>
+      {valor.usd > 0 ? (
+        <>
+          <p className="text-2xl font-bold tabular-nums">{formatUsd(valor.usd)}</p>
+          {!valor.completo && <p className="text-xs text-amber-800">Incompleto: hay categorías sin precio o sin peso.</p>}
+        </>
+      ) : (
+        <p className="text-sm text-suelo-600">
+          Cargá el precio de cada categoría en{' '}
+          <Link to="/pecuaria/configuracion" className="text-campo-700 hover:underline">
+            Configuración
+          </Link>{' '}
+          para verlo.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // La tabla y la carga por grupo, de una estancia o de todas juntas.
 export function TablaResumen({ resumen }) {
   if (!resumen.filas.length) return <p className="text-suelo-600">Todavía no hay animales cargados.</p>;
@@ -51,6 +75,8 @@ export function TablaResumen({ resumen }) {
 
   return (
     <div className="space-y-6">
+      <ValorGanado valor={resumen.valor} />
+
       <div className="text-sm text-suelo-600">
         <p>Último dato: {formatFecha(resumen.fecha)}</p>
         <p className="text-xs text-suelo-500">
@@ -115,6 +141,7 @@ export function TablaResumen({ resumen }) {
                 </div>
                 <p className="mt-1 text-sm text-suelo-600">
                   {g.potreros} {g.potreros === 1 ? 'potrero' : 'potreros'} · {formatNumero(g.hectareas)} ha conocidas
+                  {g.valorUsd > 0 && ` · ${formatUsd(g.valorUsd)}`}
                 </p>
                 <p className="mt-1 text-sm">
                   {g.cabHa == null ? (
@@ -122,7 +149,11 @@ export function TablaResumen({ resumen }) {
                   ) : (
                     <>
                       {formatNumero(g.cabHa, 2)} cab/ha ·{' '}
-                      {g.kilosCompletos ? `${formatNumero(g.ugHa, 2)} UG/ha` : <span className="text-amber-800">UG incompletas (faltan pesos)</span>}
+                      {g.kilosCompletos ? (
+                        `${g.kilosEstimados ? '≈' : ''}${formatNumero(g.ugHa, 2)} UG/ha`
+                      ) : (
+                        <span className="text-amber-800">UG incompletas (faltan pesos)</span>
+                      )}
                     </>
                   )}
                 </p>
@@ -130,7 +161,8 @@ export function TablaResumen({ resumen }) {
             ))}
         </div>
         <p className="mt-2 text-xs text-suelo-500">
-          La carga se calcula solo con los potreros que tienen hectáreas confirmadas. 1 UG = {formatNumero(resumen.kgPorUg)} kg de peso vivo.
+          La carga se calcula solo con los potreros que tienen hectáreas confirmadas. 1 UG = {formatNumero(resumen.kgPorUg)} kg de peso vivo. ≈: algunos
+          lotes no tienen peso y se usa el peso promedio de su categoría.
         </p>
       </section>
     </div>

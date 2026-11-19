@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { UsoBadge, cabezasPorCategoria, formatNumero, nombreConSigla } from './pecuaria';
+import { UsoBadge, aprox, cabezasPorCategoria, formatNumero, nombreConSigla } from './pecuaria';
 import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { Paginador, TituloOrdenable, celda, paginar, useFilasQueEntran } from './tabla';
 import PanelFiltros from './PanelFiltros';
@@ -160,6 +160,8 @@ export default function PotrerosLista({ potreros, todas = false }) {
       (p.stock?.lotes ?? []).filter((l) => !f.categoria || String(l.categoriaId) === f.categoria).reduce((s, l) => s + l.cabezas, 0);
     const cabezas = visibles.reduce((s, p) => s + deCategoria(p), 0);
     const hectareas = visibles.reduce((s, p) => s + (p.hectareasAConfirmar ? 0 : (p.hectareas ?? 0)), 0);
+    // La carga usa el área utilizable de cada potrero (si no tiene, sus hectáreas).
+    const haCarga = visibles.reduce((s, p) => s + (p.areaUtilizable ?? (p.hectareasAConfirmar ? 0 : (p.hectareas ?? 0))), 0);
     // Peso promedio de lo filtrado: solo los lotes que tienen peso.
     let conPeso = 0;
     let kilos = 0;
@@ -169,7 +171,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
           conPeso += l.cabezas;
           kilos += l.cabezas * l.pesoPromedioKg;
         }
-    return { cabezas, hectareas, cabHa: hectareas > 0 ? cabezas / hectareas : null, peso: conPeso ? kilos / conPeso : null };
+    return { cabezas, hectareas, cabHa: haCarga > 0 ? cabezas / haCarga : null, peso: conPeso ? kilos / conPeso : null };
   }, [visibles, f.categoria]);
   const nombreCategoria = categorias.find(([id]) => id === f.categoria)?.[1];
   // La barra de carga se llena según el potrero más cargado de la estancia.
@@ -344,7 +346,13 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
           {/* En el celular, las hectáreas al lado del nombre (en la compu tienen su columna). */}
           {/* Si no entra, se corta la hectárea, nunca el nombre. */}
           <span className="min-w-0 truncate text-xs font-normal text-suelo-500 md:hidden" data-testid="ha-celular">
-            {p.hectareasAConfirmar ? <span className="text-amber-800">ha ?</span> : p.hectareas != null ? `${formatNumero(p.hectareas, 0)} ha` : ''}
+            {p.hectareasAConfirmar ? (
+              <span className="text-amber-800">ha ?</span>
+            ) : p.hectareas != null ? (
+              `${p.areaUtilizable != null ? `${formatNumero(p.areaUtilizable, 0)}/` : ''}${formatNumero(p.hectareas, 0)} ha`
+            ) : (
+              ''
+            )}
           </span>
         </div>
         {/* Debajo, en renglones propios: el uso y lo que hay (pedido de Diego, 19/11). */}
@@ -359,7 +367,16 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
         <UsoBadge uso={p.usoActual} />
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap text-right tabular-nums`}>
-        {p.hectareasAConfirmar ? <span className="text-xs text-amber-800">a confirmar</span> : formatNumero(p.hectareas, 2)}
+        {p.hectareasAConfirmar ? (
+          <span className="text-xs text-amber-800">a confirmar</span>
+        ) : p.areaUtilizable != null ? (
+          // Con área utilizable: "40 de 50" (la carga se calcula sobre 40).
+          <span title="Área utilizable de las hectáreas del potrero">
+            {formatNumero(p.areaUtilizable, 2)} <span className="text-xs text-suelo-500">de {formatNumero(p.hectareas, 2)}</span>
+          </span>
+        ) : (
+          formatNumero(p.hectareas, 2)
+        )}
       </td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right font-semibold tabular-nums`}>
         {vacio ? '—' : formatNumero(cabezas)}
@@ -373,15 +390,17 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
           {vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}
         </div>
       </td>
-      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>{pesoPromedio(p) == null ? '—' : formatNumero(pesoPromedio(p), 0)}</td>
+      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
+        {pesoPromedio(p) == null ? '—' : aprox(p.stock.kilosEstimados, formatNumero(pesoPromedio(p), 0))}
+      </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
-        {vacio || sinPeso || p.stock?.kgPvHa == null ? '—' : formatNumero(p.stock.kgPvHa, 0)}
+        {vacio || sinPeso || p.stock?.kgPvHa == null ? '—' : aprox(p.stock.kilosEstimados, formatNumero(p.stock.kgPvHa, 0))}
       </td>
       <td className={`${celda} ${fondo} text-right tabular-nums`}>
         {/* En el celular el número y debajo la barra de carga; en la compu, al lado. */}
         <span className="flex flex-col items-end gap-1.5 md:flex-row md:items-center md:justify-end">
-          {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}
+          {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : aprox(p.stock.kilosEstimados, formatNumero(p.stock.ugHa, 2))}
           {!vacio && !sinPeso && p.stock?.ugHa != null && cargaMaxima > 0 && (
             <span className="block h-1.5 w-full max-w-12 overflow-hidden rounded-full bg-suelo-200/70 md:w-10" aria-hidden="true" data-testid="barra-carga">
               <span className="block h-full rounded-full bg-campo-500" style={{ width: `${Math.min(100, (p.stock.ugHa / cargaMaxima) * 100)}%` }} />

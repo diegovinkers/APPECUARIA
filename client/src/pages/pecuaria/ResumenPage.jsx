@@ -102,6 +102,7 @@ function ResumenTodas() {
                     <span className="block font-medium">{e.nombre}</span>
                     <span className="block text-xs text-suelo-500">
                       {e.potreros} {e.potreros === 1 ? 'potrero' : 'potreros'} · {formatNumero(e.hectareas)} ha conocidas
+                      {e.valorUsd > 0 && ` · USD ${formatNumero(e.valorUsd)}`}
                     </span>
                   </span>
                   <span className="text-right">

@@ -1,6 +1,9 @@
 // Movimientos de animales entre lotes (DECISIONES §10):
 //   SUMAR  una parte (o todo) de un lote se suma a otro lote: toman su categoría;
-//   NUEVO  una parte (o todo) forma un lote nuevo, con nombre y categoría;
+//   NUEVO  una parte (o todo) forma un lote nuevo, con nombre y categoría; con
+//          mismoLote, la parte sigue siendo del mismo lote (familia de lotes,
+//          docs/LOGISTICA_MOVIMIENTOS.md §2): misma categoría, nombre
+//          "<lote raíz> · <potrero>" y la misma raíz;
 //   ENTERO el lote entero cambia de potrero (mantiene su nombre; puede
 //          cambiar de categoría);
 //   CATEGORIA el lote entero cambia de categoría, en el mismo potrero;
@@ -14,11 +17,11 @@ import { HttpError, badRequest, conflict, notFound, parseId } from '../errors.js
 import { calcularPotrero } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, fotoActual, nombreLibre, nombreOcupado } from './lotes.js';
-import { detallePotrero, fechaUY, kgPorUg } from './stock.service.js';
+import { detallePotrero, fechaUY, parametrosCarga } from './stock.service.js';
 import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
-const potreroSelect = { id: true, nombre: true, campoId: true, hectareas: true, hectareasAConfirmar: true };
+const potreroSelect = { id: true, nombre: true, campoId: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
 
 async function categoriaActiva(db, id) {
   const c = await db.categoria.findUnique({ where: { id } });
@@ -123,6 +126,14 @@ async function planificar(db, body, { entreCampos = false } = {}) {
     loteDestino = { id: d.loteId, nombre: d.lote };
     d.pesoPromedioKg = d.pesoPromedioKg != null && pm != null ? r2((d.cabezas * d.pesoPromedioKg + m * pm) / (d.cabezas + m)) : null;
     d.cabezas += m;
+  } else if (modo === 'NUEVO' && body.mismoLote) {
+    if (m === n) throw badRequest(`Van todas sus cabezas (${n}): mové el lote entero`);
+    if (mismoPotrero) throw badRequest('Para que siga siendo el mismo lote, la parte tiene que ir a otro potrero');
+    const raizId = lote.raizId ?? lote.id;
+    const raiz = lote.raizId ? await db.lote.findUnique({ where: { id: raizId }, select: { nombre: true } }) : lote;
+    categoriaDestino = { id: lote.categoriaId, nombre: lote.categoria.nombre };
+    loteDestino = { id: null, nombre: await nombreLibre(db, destino.campoId, `${raiz.nombre} · ${destino.nombre}`), raizId };
+    lineasDestino.push({ loteId: null, lote: loteDestino.nombre, categoriaId: lote.categoriaId, categoria: lote.categoria.nombre, cabezas: m, pesoPromedioKg: pm });
   } else if (modo === 'NUEVO') {
     if (!body.nuevoLote?.categoriaId) throw badRequest('Elegí la categoría del lote nuevo');
     const c = await categoriaActiva(db, body.nuevoLote.categoriaId);
@@ -164,12 +175,13 @@ async function planificar(db, body, { entreCampos = false } = {}) {
 }
 
 const ha = (p) => (p.hectareas == null ? null : Number(p.hectareas));
-const calc = (potrero, lineas, kg) => calcularPotrero({ hectareas: ha(potrero), hectareasAConfirmar: potrero.hectareasAConfirmar, lineas }, kg);
+const calc = (potrero, lineas, kg) =>
+  calcularPotrero({ hectareas: ha(potrero), hectareasAConfirmar: potrero.hectareasAConfirmar, areaUtilizable: potrero.areaUtilizable, lineas }, kg);
 const sinOrden = (lineas) => lineas.map(({ orden, ...l }) => l);
 
 export async function vistaPrevia(body) {
   const plan = await planificar(prisma, body);
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
   const lado = (potrero, foto, lineas) => ({
     potreroId: potrero.id,
     potrero: potrero.nombre,
@@ -200,6 +212,7 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
       potrero: destino,
       categoria: plan.categoriaDestino,
       nombre: plan.loteDestino.nombreElegido || plan.loteDestino.nombre,
+      raizId: plan.loteDestino.raizId ?? null,
     });
     plan.loteDestino.id = nuevo.id;
     for (const l of plan.lineasDestino) if (l.loteId === null) l.loteId = nuevo.id;
@@ -302,7 +315,7 @@ const campoDe = (db, id) => db.campo.findUnique({ where: { id }, select: { id: t
 // Del origen, el antes y el después; del destino, solo lo que llega.
 export async function vistaPreviaEntreCampos(body) {
   const plan = await planificar(prisma, body, { entreCampos: true });
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
   return {
     fecha: plan.dia,
     origen: {
@@ -430,7 +443,7 @@ const resumenPaso = (plan, i) => ({
 // La vista previa hace la cadena de verdad dentro de una transacción y la
 // deshace al final: lo que se ve es exactamente lo que se guardaría.
 export async function vistaPreviaMultiple(body, usuarioId) {
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
   try {
     await prisma.$transaction(
       async (tx) => {
@@ -447,7 +460,7 @@ export async function vistaPreviaMultiple(body, usuarioId) {
 }
 
 export async function registrarMultiple(body, usuarioId) {
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
   const { evento, r } = await prisma.$transaction(
     async (tx) => {
       const primero = await tx.lote.findUnique({ where: { id: body.pasos[0].loteOrigenId }, select: { campoId: true } });
@@ -815,7 +828,35 @@ export async function revertirEvento(id, usuarioId) {
 }
 
 // Un lote: dónde está, qué tiene hoy y por dónde pasó.
-export async function historialLote(id) {
+// La familia de un lote (docs/LOGISTICA_MOVIMIENTOS.md §2): los lotes activos
+// con la misma raíz, con sus cabezas de hoy. null si no está repartido.
+// puede(campoId): las partes de estancias que el usuario no tiene solo se cuentan.
+async function familiaDe(lote, puede) {
+  const raizId = lote.raizId ?? lote.id;
+  const miembros = await prisma.lote.findMany({
+    where: { activo: true, OR: [{ id: raizId }, { raizId }] },
+    include: { categoria: { select: { nombre: true } }, potrero: { select: { id: true, nombre: true } } },
+    orderBy: { id: 'asc' },
+  });
+  if (miembros.length < 2) return null;
+  const partes = [];
+  let otrasEstancias = 0;
+  let cabezas = 0;
+  for (const l of miembros) {
+    if (!puede(l.campoId)) {
+      otrasEstancias += 1;
+      continue;
+    }
+    const linea = (await fotoActual(prisma, l.potreroId)).lineas.find((x) => x.loteId === l.id);
+    const n = linea?.cabezas ?? 0;
+    cabezas += n;
+    partes.push({ id: l.id, nombre: l.nombre, potrero: l.potrero, categoria: l.categoria.nombre, cabezas: n, pesoPromedioKg: linea?.pesoPromedioKg ?? null });
+  }
+  const raiz = miembros.find((l) => l.id === raizId) ?? (await prisma.lote.findUnique({ where: { id: raizId }, select: { id: true, nombre: true } }));
+  return { raiz: { id: raiz.id, nombre: raiz.nombre }, partes, cabezas, otrasEstancias };
+}
+
+export async function historialLote(id, { puede = () => true } = {}) {
   const loteId = parseId(id);
   const lote =
     loteId &&
@@ -841,6 +882,7 @@ export async function historialLote(id) {
       creadoEn: lote.creadoEn,
     },
     actual: linea ? { cabezas: linea.cabezas, pesoPromedioKg: linea.pesoPromedioKg, fecha: fechaISO(foto.version.fecha) } : null,
+    familia: await familiaDe(lote, puede),
     movimientos,
   };
 }

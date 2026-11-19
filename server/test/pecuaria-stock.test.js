@@ -178,8 +178,8 @@ describe('cambiar el uso de suelo', () => {
     ]);
     const [fila] = await auditoria('USO_SUELO_CAMBIADO');
     expect(fila.detalle).toEqual({
-      antes: { uso: 'Raygras', desde: '2026-11-01' },
-      despues: { uso: 'Sorgo', desde: '2026-11-15' },
+      antes: { uso: 'Raygras', desde: '2026-11-01', areaUtilizable: null },
+      despues: { uso: 'Sorgo', desde: '2026-11-15', areaUtilizable: null },
     });
   });
 

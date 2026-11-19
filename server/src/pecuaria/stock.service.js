@@ -2,7 +2,7 @@
 // y uso de suelo. Cada cambio agrega filas; nada se pisa ni se borra.
 import { prisma } from '../db.js';
 import { badRequest, conflict, notFound, parseId } from '../errors.js';
-import { calcularPotrero, kilosLinea } from './calculos.js';
+import { calcularPotrero, kilosLinea, problemaArea } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, nombreOcupado } from './lotes.js';
 
@@ -13,13 +13,24 @@ export async function kgPorUg(db = prisma) {
   return p ? Number(p.valor) : 380;
 }
 
+// Lo que necesita calcularPotrero: los kg por UG y el peso promedio y el
+// precio de cada categoría (para los lotes sin peso y el valor del ganado).
+export async function parametrosCarga(db = prisma) {
+  const filas = await db.categoria.findMany({ select: { id: true, pesoPromedioKg: true, precioUsd: true, precioPor: true } });
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    kgPorUg: await kgPorUg(db),
+    categorias: new Map(filas.map((c) => [c.id, { pesoPromedioKg: num(c.pesoPromedioKg), precioUsd: num(c.precioUsd), precioPor: c.precioPor }])),
+  };
+}
+
 const lineaSelect = {
   loteId: true,
   categoriaId: true,
   cabezas: true,
   pesoPromedioKg: true,
-  lote: { select: { nombre: true } },
-  categoria: { select: { nombre: true, orden: true } },
+  lote: { select: { nombre: true, raizId: true } },
+  categoria: { select: { nombre: true, orden: true, pesoPromedioKg: true } },
 };
 
 // Por categoría (en el orden del catálogo) y, dentro de cada una, por nombre de lote.
@@ -32,12 +43,16 @@ const toLinea = (l) => {
   const linea = {
     loteId: l.loteId,
     lote: l.lote.nombre,
+    // Las partes de un mismo lote repartido comparten familiaId (la raíz).
+    familiaId: l.lote.raizId ?? l.loteId,
     categoriaId: l.categoriaId,
     categoria: l.categoria.nombre,
     cabezas: l.cabezas,
     pesoPromedioKg: l.pesoPromedioKg == null ? null : Number(l.pesoPromedioKg),
   };
-  return { ...linea, kilos: kilosLinea(linea) };
+  // Sin peso propio: el de su categoría, si tiene (se muestra con "≈").
+  const pesoEstimadoKg = linea.pesoPromedioKg == null && l.categoria.pesoPromedioKg != null ? Number(l.categoria.pesoPromedioKg) : null;
+  return { ...linea, pesoEstimadoKg, kilos: kilosLinea({ ...linea, pesoPromedioKg: linea.pesoPromedioKg ?? pesoEstimadoKg }) };
 };
 
 const ULTIMA = { orderBy: [{ fecha: 'desc' }, { id: 'desc' }], take: 1 };
@@ -55,6 +70,7 @@ async function buscarPotrero(id) {
         tipo: true,
         hectareas: true,
         hectareasAConfirmar: true,
+        areaUtilizable: true,
         idAreaManejoCigam: true,
         activo: true,
         orden: true,
@@ -79,11 +95,12 @@ async function buscarPotrero(id) {
 }
 
 export async function detallePotrero(id) {
-  const { usos, versionesStock, hectareas, ...p } = await buscarPotrero(id);
+  const { usos, versionesStock, hectareas, areaUtilizable: area, ...p } = await buscarPotrero(id);
   const [uso] = usos;
   const [version] = versionesStock;
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
   const ha = hectareas == null ? null : Number(hectareas);
+  const areaUtilizable = area == null ? null : Number(area);
   let stock = null;
   if (version) {
     const lineas = ordenarLineas(version.lineas).map(toLinea);
@@ -94,17 +111,18 @@ export async function detallePotrero(id) {
       nota: version.nota,
       usuario: version.usuario?.nombre ?? null,
       lineas,
-      ...calcularPotrero({ hectareas: ha, hectareasAConfirmar: p.hectareasAConfirmar, lineas }, kg),
+      ...calcularPotrero({ hectareas: ha, hectareasAConfirmar: p.hectareasAConfirmar, areaUtilizable, lineas }, kg),
     };
   }
   return {
     ...p,
     hectareas: ha,
+    areaUtilizable,
     usoActual: uso
       ? { id: uso.usoSuelo.id, nombre: uso.usoSuelo.nombre, grupo: uso.usoSuelo.grupo, desde: fechaISO(uso.desde) }
       : null,
     stock,
-    kgPorUg: kg,
+    kgPorUg: kg.kgPorUg,
   };
 }
 
@@ -277,8 +295,11 @@ export async function guardarStock(id, { fecha, lineas, nota }, usuarioId) {
 }
 
 // Cierra el uso vigente y abre el nuevo desde la fecha (por defecto, hoy).
-export async function cambiarUso(id, { usoSueloId, desde }, usuarioId) {
+// areaUtilizable: lo que ocupa el uso nuevo; si no se manda, todas las hectáreas.
+export async function cambiarUso(id, { usoSueloId, desde, areaUtilizable = null }, usuarioId) {
   const potrero = await buscarPotrero(id);
+  const problema = problemaArea({ hectareas: potrero.hectareas, hectareasAConfirmar: potrero.hectareasAConfirmar, areaUtilizable });
+  if (problema) throw badRequest(problema);
   const uso = await prisma.usoSuelo.findUnique({ where: { id: usoSueloId } });
   if (!uso) throw badRequest('El uso de suelo elegido no existe');
   if (!uso.activo) throw badRequest(`El uso de suelo ${uso.nombre} está desactivado`);
@@ -300,12 +321,14 @@ export async function cambiarUso(id, { usoSueloId, desde }, usuarioId) {
   await prisma.$transaction([
     ...(vigente ? [prisma.potreroUso.update({ where: { id: vigente.id }, data: { hasta: aFecha(dia) } })] : []),
     prisma.potreroUso.create({ data: { potreroId: potrero.id, usoSueloId: uso.id, desde: aFecha(dia), usuarioId } }),
+    prisma.potrero.update({ where: { id: potrero.id }, data: { areaUtilizable } }),
   ]);
+  const areaAntes = potrero.areaUtilizable == null ? null : Number(potrero.areaUtilizable);
   return {
     potrero: await detallePotrero(potrero.id),
     auditoria: {
-      antes: vigente ? { uso: vigente.usoSuelo.nombre, desde: fechaISO(vigente.desde) } : null,
-      despues: { uso: uso.nombre, desde: dia },
+      antes: { ...(vigente && { uso: vigente.usoSuelo.nombre, desde: fechaISO(vigente.desde) }), areaUtilizable: areaAntes },
+      despues: { uso: uso.nombre, desde: dia, areaUtilizable },
     },
   };
 }

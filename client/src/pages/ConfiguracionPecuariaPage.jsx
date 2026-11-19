@@ -173,13 +173,36 @@ export default function ConfiguracionPecuariaPage() {
   );
 }
 
+// "190" o "2,5" → número; vacío → null (sin dato).
+const numeroONull = (texto) => (String(texto ?? '').trim() === '' ? null : Number(String(texto).replace(',', '.')));
+const aTexto = (n) => (n == null ? '' : String(n).replace('.', ','));
+const formatoNumero = (n, d = 2) => Number(n).toLocaleString('es-UY', { maximumFractionDigits: d });
+
+// Peso promedio y precio de la categoría, en una línea: "≈190 kg · USD 2,5/kg".
+export function textoPesoPrecio(c) {
+  const partes = [];
+  if (c.pesoPromedioKg != null) partes.push(`≈${formatoNumero(c.pesoPromedioKg, 0)} kg`);
+  if (c.precioUsd != null) partes.push(`USD ${formatoNumero(c.precioUsd)}/${c.precioPor === 'CABEZA' ? 'cabeza' : 'kg'}`);
+  return partes.length ? partes.join(' · ') : 'Sin peso promedio ni precio';
+}
+
 function Categoria({ categoria: c, guardar }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(c.nombre);
   const [alias, setAlias] = useState('');
+  const [peso, setPeso] = useState('');
+  const [precio, setPrecio] = useState('');
+  const [precioPor, setPrecioPor] = useState('KG');
+
+  const pesoN = numeroONull(peso);
+  const precioN = numeroONull(precio);
+  const numerosMal = (pesoN != null && !(pesoN > 0)) || (precioN != null && !(precioN > 0));
 
   const abrir = () => {
     setNombre(c.nombre);
+    setPeso(aTexto(c.pesoPromedioKg));
+    setPrecio(aTexto(c.precioUsd));
+    setPrecioPor(c.precioPor ?? 'KG');
     // El nombre siempre es alias: no hace falta mostrarlo.
     setAlias(c.alias.filter((a) => a !== c.nombre.toLowerCase()).join(', '));
     setEditando(true);
@@ -190,13 +213,43 @@ function Categoria({ categoria: c, guardar }) {
       <li className="space-y-2 bg-suelo-50 px-4 py-3">
         <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre" className={inputClass} />
         <input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Alias, separados por coma" aria-label="Alias" className={inputClass} />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <label className="block text-xs text-suelo-600">
+            Peso promedio (kg)
+            <input inputMode="decimal" value={peso} onChange={(e) => setPeso(e.target.value)} placeholder="Ej. 190" aria-label="Peso promedio" className={`${inputClass} mt-1`} />
+          </label>
+          <label className="block text-xs text-suelo-600">
+            Precio (USD)
+            <input inputMode="decimal" value={precio} onChange={(e) => setPrecio(e.target.value)} placeholder="Ej. 2,5" aria-label="Precio" className={`${inputClass} mt-1`} />
+          </label>
+          <label className="block text-xs text-suelo-600">
+            El precio es
+            <select value={precioPor} onChange={(e) => setPrecioPor(e.target.value)} aria-label="El precio es por" className={`${inputClass} mt-1`}>
+              <option value="KG">por kilo</option>
+              <option value="CABEZA">por cabeza</option>
+            </select>
+          </label>
+        </div>
+        <p className="text-xs text-suelo-500">
+          El peso promedio se usa para los lotes que no tienen su peso cargado (se ve con "≈"). Con el precio se calcula el valor del ganado.
+        </p>
         <div className="flex gap-2">
           <button
             type="button"
             className={boton}
-            disabled={!nombre.trim()}
+            disabled={!nombre.trim() || numerosMal}
             onClick={async () => {
-              const ok = await guardar(() => editarCategoria(c.id, { nombre: nombre.trim(), alias: separarAlias(alias) }), 'Categoría guardada.');
+              const ok = await guardar(
+                () =>
+                  editarCategoria(c.id, {
+                    nombre: nombre.trim(),
+                    alias: separarAlias(alias),
+                    pesoPromedioKg: pesoN,
+                    precioUsd: precioN,
+                    precioPor,
+                  }),
+                'Categoría guardada.',
+              );
               if (ok) setEditando(false);
             }}
           >
@@ -214,6 +267,9 @@ function Categoria({ categoria: c, guardar }) {
       <div className="min-w-0">
         <p className="font-medium">{c.nombre}</p>
         <p className="text-xs text-suelo-500">En la planilla: {c.alias.join(', ')}</p>
+        <p className="text-xs text-suelo-600" data-testid="peso-precio">
+          {textoPesoPrecio(c)}
+        </p>
       </div>
       <div className="flex items-center gap-3">
         <select

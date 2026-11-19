@@ -72,21 +72,32 @@ export default function MoverPage() {
   const lotesDestino = useMemo(() => (destino?.stock?.lineas ?? []).filter((l) => l.loteId !== loteId), [destino, loteId]);
   const mismoPotrero = destino && origen && destino.id === origen.id;
 
+  // Qué se propone primero (docs/LOGISTICA_MOVIMIENTOS.md §2): si en el
+  // destino hay una parte del mismo lote, sumarse a ella; si no hay lotes y es
+  // una parte, que siga siendo el mismo lote ("MISMO": NUEVO con mismoLote).
   useEffect(() => {
     if (!destino || !lote) return;
+    const deLaFamilia = lotesDestino.find((l) => l.familiaId === lote.familiaId && l.categoriaId === lote.categoriaId);
     if (cambioCategoria && mismoPotrero && todos) {
       setModo('CATEGORIA');
       setCategoriaEntero('');
-    } else if (lotesDestino.length) {
+    } else if (deLaFamilia || lotesDestino.length) {
       setModo('SUMAR');
-      setLoteDestinoId(String(lotesDestino[0].loteId));
+      setLoteDestinoId(String((deLaFamilia ?? lotesDestino[0]).loteId));
+    } else if (mismoPotrero) {
+      setModo('NUEVO');
     } else {
-      setModo(todos && !mismoPotrero ? 'ENTERO' : 'NUEVO');
+      setModo(todos ? 'ENTERO' : 'MISMO');
     }
     setNuevaCategoriaId(String(lote.categoriaId));
     // Solo al cambiar de destino.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destino]);
+
+  // "Sigue siendo el mismo lote" es para una parte: si van todas, el lote entero.
+  useEffect(() => {
+    if (modo === 'MISMO' && todos) setModo('ENTERO');
+  }, [modo, todos]);
 
   const cuerpo = useMemo(() => {
     if (!lote || !destinoId || !modo || n < 1) return null;
@@ -99,6 +110,7 @@ export default function MoverPage() {
       modo,
       nota,
     };
+    if (modo === 'MISMO') return { ...base, modo: 'NUEVO', mismoLote: true };
     if (modo === 'SUMAR') return loteDestinoId ? { ...base, loteDestinoId: Number(loteDestinoId) } : null;
     if (modo === 'NUEVO') return nuevaCategoriaId ? { ...base, nuevoLote: { nombre: nuevoNombre, categoriaId: Number(nuevaCategoriaId) } } : null;
     if (modo === 'CATEGORIA') return categoriaEntero ? { ...base, categoriaId: Number(categoriaEntero) } : null;
@@ -218,6 +230,7 @@ export default function MoverPage() {
               >
                 Sumar al lote <strong>{l.lote}</strong>
                 <span className="block text-xs text-suelo-600">
+                  {l.familiaId === lote.familiaId && <span className="text-campo-700">parte del mismo lote · </span>}
                   {l.categoria} · {formatNumero(l.cabezas)} cab
                   {l.categoriaId !== lote.categoriaId && (
                     <span className="text-amber-800"> — ojo: los {lote.categoria} que llegan pasan a ser {l.categoria}</span>
@@ -225,6 +238,16 @@ export default function MoverPage() {
                 </span>
               </Opcion>
             ))}
+
+            {!todos && !mismoPotrero && (
+              <Opcion activa={modo === 'MISMO'} onElegir={() => setModo('MISMO')}>
+                Sigue siendo el mismo lote
+                <span className="block text-xs text-suelo-600">
+                  {lote.categoria} · queda como <strong>{modo === 'MISMO' && previa ? previa.loteDestino : `${lote.lote} · ${destino.nombre}`}</strong>, parte de{' '}
+                  {lote.lote}
+                </span>
+              </Opcion>
+            )}
 
             <Opcion activa={modo === 'NUEVO'} onElegir={() => setModo('NUEVO')}>
               Formar un lote nuevo

@@ -96,6 +96,23 @@ describe('la tabla de potreros', () => {
     expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/Total.*3 potreros.*19.*60.*cabezas.*3,16/);
   });
 
+  it('con área utilizable: "40 de 50" (y "40/50 ha" en el celular); el cab/ha del total la usa', () => {
+    // 100 cabezas en 40 de 50 ha + 20 en un potrero de 20 ha sin área: 120 / 60 = 2.
+    montar([potrero(1, '1', 100, 50, { areaUtilizable: 40 }), potrero(2, '2', 20, 20)]);
+    const [fila] = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
+    expect(fila[2]).toBe('40 de 50');
+    expect(contenedor.querySelector('[data-testid="ha-celular"]').textContent).toBe('40/50 ha');
+    expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/70.*120.*cabezas.*\b2\b/);
+  });
+
+  it('con kilos estimados (peso de la categoría): "≈" en peso, kg/ha y UG/ha', () => {
+    const p = potrero(1, '1', 100, 50);
+    p.stock = { ...p.stock, kilos: 19000, kilosCompletos: true, kilosEstimados: true, kgPvHa: 380, ugHa: 1 };
+    montar([p]);
+    const [fila] = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
+    expect(fila.slice(5)).toEqual(['≈190', '2', '≈380', '≈1']);
+  });
+
   it('peso promedio y kg/ha (sin peso en algún lote: —); el total promedia los lotes con peso', () => {
     const conPeso = (id, cabezas, peso, ha, completos = true) => {
       const p = potrero(id, String(id), cabezas, ha);

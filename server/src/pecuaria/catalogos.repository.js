@@ -21,7 +21,9 @@ function catalogoConAlias({ modelo, aliasModelo, fk, etiqueta, campos, alCrear =
     ...Object.fromEntries(campos.map((c) => [c, true])),
     alias: { select: { texto: true }, orderBy: { texto: 'asc' } },
   };
-  const toPlain = (row) => row && { ...row, alias: row.alias.map((a) => a.texto) };
+  // Los decimales (peso, precio) salen como número.
+  const decimal = (v) => (v instanceof Prisma.Decimal ? Number(v) : v);
+  const toPlain = (row) => row && { ...Object.fromEntries(Object.entries(row).map(([k, v]) => [k, decimal(v)])), alias: row.alias.map((a) => a.texto) };
   const textos = (lista) => [...new Set(lista.map(normalizarTexto))].filter(Boolean);
 
   // Que ningún texto sea ya alias de OTRO registro del catálogo.
@@ -106,7 +108,7 @@ export const categorias = catalogoConAlias({
   aliasModelo: 'categoriaAlias',
   fk: 'categoriaId',
   etiqueta: { el: 'la categoría', al: 'a la categoría' },
-  campos: ['especie', 'sexo', 'idCategoriaCigam'],
+  campos: ['especie', 'sexo', 'idCategoriaCigam', 'pesoPromedioKg', 'precioUsd', 'precioPor'],
   // Sin sexo elegido: se deduce del nombre ("Terneras" → HEMBRA).
   alCrear: (data) => (data.sexo === undefined ? { ...data, sexo: deducirSexo(data.nombre) } : data),
 });

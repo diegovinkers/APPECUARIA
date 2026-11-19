@@ -6,6 +6,41 @@ import { ErrorList } from '../components/ui';
 import { formatFecha, formatNumero } from '../components/pecuaria';
 import { MovimientoItem } from '../components/movimientos';
 
+// Un lote repartido en varios potreros (familia de lotes): sus partes, con
+// las cabezas de cada una y el total.
+function Familia({ familia, loteId }) {
+  const potreros = new Set(familia.partes.map((p) => p.potrero.id)).size;
+  return (
+    <section className="mt-4 rounded-lg border border-campo-200 bg-campo-50/60 px-4 py-3" aria-label="Lote repartido">
+      <p className="font-semibold">
+        Repartido en {potreros} potrero{potreros === 1 ? '' : 's'} · {formatNumero(familia.cabezas)} cab en total
+      </p>
+      <ul className="mt-2 space-y-1 text-sm">
+        {familia.partes.map((p) => (
+          <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-x-3">
+            {p.id === loteId ? (
+              <span className="font-medium">{p.nombre} (este)</span>
+            ) : (
+              <Link to={`/pecuaria/lotes/${p.id}`} className="text-campo-700 hover:underline">
+                {p.nombre}
+              </Link>
+            )}
+            <span className="text-suelo-600">
+              {p.potrero.nombre} · {formatNumero(p.cabezas)} cab{p.categoria ? ` · ${p.categoria}` : ''}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {familia.otrasEstancias > 0 && (
+        <p className="mt-2 text-xs text-suelo-600">
+          Y {familia.otrasEstancias} parte{familia.otrasEstancias === 1 ? '' : 's'} en otra{familia.otrasEstancias === 1 ? '' : 's'} estancia
+          {familia.otrasEstancias === 1 ? '' : 's'}.
+        </p>
+      )}
+    </section>
+  );
+}
+
 // Historial de un lote: dónde está, qué tiene y por dónde pasó.
 export default function LotePage() {
   const { id } = useParams();
@@ -26,7 +61,7 @@ export default function LotePage() {
       </main>
     );
   }
-  const { lote, actual, movimientos } = datos;
+  const { lote, actual, familia, movimientos } = datos;
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
       <Link to="/pecuaria/movimientos" className="text-sm text-campo-600 hover:underline">
@@ -54,6 +89,8 @@ export default function LotePage() {
       ) : (
         <p className="mt-4 text-suelo-600">Hoy no tiene animales.</p>
       )}
+
+      {familia && <Familia familia={familia} loteId={lote.id} />}
 
       <h2 className="mb-2 mt-8 text-lg font-semibold">Movimientos</h2>
       {movimientos.length === 0 ? (

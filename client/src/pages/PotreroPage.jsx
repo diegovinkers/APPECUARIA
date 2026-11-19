@@ -8,11 +8,12 @@ import {
   getPotrero,
   getUsosSuelo,
   guardarStock,
+  registrarMovimiento,
   renombrarLote,
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
-import { Dato, Hectareas, UsoBadge, formatFecha, formatNumero } from '../components/pecuaria';
+import { Dato, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
 import usePuede from '../hooks/usePuede';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
@@ -57,6 +58,19 @@ export default function PotreroPage() {
     }
   }
 
+  // Unir las partes de un mismo lote que quedaron juntas: cada una se suma a
+  // la que se queda (un "sumar a otro lote" en el mismo potrero).
+  async function unir({ queda, suman }) {
+    const nombres = suman.map((l) => l.lote).join(', ');
+    if (!window.confirm(`¿Unir ${nombres} en ${queda.lote}? Queda registrado como movimiento.`)) return;
+    await guardar(async () => {
+      for (const l of suman) {
+        await registrarMovimiento({ loteOrigenId: l.loteId, cabezas: l.cabezas, destinoPotreroId: potrero.id, modo: 'SUMAR', loteDestinoId: queda.loteId, fecha: hoy() });
+      }
+      return null;
+    }, `Unidas: ${nombres} ahora es parte de ${queda.lote}.`);
+  }
+
   if (!potrero) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
@@ -81,6 +95,11 @@ export default function PotreroPage() {
         <UsoBadge uso={potrero.usoActual} />
         {potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}
         <Hectareas hectareas={potrero.hectareas} aConfirmar={potrero.hectareasAConfirmar} />
+        {potrero.areaUtilizable != null && (
+          <span className="text-sm text-suelo-600" data-testid="area-utilizable">
+            · {formatNumero(potrero.areaUtilizable, 2)} ha utilizables
+          </span>
+        )}
         {potrero.subdivisiones.length > 0 && (
           <span className="text-xs text-suelo-500">{potrero.subdivisiones.map((s) => s.codigo).join(' · ')}</span>
         )}
@@ -100,9 +119,18 @@ export default function PotreroPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Dato valor={formatNumero(stock?.cabezas ?? 0)} etiqueta="cabezas" />
           <Dato valor={formatNumero(stock?.cabHa, 2)} etiqueta="cab./ha" />
-          <Dato valor={formatNumero(stock?.kgPvHa, 1)} etiqueta="kg PV/ha" />
-          <Dato valor={formatNumero(stock?.ugHa, 2)} etiqueta={`UG/ha (1 UG = ${formatNumero(potrero.kgPorUg)} kg)`} />
+          <Dato valor={aprox(stock?.kilosEstimados, formatNumero(stock?.kgPvHa, 1))} etiqueta="kg PV/ha" />
+          <Dato valor={aprox(stock?.kilosEstimados, formatNumero(stock?.ugHa, 2))} etiqueta={`UG/ha (1 UG = ${formatNumero(potrero.kgPorUg)} kg)`} />
         </div>
+        {stock?.valorUsd > 0 && (
+          <p className="mt-3 text-sm" data-testid="valor-potrero">
+            Valor del ganado: <strong>{aprox(stock.kilosEstimados, formatUsd(stock.valorUsd))}</strong>
+            {!stock.valorCompleto && <span className="text-amber-800"> (incompleto: hay categorías sin precio)</span>}
+          </p>
+        )}
+        {stock?.kilosEstimados && (
+          <p className="mt-3 text-sm text-suelo-600">≈ Algunos lotes no tienen peso: se usa el peso promedio de su categoría (Configuración).</p>
+        )}
         {potrero.hectareasAConfirmar && (
           <p className="mt-3 text-sm text-amber-800">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
         )}
@@ -122,6 +150,17 @@ export default function PotreroPage() {
             ))}
           </ul>
         )}
+        {puedo('pecuaria:CREAR') &&
+          familiasJuntas(stock?.lineas).map((g) => (
+            <div key={g.queda.loteId} className="mt-3 rounded-md border border-campo-300 bg-campo-50 p-3 text-sm">
+              <p>
+                <strong>{[g.queda, ...g.suman].map((l) => l.lote).join(' y ')}</strong> son del mismo lote y están juntas acá.
+              </p>
+              <button type="button" onClick={() => unir(g)} className="mt-2 rounded-md bg-campo-600 px-3 py-1.5 font-medium text-white hover:bg-campo-700">
+                Unirlas en {g.queda.lote}
+              </button>
+            </div>
+          ))}
         {stock?.nota && <p className="mt-3 text-sm text-suelo-600">Nota: {stock.nota}</p>}
         {/* Mover, entradas y salidas se registran desde el botón "+" (DECISIONES §11). */}
       </section>
@@ -167,9 +206,9 @@ export default function PotreroPage() {
         <CorregirHectareas
           potrero={potrero}
           onCancelar={() => setModo(null)}
-          onGuardar={(hectareas) =>
+          onGuardar={({ hectareas, areaUtilizable }) =>
             guardar(
-              () => editarPotrero(potrero.id, { hectareas, hectareasAConfirmar: false }).then(() => null),
+              () => editarPotrero(potrero.id, { hectareas, hectareasAConfirmar: false, areaUtilizable }).then(() => null),
               'Hectáreas guardadas.',
             )
           }
@@ -345,11 +384,21 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
   );
 }
 
+// Área utilizable que se manda: vacía o igual a las hectáreas = todas (null).
+const areaParaGuardar = (texto, hectareas) => {
+  const area = aNumero(texto);
+  return area == null || area === hectareas ? null : area;
+};
+
 function CambiarUso({ potrero, onGuardar, onCancelar }) {
   const [usos, setUsos] = useState([]);
   const [usoSueloId, setUsoSueloId] = useState('');
   const [desde, setDesde] = useState(hoy());
+  // Un uso nuevo arranca con todas las hectáreas (se puede bajar).
+  const [area, setArea] = useState(potrero.hectareasAConfirmar || potrero.hectareas == null ? '' : String(potrero.hectareas));
   const [ocupado, enviar] = useEnvio(onGuardar);
+  const areaNum = aNumero(area);
+  const areaMal = areaNum != null && (!(areaNum > 0) || (!potrero.hectareasAConfirmar && potrero.hectareas != null && areaNum > potrero.hectareas));
 
   useEffect(() => {
     getUsosSuelo().then(({ data }) => setUsos(data.filter((u) => u.activo && u.id !== potrero.usoActual?.id)));
@@ -360,8 +409,8 @@ function CambiarUso({ potrero, onGuardar, onCancelar }) {
       titulo="Cambiar uso de suelo"
       onCancelar={onCancelar}
       ocupado={ocupado}
-      puedeGuardar={usoSueloId && desde}
-      onEnviar={() => enviar({ usoSueloId: Number(usoSueloId), desde })}
+      puedeGuardar={usoSueloId && desde && !areaMal}
+      onEnviar={() => enviar({ usoSueloId: Number(usoSueloId), desde, areaUtilizable: areaParaGuardar(area, potrero.hectareas) })}
     >
       <p className="text-sm text-suelo-600">
         El uso actual ({potrero.usoActual?.nombre ?? 'ninguno'}) se cierra en la fecha que elijas y queda en el historial.
@@ -385,21 +434,48 @@ function CambiarUso({ potrero, onGuardar, onCancelar }) {
           className={`${inputClass} mt-1`}
         />
       </label>
+      <CampoArea valor={area} onChange={setArea} potrero={potrero} mal={areaMal} etiqueta="Área utilizable para este uso (ha)" />
     </Formulario>
+  );
+}
+
+// El área utilizable: lo que ocupa de verdad el uso de suelo. La carga por
+// hectárea se calcula sobre ella; vacía = todas las hectáreas.
+function CampoArea({ valor, onChange, potrero, mal, etiqueta = 'Área utilizable (ha)' }) {
+  return (
+    <label className="block text-sm text-suelo-600">
+      {etiqueta}
+      <input
+        inputMode="decimal"
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Vacía = todas las hectáreas"
+        aria-label="Área utilizable"
+        className={`${inputClass} mt-1`}
+      />
+      <span className="mt-1 block text-xs text-suelo-500">
+        {mal
+          ? <span className="text-red-700">Tiene que ser mayor que cero y no más que las hectáreas ({formatNumero(potrero.hectareas, 2)}).</span>
+          : 'La carga (cab/ha, UG/ha) se calcula sobre esta área.'}
+      </span>
+    </label>
   );
 }
 
 function CorregirHectareas({ potrero, onGuardar, onCancelar }) {
   const [valor, setValor] = useState(potrero.hectareasAConfirmar || potrero.hectareas == null ? '' : String(potrero.hectareas));
+  const [area, setArea] = useState(potrero.areaUtilizable == null ? '' : String(potrero.areaUtilizable));
   const [ocupado, enviar] = useEnvio(onGuardar);
   const numero = aNumero(valor);
+  const areaNum = aNumero(area);
+  const areaMal = areaNum != null && (!(areaNum > 0) || (numero > 0 && areaNum > numero));
   return (
     <Formulario
       titulo={potrero.hectareasAConfirmar ? 'Cargar hectáreas' : 'Corregir hectáreas'}
       onCancelar={onCancelar}
       ocupado={ocupado}
-      puedeGuardar={numero > 0}
-      onEnviar={() => enviar(numero)}
+      puedeGuardar={numero > 0 && !areaMal}
+      onEnviar={() => enviar({ hectareas: numero, areaUtilizable: areaParaGuardar(area, numero) })}
     >
       <input
         inputMode="decimal"
@@ -412,6 +488,7 @@ function CorregirHectareas({ potrero, onGuardar, onCancelar }) {
       {potrero.hectareasAConfirmar && (
         <p className="text-sm text-suelo-600">Al guardar, el potrero deja de estar "a confirmar" y se calculan los valores por hectárea.</p>
       )}
+      <CampoArea valor={area} onChange={setArea} potrero={{ ...potrero, hectareas: numero }} mal={areaMal} />
     </Formulario>
   );
 }
@@ -491,7 +568,13 @@ function LoteFila({ linea: l, potreroId, puedeRegistrar, onRenombrar }) {
           )}
           <p className="text-suelo-600">
             {l.categoria} · {formatNumero(l.cabezas)} cab ·{' '}
-            {l.pesoPromedioKg ? `${formatNumero(l.pesoPromedioKg)} kg` : <span className="text-amber-800">sin peso</span>}
+            {l.pesoPromedioKg ? (
+              `${formatNumero(l.pesoPromedioKg)} kg`
+            ) : l.pesoEstimadoKg ? (
+              <span title="Peso promedio de la categoría">≈{formatNumero(l.pesoEstimadoKg)} kg</span>
+            ) : (
+              <span className="text-amber-800">sin peso</span>
+            )}
           </p>
           <Link to={`/pecuaria/lotes/${l.loteId}`} className="text-xs text-campo-600 hover:underline">
             Ver historial del lote

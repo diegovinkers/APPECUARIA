@@ -3,12 +3,37 @@
 export const formatNumero = (n, decimales = 0) =>
   n == null ? '—' : Number(n).toLocaleString('es-UY', { maximumFractionDigits: decimales });
 
+// Dólares: "USD 93.500".
+export const formatUsd = (n) => (n == null ? '—' : `USD ${formatNumero(n)}`);
+
+// Kilos, kg/ha o UG/ha que salen (en parte) del peso promedio de la
+// categoría: con "≈" adelante.
+export const aprox = (estimado, texto) => (estimado ? `≈${texto}` : texto);
+
 // "2026-11-13" → "13/11/2026"
 export const formatFecha = (iso) => (iso ? iso.split('-').reverse().join('/') : '—');
 
 // Con "Todas las estancias" el potrero lleva adelante la sigla de su estancia
 // ("EG 8.1"): hay nombres repetidos entre estancias (pedido de Diego, 19/11).
 export const nombreConSigla = (potrero, todas) => (todas && potrero.campo?.sigla ? `${potrero.campo.sigla} ${potrero.nombre}` : potrero.nombre);
+
+// Partes de un mismo lote repartido (familia de lotes) que quedaron juntas en
+// un potrero, con la misma categoría: se pueden unir. Por cada grupo, la que
+// se queda (la raíz, o si no está, la más vieja) y las que se le suman.
+export function familiasJuntas(lineas = []) {
+  const grupos = new Map();
+  for (const l of lineas) {
+    if (l.familiaId == null || !(l.cabezas > 0)) continue;
+    const clave = `${l.familiaId}-${l.categoriaId}`;
+    grupos.set(clave, [...(grupos.get(clave) ?? []), l]);
+  }
+  return [...grupos.values()]
+    .filter((g) => g.length > 1)
+    .map((g) => {
+      const queda = g.find((l) => l.loteId === l.familiaId) ?? [...g].sort((a, b) => a.loteId - b.loteId)[0];
+      return { queda, suman: g.filter((l) => l !== queda) };
+    });
+}
 
 // Qué hay en un potrero, por categoría: "350 Terneros" o "120 Terneros · 80 Vacas"
 // (los lotes de la misma categoría se suman). Sin animales: "vacío".

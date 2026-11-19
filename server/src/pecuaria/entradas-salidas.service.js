@@ -12,10 +12,10 @@ import { calcularPotrero } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, fotoActual, nombreOcupado } from './lotes.js';
 import { aItems, incluir } from './movimientos.service.js';
-import { detallePotrero, fechaUY, kgPorUg } from './stock.service.js';
+import { detallePotrero, fechaUY, parametrosCarga } from './stock.service.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
-const potreroSelect = { id: true, nombre: true, campoId: true, hectareas: true, hectareasAConfirmar: true };
+const potreroSelect = { id: true, nombre: true, campoId: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
 const copiar = (lineas) => lineas.map((l) => ({ ...l }));
 
 async function tipoValido(db, tipoId) {
@@ -207,14 +207,19 @@ async function planificar(db, body) {
 
 const calc = (potrero, lineas, kg) =>
   calcularPotrero(
-    { hectareas: potrero.hectareas == null ? null : Number(potrero.hectareas), hectareasAConfirmar: potrero.hectareasAConfirmar, lineas },
+    {
+      hectareas: potrero.hectareas == null ? null : Number(potrero.hectareas),
+      hectareasAConfirmar: potrero.hectareasAConfirmar,
+      areaUtilizable: potrero.areaUtilizable,
+      lineas,
+    },
     kg,
   );
 const sinMarcas = (lineas) => lineas.map(({ orden, nuevo, ...l }) => l);
 
 export async function vistaPrevia(body) {
   const plan = await planificar(prisma, body);
-  const kg = await kgPorUg();
+  const kg = await parametrosCarga();
   const final = plan.pasos.at(-1).lineas;
   return {
     fecha: plan.dia,

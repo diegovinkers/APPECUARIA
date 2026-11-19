@@ -119,6 +119,8 @@ describe('la tabla de potreros', () => {
     montar([potrero(2, '2', 50, 10), dos, arroz]);
     const lineas = [...contenedor.querySelectorAll('[data-testid="linea-celular"]')].map((l) => l.textContent);
     expect(lineas).toEqual(['Campo naturalVacas', 'Campo natural40 Vacas · 25 Terneros', 'Arroz']);
+    // Las hectáreas, al lado del nombre (solo en el celular).
+    expect([...contenedor.querySelectorAll('[data-testid="ha-celular"]')].map((e) => e.textContent)).toEqual(['10 ha', '10 ha', '30 ha']);
     // El uso va como etiqueta de color.
     expect(contenedor.querySelector('[data-testid="linea-celular"] span').className).toContain('bg-lime');
     const cabezas = contenedor.querySelectorAll('tbody tr')[0].querySelectorAll('td')[3];

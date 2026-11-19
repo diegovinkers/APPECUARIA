@@ -120,7 +120,8 @@ export function TituloOrdenable({ col, titulo, orden, onOrdenar, derecha, fija, 
     >
       <button type="button" onClick={() => onOrdenar(col)} className="inline-flex items-center gap-1 whitespace-nowrap hover:text-suelo-900">
         {titulo}
-        <span aria-hidden="true" className="text-suelo-400">
+        {/* En el celular, la flechita ↕ de las que no ordenan no se muestra (ocupa lugar). */}
+        <span aria-hidden="true" className={`text-suelo-400 ${activa ? '' : 'hidden md:inline'}`}>
           {activa ? (orden.dir === 'asc' ? '▲' : '▼') : '↕'}
         </span>
       </button>

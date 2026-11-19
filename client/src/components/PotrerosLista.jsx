@@ -48,10 +48,10 @@ const altoBase = () => (window.matchMedia?.('(min-width: 768px)').matches ? 40 :
 // En el celular la tabla tiene ancho fijo: Cabezas y UG/ha con su ancho, y
 // Potrero lo que queda (así el "…" corta adentro de la celda).
 const ANCHO_CELULAR = {
-  cabezas: 'w-[3.75rem] md:w-auto',
-  peso: 'w-[3.25rem] md:w-auto',
-  kgHa: 'w-[3.5rem] md:w-auto',
-  ugHa: 'w-[3.5rem] md:w-auto',
+  cabezas: 'w-[3.25rem] md:w-auto',
+  peso: 'w-11 md:w-auto',
+  kgHa: 'w-12 md:w-auto',
+  ugHa: 'w-[3.25rem] md:w-auto',
 };
 const NUMERICAS = new Set(['hectareas', 'cabezas', 'peso', 'cabHa', 'kgHa', 'ugHa']);
 // Las direcciones viejas (?orden=carga) siguen andando.
@@ -334,10 +334,15 @@ function PotreroFila({ potrero: p, par, cargaMaxima, estilo, onAbrir }) {
       <td className={`${celda} ${fondo} sticky left-0 z-[5] font-semibold md:whitespace-nowrap`}>
         {/* Arriba el nombre; abajo, en el celular, el uso y qué hay. Lo que no entra se corta con "…". */}
         <div className="flex min-w-0 items-center gap-1.5">
-          <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="truncate text-campo-700 hover:underline">
+          <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 text-campo-700 hover:underline">
             {p.nombre}
           </Link>
           {p.tipo === 'CORRAL' && <span className="shrink-0 text-xs font-medium text-amber-800">corral</span>}
+          {/* En el celular, las hectáreas al lado del nombre (en la compu tienen su columna). */}
+          {/* Si no entra, se corta la hectárea, nunca el nombre. */}
+          <span className="min-w-0 truncate text-xs font-normal text-suelo-500 md:hidden" data-testid="ha-celular">
+            {p.hectareasAConfirmar ? <span className="text-amber-800">ha ?</span> : p.hectareas != null ? `${formatNumero(p.hectareas, 0)} ha` : ''}
+          </span>
         </div>
         {/* Debajo, en renglones propios: el uso y lo que hay (pedido de Diego, 19/11). */}
         <div className="mt-0.5 text-xs font-normal leading-4 text-suelo-600 md:hidden" data-testid="linea-celular">

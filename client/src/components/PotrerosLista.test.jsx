@@ -106,7 +106,13 @@ describe('la tabla de potreros', () => {
     // El uso va como etiqueta de color.
     expect(contenedor.querySelector('[data-testid="linea-celular"] span').className).toContain('bg-lime');
     const cabezas = contenedor.querySelectorAll('tbody tr')[0].querySelectorAll('td')[3];
-    expect(cabezas.textContent).toBe('505 /ha');
+    // cab/ha al lado de las cabezas (un solo renglón), y todo centrado a lo alto.
+    expect(cabezas.textContent).toBe('50· 5/ha');
+    expect(cabezas.className).toContain('align-middle');
+    // El nombre y el uso en el mismo bloque que baja de renglón solo si no entra.
+    const primera = contenedor.querySelector('tbody td > div');
+    expect(primera.className).toContain('flex-wrap');
+    expect(primera.querySelector('[data-testid="linea-celular"]')).not.toBeNull();
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
     expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías', 'cab/ha']);
   });

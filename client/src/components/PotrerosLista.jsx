@@ -34,6 +34,8 @@ const COLUMNAS = [
   ['ugHa', 'UG/ha', true, (p) => p.stock?.ugHa ?? null, false],
 ];
 const SOLO_COMPU = 'hidden md:table-cell';
+// Las filas, con todo centrado a lo alto (pedido de Diego, 19/11).
+const celdaFila = celda.replace('align-top', 'align-middle');
 const NUMERICAS = new Set(['hectareas', 'cabezas', 'cabHa', 'ugHa']);
 // Las direcciones viejas (?orden=carga) siguen andando.
 const ALIAS_ORDEN = { nombre: 'potrero', carga: 'ugHa' };
@@ -207,7 +209,8 @@ export default function PotrerosLista({ potreros }) {
                 <tr className="font-semibold">
                   <td className={`${pie} left-0 z-20`}>
                     Total{hayFiltros ? ' filtrado' : ''}
-                    <span className="block text-xs font-normal text-suelo-600 md:hidden">
+                    <span className="text-xs font-normal text-suelo-600 md:hidden">
+                      {' · '}
                       {visibles.length} de {potreros.length} potreros · {formatNumero(resumen.hectareas)} ha
                       {nombreCategoria && ` · con ${nombreCategoria}`}
                     </span>
@@ -267,18 +270,21 @@ function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
   const vacio = cabezas === 0;
   const fondo = par ? 'bg-suelo-50' : 'bg-white';
   const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
+  const celda = celdaFila;
   return (
     <tr onClick={onAbrir} className={`cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
       <td className={`${celda} ${fondo} sticky left-0 z-[5] font-semibold md:whitespace-nowrap`}>
-        <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-campo-700 hover:underline">
-          {p.nombre}
-        </Link>
-        {p.tipo === 'CORRAL' && <span className="ml-1.5 text-xs font-medium text-amber-800">corral</span>}
-        {/* En el celular: el uso con su color y qué hay (sin repetir las cabezas). */}
-        <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal text-suelo-600 md:hidden" data-testid="linea-celular">
-          <UsoBadge uso={p.usoActual} />
-          {vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}
-        </span>
+        {/* El nombre y, en el celular, el uso y qué hay en el mismo renglón; si no entra, baja. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <Link to={`/pecuaria/potreros/${p.id}`} onClick={(e) => e.stopPropagation()} className="text-campo-700 hover:underline">
+            {p.nombre}
+          </Link>
+          {p.tipo === 'CORRAL' && <span className="text-xs font-medium text-amber-800">corral</span>}
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal text-suelo-600 md:hidden" data-testid="linea-celular">
+            <UsoBadge uso={p.usoActual} />
+            {vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}
+          </span>
+        </div>
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`}>
         <UsoBadge uso={p.usoActual} />
@@ -286,22 +292,25 @@ function PotreroFila({ potrero: p, par, cargaMaxima, onAbrir }) {
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap text-right tabular-nums`}>
         {p.hectareasAConfirmar ? <span className="text-xs text-amber-800">a confirmar</span> : formatNumero(p.hectareas, 2)}
       </td>
-      <td className={`${celda} ${fondo} text-right font-semibold tabular-nums`}>
+      <td className={`${celda} ${fondo} whitespace-nowrap text-right font-semibold tabular-nums`}>
         {vacio ? '—' : formatNumero(cabezas)}
-        {/* En el celular: cab/ha debajo (en la compu tiene su columna). */}
+        {/* En el celular: cab/ha al lado (en la compu tiene su columna). */}
         {!vacio && p.stock?.cabHa != null && (
-          <span className="mt-1 block whitespace-nowrap text-xs font-normal text-suelo-500 md:hidden">{formatNumero(p.stock.cabHa, 1)} /ha</span>
+          <span className="ml-1 text-xs font-normal text-suelo-500 md:hidden">· {formatNumero(p.stock.cabHa, 1)}/ha</span>
         )}
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} min-w-[12rem]`}>{vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}</td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} text-right tabular-nums`}>{vacio || p.stock?.cabHa == null ? '—' : formatNumero(p.stock.cabHa, 2)}</td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
-        {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}
-        {!vacio && !sinPeso && p.stock?.ugHa != null && cargaMaxima > 0 && (
-          <span className="ml-auto mt-1.5 block h-1.5 w-full min-w-10 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true" data-testid="barra-carga">
-            <span className="block h-full rounded-full bg-campo-500" style={{ width: `${Math.min(100, (p.stock.ugHa / cargaMaxima) * 100)}%` }} />
-          </span>
-        )}
+        {/* El número y, al lado, la barra de carga. */}
+        <span className="inline-flex items-center justify-end gap-1.5">
+          {sinPeso ? <span className="text-xs text-amber-800">sin peso</span> : vacio || p.stock?.ugHa == null ? '—' : formatNumero(p.stock.ugHa, 2)}
+          {!vacio && !sinPeso && p.stock?.ugHa != null && cargaMaxima > 0 && (
+            <span className="block h-1.5 w-8 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true" data-testid="barra-carga">
+              <span className="block h-full rounded-full bg-campo-500" style={{ width: `${Math.min(100, (p.stock.ugHa / cargaMaxima) * 100)}%` }} />
+            </span>
+          )}
+        </span>
       </td>
     </tr>
   );

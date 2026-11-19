@@ -219,7 +219,9 @@ function MarcoInterno() {
     // La app ocupa justo la pantalla: arriba la barra, abajo (celular) la barra
     // de abajo, y en el medio lo que scrollea. Así Potreros y Movimientos
     // (PantallaTabla) dejan fijos el título y el paginador y solo scrollea la tabla.
-    <div className="flex h-dvh flex-col">
+    // Fijo a la pantalla (fixed inset-0): arrastrar de más no corre la barra de
+    // abajo (pedido de Diego, 19/11).
+    <div className="fixed inset-0 flex flex-col">
       <header className="relative z-30 flex shrink-0 items-center gap-2 bg-campo-600 px-3 py-2.5 text-white lg:gap-3 lg:px-4">
         <Link to="/pecuaria/resumen" className="flex items-center gap-2">
           <Logo />

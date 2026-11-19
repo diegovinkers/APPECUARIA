@@ -49,6 +49,9 @@ export function useFilasQueEntran(caja, hayPaginador) {
     medir();
     const observador = new ResizeObserver(medir);
     observador.observe(caja);
+    // Si el paginador cambia de alto, se vuelve a medir.
+    const nav = caja.querySelector('nav[aria-label="Páginas"]');
+    if (nav) observador.observe(nav);
     return () => observador.disconnect();
   }, [caja, hayPaginador]);
   return estado;
@@ -94,7 +97,9 @@ export function Paginador({ pagina, total, onCambiar, desde, hasta, de }) {
           ›
         </button>
       </div>
-      <p className="text-xs text-suelo-500">
+      {/* En el celular no se muestra: así el paginador entra siempre en un renglón
+          (en la 4 de 9: ‹ 1 … 3 4 5 … 9 ›). El total ya dice cuántos hay. */}
+      <p className="hidden text-xs text-suelo-500 sm:block">
         {desde}–{hasta} de {de}
       </p>
     </nav>

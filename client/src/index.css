@@ -44,3 +44,10 @@
 body {
   @apply min-h-screen bg-suelo-100 text-suelo-900 antialiased;
 }
+
+/* En el celular, arrastrar al llegar al final no corre la página ni la
+   recarga (la app con sesión vive en un marco fijo; ver Marco.jsx). */
+html,
+body {
+  overscroll-behavior: none;
+}

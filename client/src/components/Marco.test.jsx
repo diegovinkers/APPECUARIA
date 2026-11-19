@@ -176,7 +176,7 @@ describe('Marco: barras y panel', () => {
 
   it('ocupa justo la pantalla: lo que scrollea es el contenido, no la página', () => {
     montar();
-    expect(contenedor.firstElementChild.className).toContain('h-dvh');
+    expect(contenedor.firstElementChild.className).toContain('fixed inset-0');
     expect(contenedor.querySelector('[data-testid="contenido"]').className).toContain('overflow-y-auto');
   });
 

@@ -138,6 +138,8 @@ describe('la tabla de potreros', () => {
       montar(doce);
       expect(primeraColumna()).toEqual(['1', '2', '3', '4', '5']);
       expect(contenedor.querySelector('nav[aria-label="Páginas"]').textContent).toContain('1–5 de 12');
+      // En el celular el "1–5 de 12" no se muestra, para que el paginador entre en un renglón.
+      expect(contenedor.querySelector('nav[aria-label="Páginas"] p').className).toMatch(/(^| )hidden .*sm:block/);
       const tres = [...contenedor.querySelectorAll('nav[aria-label="Páginas"] button')].find((b) => b.textContent === '3');
       act(() => tres.click());
       expect(primeraColumna()).toEqual(['11', '12']);

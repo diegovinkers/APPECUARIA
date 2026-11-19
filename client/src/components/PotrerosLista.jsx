@@ -233,7 +233,7 @@ export default function PotrerosLista({ potreros }) {
                     Total{hayFiltros ? ' filtrado' : ''}
                     <span className="text-xs font-normal text-suelo-600 md:hidden">
                       {' · '}
-                      {visibles.length} de {potreros.length} · {formatNumero(resumen.hectareas)} ha
+                      {hayFiltros ? `${visibles.length} de ${potreros.length}` : visibles.length} · {formatNumero(resumen.hectareas)} ha
                       {nombreCategoria && ` · ${nombreCategoria}`}
                     </span>
                   </td>

@@ -94,12 +94,31 @@ describe('la tabla de potreros', () => {
     expect(donde()).toBe('?orden=cabezas&dir=asc');
   });
 
-  it('en el celular, el uso, las ha y las categorías van debajo del nombre (sin columnas de más)', () => {
-    montar([potrero(2, '2', 50, 10)]);
-    const primera = contenedor.querySelector('tbody td');
-    expect(primera.querySelector('[class*="md:hidden"]').textContent).toBe('Campo natural · 10 ha50 Vacas');
+  it('en el celular: debajo del nombre el uso con color y qué hay, sin repetir las cabezas; cab/ha debajo de Cabezas', () => {
+    const dos = { ...potrero(4, '4', 65, 10), stock: { ...potrero(4, '4', 65, 10).stock, lotes: [
+      { loteId: 41, lote: '4 · Vacas', categoriaId: 9, categoria: 'Vacas', cabezas: 40 },
+      { loteId: 42, lote: '4 · Terneros', categoriaId: 8, categoria: 'Terneros', cabezas: 25 },
+    ] } };
+    const arroz = potrero(5, '5', 0, 30, { usoActual: { grupo: 'OTRO', nombre: 'Arroz' } });
+    montar([potrero(2, '2', 50, 10), dos, arroz]);
+    const lineas = [...contenedor.querySelectorAll('[data-testid="linea-celular"]')].map((l) => l.textContent);
+    expect(lineas).toEqual(['Campo naturalVacas', 'Campo natural40 Vacas · 25 Terneros', 'Arroz']);
+    // El uso va como etiqueta de color.
+    expect(contenedor.querySelector('[data-testid="linea-celular"] span').className).toContain('bg-lime');
+    const cabezas = contenedor.querySelectorAll('tbody tr')[0].querySelectorAll('td')[3];
+    expect(cabezas.textContent).toBe('505 /ha');
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
     expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías', 'cab/ha']);
+  });
+
+  it('la barra de carga se llena según el potrero más cargado (los sin peso no tienen barra)', () => {
+    const conUg = (id, ugHa, extra = {}) => {
+      const p = potrero(id, String(id), 10, 5);
+      return { ...p, stock: { ...p.stock, ugHa, ...extra } };
+    };
+    montar([conUg(1, 2), conUg(2, 4), conUg(3, 3, { kilosCompletos: false })]);
+    const anchos = [...contenedor.querySelectorAll('[data-testid="barra-carga"] > span')].map((b) => b.style.width);
+    expect(anchos).toEqual(['50%', '100%']);
   });
 
   it('los filtros van al panel izquierdo, con el botón "Filtros" y cuántos hay puestos', () => {

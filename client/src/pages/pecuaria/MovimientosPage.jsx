@@ -13,8 +13,8 @@ import { Encabezado, PantallaTabla, SinEstancia } from './comun';
 // La pantalla no scrollea: solo la tabla.
 export default function MovimientosPage() {
   const location = useLocation();
-  const { campoId, todas } = useEstancia();
-  const { potreros, errors } = usePotreros(campoId, todas);
+  const { campoId, todas, grupo } = useEstancia();
+  const { potreros, errors } = usePotreros(campoId, todas, grupo);
 
   return (
     <PantallaTabla>
@@ -23,7 +23,7 @@ export default function MovimientosPage() {
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
       {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
-      {potreros && <MovimientosLista campoId={campoId} potreros={potreros} todas={todas} />}
+      {potreros && <MovimientosLista campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
     </PantallaTabla>
   );
 }

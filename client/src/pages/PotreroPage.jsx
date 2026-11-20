@@ -81,6 +81,8 @@ export default function PotreroPage() {
   }
 
   const { stock } = potrero;
+  // Un corral (feedlot) no se mide por hectárea: tiene metros de comedero.
+  const esCorral = potrero.tipo === 'CORRAL';
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
       <Link to="/pecuaria/potreros" className="text-sm text-campo-600 hover:underline">
@@ -92,9 +94,16 @@ export default function PotreroPage() {
       </h1>
       <p className="text-sm text-suelo-600">{potrero.campo.nombre}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <UsoBadge uso={potrero.usoActual} />
-        {potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}
-        <Hectareas hectareas={potrero.hectareas} aConfirmar={potrero.hectareasAConfirmar} />
+        {!esCorral && <UsoBadge uso={potrero.usoActual} />}
+        {!esCorral && potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}
+        {esCorral ? (
+          <span className="text-sm text-suelo-600" data-testid="metros-comedero">
+            {potrero.metrosComedero == null ? 'Sin metros de comedero' : `${formatNumero(potrero.metrosComedero, 2)} m de comedero`}
+            {potrero.metrosComedero != null && stock?.cabezas > 0 && ` · ${formatNumero(potrero.metrosComedero / stock.cabezas, 2)} m por cabeza`}
+          </span>
+        ) : (
+          <Hectareas hectareas={potrero.hectareas} aConfirmar={potrero.hectareasAConfirmar} />
+        )}
         {potrero.areaUtilizable != null && (
           <span className="text-sm text-suelo-600" data-testid="area-utilizable">
             · {formatNumero(potrero.areaUtilizable, 2)} ha utilizables
@@ -131,7 +140,7 @@ export default function PotreroPage() {
         {stock?.kilosEstimados && (
           <p className="mt-3 text-sm text-suelo-600">≈ Algunos lotes no tienen peso: se usa el peso promedio de su categoría (Configuración).</p>
         )}
-        {potrero.hectareasAConfirmar && (
+        {potrero.hectareasAConfirmar && !esCorral && (
           <p className="mt-3 text-sm text-amber-800">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
         )}
         {stock && !stock.kilosCompletos && (
@@ -143,7 +152,7 @@ export default function PotreroPage() {
               <LoteFila
                 key={l.loteId}
                 linea={l}
-                potreroId={potrero.id}
+                esCorral={esCorral}
                 puedeRegistrar={puedo('pecuaria:CREAR')}
                 onRenombrar={(nombre) => guardar(() => renombrarLote(l.loteId, nombre).then(() => null), 'Lote renombrado.')}
               />
@@ -172,13 +181,19 @@ export default function PotreroPage() {
               Editar stock
             </button>
           )}
-          {puedo('pecuaria:CREAR') && (
+          {puedo('pecuaria:CREAR') && !esCorral && (
             <button type="button" onClick={() => setModo('uso')} className={botonSecundario}>
               Cambiar uso de suelo
             </button>
           )}
+          {/* Los metros de comedero, como las hectáreas, son datos del potrero: Configuración. */}
+          {puedo('pecuaria:EDITAR') && esCorral && (
+            <button type="button" onClick={() => setModo('comedero')} className={botonSecundario}>
+              {potrero.metrosComedero == null ? 'Cargar metros de comedero' : 'Corregir metros de comedero'}
+            </button>
+          )}
           {/* Las hectáreas son datos del potrero: Configuración. */}
-          {puedo('pecuaria:EDITAR') && (
+          {puedo('pecuaria:EDITAR') && !esCorral && (
             <button type="button" onClick={() => setModo('hectareas')} className={botonSecundario}>
               {potrero.hectareasAConfirmar ? 'Cargar hectáreas' : 'Corregir hectáreas'}
             </button>
@@ -211,6 +226,16 @@ export default function PotreroPage() {
               () => editarPotrero(potrero.id, { hectareas, hectareasAConfirmar: false, areaUtilizable }).then(() => null),
               'Hectáreas guardadas.',
             )
+          }
+        />
+      )}
+
+      {modo === 'comedero' && (
+        <CorregirComedero
+          potrero={potrero}
+          onCancelar={() => setModo(null)}
+          onGuardar={(metrosComedero) =>
+            guardar(() => editarPotrero(potrero.id, { metrosComedero }).then(() => null), 'Metros de comedero guardados.')
           }
         />
       )}
@@ -493,6 +518,32 @@ function CorregirHectareas({ potrero, onGuardar, onCancelar }) {
   );
 }
 
+// Los metros de comedero de un corral (feedlot). Vacío = sin dato.
+function CorregirComedero({ potrero, onGuardar, onCancelar }) {
+  const [valor, setValor] = useState(potrero.metrosComedero == null ? '' : String(potrero.metrosComedero));
+  const [ocupado, enviar] = useEnvio(onGuardar);
+  const numero = aNumero(valor);
+  return (
+    <Formulario
+      titulo="Metros de comedero"
+      onCancelar={onCancelar}
+      ocupado={ocupado}
+      puedeGuardar={numero == null || numero > 0}
+      onEnviar={() => enviar(numero)}
+    >
+      <input
+        inputMode="decimal"
+        value={valor}
+        onChange={(e) => setValor(e.target.value)}
+        placeholder="Metros (por ejemplo 40)"
+        aria-label="Metros de comedero"
+        className={inputClass}
+      />
+      <p className="text-sm text-suelo-600">Con los metros se calcula cuánto comedero tiene cada cabeza (en el Resumen del feedlot).</p>
+    </Formulario>
+  );
+}
+
 function Historial({ historial }) {
   return (
     <section className="mt-8">
@@ -538,7 +589,7 @@ function Historial({ historial }) {
 
 // Un lote del potrero: nombre (se cambia tocándolo), categoría, cabezas, peso,
 // y el botón para moverlo (todo o una parte) a otro lote o potrero.
-function LoteFila({ linea: l, potreroId, puedeRegistrar, onRenombrar }) {
+function LoteFila({ linea: l, esCorral, puedeRegistrar, onRenombrar }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(l.lote);
   return (
@@ -576,8 +627,14 @@ function LoteFila({ linea: l, potreroId, puedeRegistrar, onRenombrar }) {
               <span className="text-amber-800">sin peso</span>
             )}
           </p>
+          {esCorral && (
+            <p className="text-xs text-suelo-600" data-testid="entrada-corral">
+              {l.fechaEntrada ? `Entró el ${formatFecha(l.fechaEntrada)}` : 'Sin fecha de entrada'}
+              {l.pesoEntradaKg != null && ` con ${formatNumero(l.pesoEntradaKg)} kg`}
+            </p>
+          )}
           <Link to={`/pecuaria/lotes/${l.loteId}`} className="text-xs text-campo-600 hover:underline">
-            Ver historial del lote
+            {esCorral ? 'Ver el lote (y su entrada al corral)' : 'Ver historial del lote'}
           </Link>
         </div>
       </div>

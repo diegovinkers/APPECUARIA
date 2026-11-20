@@ -2,9 +2,10 @@ import api from './axios';
 
 export const getCampos = () => api.get('/pecuaria/campos');
 export const getPotreros = (campoId) => api.get(`/pecuaria/campos/${campoId}/potreros`);
-// "Todas las estancias": los potreros y los movimientos de todas las del usuario.
-export const getPotrerosTodas = () => api.get('/pecuaria/potreros');
-export const getMovimientosTodas = (filtros = {}) => api.get('/pecuaria/movimientos', { params: filtros });
+// "Todas las estancias" (grupo 'estancias') o "Todos los feedlots" ('feedlots'):
+// los potreros y los movimientos de todos los del usuario en ese grupo.
+export const getPotrerosTodas = (grupo = 'estancias') => api.get('/pecuaria/potreros', { params: { grupo } });
+export const getMovimientosTodas = (filtros = {}, grupo = 'estancias') => api.get('/pecuaria/movimientos', { params: { ...filtros, grupo } });
 
 // La planilla va tal cual en el cuerpo; el nombre y la hoja, en la URL.
 export const subirPlanilla = (archivo, { hoja } = {}) =>
@@ -27,8 +28,12 @@ export const editarPotrero = (id, datos) => api.patch(`/pecuaria/potreros/${id}`
 export const crearPotrero = (campoId, datos) => api.post(`/pecuaria/campos/${campoId}/potreros`, datos);
 
 export const getResumen = (campoId) => api.get(`/pecuaria/campos/${campoId}/resumen`);
-// Todas las estancias del usuario, sumadas (con una fila por estancia).
-export const getResumenTodas = () => api.get('/pecuaria/resumen');
+// Todas las estancias del usuario, sumadas (con una fila por estancia). Con
+// grupo 'feedlots', los feedlots.
+export const getResumenTodas = (grupo = 'estancias') => api.get('/pecuaria/resumen', { params: { grupo } });
+// El análisis del feedlot, corral por corral: uno, o todos los del usuario.
+export const getFeedlot = (campoId) => api.get(`/pecuaria/campos/${campoId}/feedlot`);
+export const getFeedlots = () => api.get('/pecuaria/feedlots');
 
 export const getParametros = () => api.get('/pecuaria/parametros');
 export const setParametro = (clave, valor) => api.put(`/pecuaria/parametros/${clave}`, { valor });
@@ -37,6 +42,8 @@ export const editarUso = (id, datos) => api.patch(`/pecuaria/usos-suelo/${id}`, 
 export const crearCategoria = (datos) => api.post('/pecuaria/categorias', datos);
 
 export const renombrarLote = (id, nombre) => api.patch(`/pecuaria/lotes/${id}`, { nombre });
+// El nombre y, en el feedlot, la entrada al corral (fechaEntrada, pesoEntradaKg).
+export const editarLote = (id, datos) => api.patch(`/pecuaria/lotes/${id}`, datos);
 export const vistaPreviaMovimiento = (datos) => api.post('/pecuaria/movimientos/vista-previa', datos);
 export const registrarMovimiento = (datos) => api.post('/pecuaria/movimientos', datos);
 export const getMovimientos = (campoId, filtros = {}) => api.get(`/pecuaria/campos/${campoId}/movimientos`, { params: filtros });

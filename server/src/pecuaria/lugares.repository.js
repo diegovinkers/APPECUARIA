@@ -72,6 +72,7 @@ const potreroSelect = {
   hectareas: true,
   hectareasAConfirmar: true,
   areaUtilizable: true,
+  metrosComedero: true,
   idAreaManejoCigam: true,
   activo: true,
   orden: true,
@@ -83,6 +84,7 @@ const toPotrero = (row) =>
     ...row,
     hectareas: row.hectareas == null ? null : Number(row.hectareas),
     areaUtilizable: row.areaUtilizable == null ? null : Number(row.areaUtilizable),
+    metrosComedero: row.metrosComedero == null ? null : Number(row.metrosComedero),
   };
 
 async function guardarPotrero(operacion, nombre) {
@@ -123,7 +125,7 @@ async function listarPotreros(where) {
     where: { ...where, activo: true },
     select: {
       ...potreroSelect,
-      campo: { select: { id: true, sigla: true, nombre: true, orden: true } },
+      campo: { select: { id: true, sigla: true, nombre: true, orden: true, tipo: true } },
       usos: {
         where: { hasta: null },
         orderBy: { desde: 'desc' },

@@ -14,8 +14,8 @@ import { Encabezado, PantallaTabla, SinEstancia } from './comun';
 // pantalla no scrollea: solo la tabla.
 export default function PotrerosPage() {
   const navigate = useNavigate();
-  const { campoId, todas } = useEstancia();
-  const { potreros, errors: erroresCarga } = usePotreros(campoId, todas);
+  const { campoId, todas, grupo } = useEstancia();
+  const { potreros, errors: erroresCarga } = usePotreros(campoId, todas, grupo);
   const [nuevoCorral, setNuevoCorral] = useState(null);
   const [errors, setErrors] = useState([]);
 

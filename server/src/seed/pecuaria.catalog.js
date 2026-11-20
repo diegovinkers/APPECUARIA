@@ -44,6 +44,9 @@ export const CATEGORIAS = [
 
 export const PARAMETROS = [
   { clave: 'KG_POR_UG', valor: 380, descripcion: 'Kilos de peso vivo que equivalen a 1 UG (unidad ganadera)' },
+  // Feedlot (confinamiento): los valores de CIGAM (TEA4SISTMANEJO), editables.
+  { clave: 'GMD_FEEDLOT_KG', valor: 1.5, descripcion: 'Feedlot: ganancia diaria de peso esperada, en kg por día' },
+  { clave: 'CICLO_FEEDLOT_DIAS', valor: 120, descripcion: 'Feedlot: días del ciclo de encierre, de la entrada a la salida' },
 ];
 
 // Niveles a los que se aplica un movimiento (PROPUESTA_MOVIMIENTOS §5). Las

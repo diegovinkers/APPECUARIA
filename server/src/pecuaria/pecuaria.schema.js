@@ -53,6 +53,16 @@ const hectareas = z.preprocess(
     .nullable(),
 );
 
+// Metros de comedero de un corral (feedlot). Vacío = sin dato.
+const metrosComedero = z.preprocess(
+  (v) => (v === '' || v == null ? null : typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v),
+  z
+    .number({ error: 'Los metros de comedero tienen que ser un número mayor que cero' })
+    .positive('Los metros de comedero tienen que ser un número mayor que cero')
+    .max(99_999, 'Son demasiados metros de comedero')
+    .nullable(),
+);
+
 const subdivisiones = z
   .array(z.string({ error: 'Cada subdivisión tiene que ser un texto' }).trim().min(1).max(20, 'Una subdivisión no puede superar los 20 caracteres'), {
     error: 'Las subdivisiones tienen que ser una lista de textos',
@@ -233,6 +243,7 @@ export const crearPotreroSchema = z.object({
   hectareas: hectareas.default(null),
   hectareasAConfirmar: z.boolean({ error: 'hectareasAConfirmar tiene que ser true o false' }).default(false),
   areaUtilizable: areaUtilizable.default(null),
+  metrosComedero: metrosComedero.default(null),
   idAreaManejoCigam: claveCigam,
   orden: orden.default(0),
   subdivisiones: subdivisiones.default([]),
@@ -244,6 +255,7 @@ export const editarPotreroSchema = z.object({
   hectareas: hectareas.optional(),
   hectareasAConfirmar: z.boolean({ error: 'hectareasAConfirmar tiene que ser true o false' }).optional(),
   areaUtilizable: areaUtilizable.optional(),
+  metrosComedero: metrosComedero.optional(),
   idAreaManejoCigam: claveCigam.optional(),
   orden: orden.optional(),
   activo: activo.optional(),
@@ -303,13 +315,29 @@ export const usoSchema = z.object({
 
 const idPositivo = (mensaje) => z.int({ error: mensaje }).positive(mensaje);
 
-export const loteSchema = z.object({
-  nombre: z
-    .string({ error: 'El nombre del lote es obligatorio' })
-    .trim()
-    .min(1, 'El nombre del lote es obligatorio')
-    .max(80, 'El nombre del lote no puede superar los 80 caracteres'),
-});
+// Editar un lote: el nombre y, en el feedlot, la entrada al corral (fecha y
+// peso promedio). Vacío (null) borra el dato. Tiene que venir algo.
+export const loteSchema = z
+  .object({
+    nombre: z
+      .string({ error: 'El nombre del lote es obligatorio' })
+      .trim()
+      .min(1, 'El nombre del lote es obligatorio')
+      .max(80, 'El nombre del lote no puede superar los 80 caracteres')
+      .optional(),
+    fechaEntrada: z.preprocess((v) => (v === '' ? null : v), fechaDato.nullable()).optional(),
+    pesoEntradaKg: z
+      .preprocess(
+        (v) => (v === '' || v == null ? null : typeof v === 'string' ? Number(v.trim().replace(',', '.')) : v),
+        z
+          .number({ error: 'El peso de entrada tiene que ser un número' })
+          .positive('El peso de entrada tiene que ser mayor que cero')
+          .max(2000, 'El peso de entrada es demasiado alto')
+          .nullable(),
+      )
+      .optional(),
+  })
+  .refine((d) => Object.values(d).some((v) => v !== undefined), 'No hay nada para cambiar');
 
 export const movimientoSchema = z.object({
   fecha: fechaDato.optional(),
@@ -420,4 +448,14 @@ export const filtrosMovimientosSchema = z.object({
   loteId: idEnUrl,
   categoriaId: idEnUrl,
   tipoId: idEnUrl,
+});
+
+// "Todas las estancias" o "Todos los feedlots" (?grupo=): sin el parámetro,
+// las estancias, como antes.
+export const grupoSchema = z.object({
+  grupo: z
+    .enum(['estancias', 'feedlots'], { error: 'El grupo tiene que ser estancias o feedlots' })
+    .optional()
+    .or(z.literal('').transform(() => undefined))
+    .transform((v) => v ?? 'estancias'),
 });

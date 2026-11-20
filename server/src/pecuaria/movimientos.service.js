@@ -21,7 +21,7 @@ import { detallePotrero, fechaUY, parametrosCarga } from './stock.service.js';
 import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
-const potreroSelect = { id: true, nombre: true, campoId: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
+const potreroSelect = { id: true, nombre: true, campoId: true, tipo: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
 
 async function categoriaActiva(db, id) {
   const c = await db.categoria.findUnique({ where: { id } });
@@ -156,6 +156,7 @@ async function planificar(db, body, { entreCampos = false } = {}) {
     dia,
     modo,
     entreCampos,
+    pesoMovidos: pm ?? null,
     guia: entreCampos ? (body.guia ?? null) : null,
     cabezas: m,
     pesoPromedioKg: body.pesoPromedioKg ?? null,
@@ -217,6 +218,7 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
     plan.loteDestino.id = nuevo.id;
     for (const l of plan.lineasDestino) if (l.loteId === null) l.loteId = nuevo.id;
   }
+  await entradaAlCorral(tx, plan, { entreCampos });
   if (plan.modo === 'ENTERO' || plan.modo === 'CATEGORIA') {
     // Entre campos, el lote entero pasa a la otra estancia.
     await tx.lote.update({ where: { id: lote.id }, data: { potreroId: destino.id, campoId: destino.campoId, categoriaId: plan.categoriaDestino.id } });
@@ -254,6 +256,24 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
     },
   });
   return plan;
+}
+
+// Feedlot: cuando un lote llega a un corral, su entrada (fecha y peso) queda
+// cargada si estaba vacía. Entre campos (de la estancia al feedlot), con la
+// fecha del movimiento y el peso de los que llegan. Dentro del mismo campo
+// (de un corral a otro), una parte que forma un lote nuevo conserva la
+// entrada del lote del que salió: los animales entraron al feedlot ese día.
+async function entradaAlCorral(tx, plan, { entreCampos }) {
+  if (plan.destino.tipo !== 'CORRAL' || plan.mismoPotrero) return;
+  const lote = await tx.lote.findUnique({ where: { id: plan.loteDestino.id }, select: { fechaEntrada: true, pesoEntradaKg: true } });
+  const nuevoDeOtro = !entreCampos && plan.modo === 'NUEVO';
+  const fecha = entreCampos ? aFecha(plan.dia) : nuevoDeOtro ? plan.lote.fechaEntrada : null;
+  const peso = entreCampos ? (plan.pesoMovidos ?? null) : nuevoDeOtro ? plan.lote.pesoEntradaKg : null;
+  const data = {
+    ...(lote.fechaEntrada == null && fecha != null && { fechaEntrada: fecha }),
+    ...(lote.pesoEntradaKg == null && peso != null && { pesoEntradaKg: peso }),
+  };
+  if (Object.keys(data).length) await tx.lote.update({ where: { id: plan.loteDestino.id }, data });
 }
 
 // Lo que se audita de un paso.
@@ -862,7 +882,7 @@ export async function historialLote(id, { puede = () => true } = {}) {
     loteId &&
     (await prisma.lote.findUnique({
       where: { id: loteId },
-      include: { categoria: { select: { nombre: true } }, potrero: { select: { id: true, nombre: true } } },
+      include: { categoria: { select: { nombre: true } }, potrero: { select: { id: true, nombre: true, tipo: true } } },
     }));
   if (!lote) throw notFound('Lote no encontrado');
   const foto = await fotoActual(prisma, lote.potreroId);
@@ -880,6 +900,9 @@ export async function historialLote(id, { puede = () => true } = {}) {
       potrero: lote.potrero,
       campoId: lote.campoId,
       creadoEn: lote.creadoEn,
+      // Feedlot: la entrada al corral.
+      fechaEntrada: fechaISO(lote.fechaEntrada),
+      pesoEntradaKg: lote.pesoEntradaKg == null ? null : Number(lote.pesoEntradaKg),
     },
     actual: linea ? { cabezas: linea.cabezas, pesoPromedioKg: linea.pesoPromedioKg, fecha: fechaISO(foto.version.fecha) } : null,
     familia: await familiaDe(lote, puede),

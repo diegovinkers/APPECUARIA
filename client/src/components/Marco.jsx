@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { TODAS, useEstancia } from '../context/EstanciaContext';
+import { useEstancia } from '../context/EstanciaContext';
+import { FEEDLOTS, TODAS, separarGrupos } from '../navegacion/grupos';
 import { menuPara } from '../navegacion/menu';
 import HojaRegistrar from './HojaRegistrar';
 import { DestinoFiltros, PanelFiltrosProvider, usePanelFiltros } from './PanelFiltros';
@@ -26,25 +27,42 @@ export function Logo({ className = 'h-8 w-8 text-lg' }) {
   );
 }
 
+// Dos grupos (feedlots, 19/11): Estancias y Feedlots, cada uno con su
+// "Todas / Todos" (si tiene más de un campo) y sus campos. Si el usuario no
+// tiene feedlots, la lista es la de siempre, sin grupos.
 export function SelectorEstancia() {
-  const { campos, campoId, todas, campo, setCampoId } = useEstancia();
+  const { campos, campoId, todas, campo, grupo, setCampoId } = useEstancia();
   if (!campos?.length) return null;
   if (campos.length === 1) {
     return <span className="truncate rounded-full bg-white/15 px-3 py-1 text-sm">{campo?.nombre}</span>;
   }
-  return (
-    <select
-      value={todas ? TODAS : (campoId ?? '')}
-      onChange={(e) => setCampoId(e.target.value === TODAS ? TODAS : Number(e.target.value))}
-      aria-label="Estancia"
-      className="max-w-[45vw] truncate rounded-full border-0 bg-white/15 px-3 py-1 text-sm text-white outline-none focus:ring-2 focus:ring-trigo-400 [&>option]:text-suelo-900"
-    >
-      <option value={TODAS}>Todas las estancias</option>
-      {campos.map((c) => (
+  const { estancias, feedlots } = separarGrupos(campos);
+  const opciones = (lista, todos, texto) => (
+    <>
+      {lista.length > 1 && <option value={todos}>{texto}</option>}
+      {lista.map((c) => (
         <option key={c.id} value={c.id}>
           {c.nombre}
         </option>
       ))}
+    </>
+  );
+  const valor = todas ? (grupo === 'feedlots' ? FEEDLOTS : TODAS) : (campoId ?? '');
+  return (
+    <select
+      value={valor}
+      onChange={(e) => setCampoId([TODAS, FEEDLOTS].includes(e.target.value) ? e.target.value : Number(e.target.value))}
+      aria-label="Estancia"
+      className="max-w-[45vw] truncate rounded-full border-0 bg-white/15 px-3 py-1 text-sm text-white outline-none focus:ring-2 focus:ring-trigo-400 [&_option]:text-suelo-900 [&_optgroup]:text-suelo-900"
+    >
+      {feedlots.length === 0 ? (
+        opciones(estancias, TODAS, 'Todas las estancias')
+      ) : (
+        <>
+          {estancias.length > 0 && <optgroup label="Estancias">{opciones(estancias, TODAS, 'Todas las estancias')}</optgroup>}
+          <optgroup label="Feedlots">{opciones(feedlots, FEEDLOTS, 'Todos los feedlots')}</optgroup>
+        </>
+      )}
     </select>
   );
 }

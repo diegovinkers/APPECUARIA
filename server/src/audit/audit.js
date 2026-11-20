@@ -56,7 +56,7 @@ export const ACCION = {
   MOVIMIENTO_REGISTRADO: 'MOVIMIENTO_REGISTRADO',
   // entidad_id = el movimiento que se deshizo. detalle: { revierteA, fecha, cabezas, modoOriginal, origen, destino }
   MOVIMIENTO_REVERTIDO: 'MOVIMIENTO_REVERTIDO',
-  // detalle: { antes: { nombre }, despues: { nombre } }
+  // detalle: lo que cambió de { nombre, fechaEntrada, pesoEntradaKg }, antes y después
   LOTE_EDITADO: 'LOTE_EDITADO',
   // Paso 5 del rediseño. entidad = el evento.
   // detalle: { evento, campoDestino, guia?, fecha, cabezas, modo, origen, destino, categoriaOrigen, categoriaDestino, nota? }

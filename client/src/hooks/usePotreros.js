@@ -13,10 +13,11 @@ export const porEstanciaYPlanilla = (a, b) =>
   a.orden - b.orden ||
   ordenNatural.compare(a.nombre, b.nombre);
 
-// Los potreros de una estancia o, con todas = true ("Todas las estancias"),
-// los de todas las del usuario. Al cambiar, lo anterior se borra enseguida
+// Los potreros de una estancia o, con todas = true, los de todas las del
+// usuario en el grupo ('estancias': "Todas las estancias"; 'feedlots':
+// "Todos los feedlots"). Al cambiar, lo anterior se borra enseguida
 // (que no quede la tabla de otra estancia mientras carga).
-export default function usePotreros(campoId, todas = false) {
+export default function usePotreros(campoId, todas = false, grupo = 'estancias') {
   const [potreros, setPotreros] = useState(null);
   const [errors, setErrors] = useState([]);
 
@@ -25,7 +26,7 @@ export default function usePotreros(campoId, todas = false) {
     setErrors([]);
     if (!campoId && !todas) return undefined;
     let vigente = true;
-    (todas ? getPotrerosTodas() : getPotreros(campoId))
+    (todas ? getPotrerosTodas(grupo) : getPotreros(campoId))
       .then(({ data }) => {
         if (vigente) setPotreros([...data].sort(porEstanciaYPlanilla));
       })
@@ -33,7 +34,7 @@ export default function usePotreros(campoId, todas = false) {
     return () => {
       vigente = false;
     };
-  }, [campoId, todas]);
+  }, [campoId, todas, grupo]);
 
   return { potreros, errors };
 }

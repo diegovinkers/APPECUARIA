@@ -1,5 +1,5 @@
 import { categorias, listParametros, setParametro, usosSuelo } from './catalogos.repository.js';
-import { filtroCampos, puedeCampo } from './alcance.js';
+import { filtroCampos, filtroGrupo, puedeCampo } from './alcance.js';
 import * as lugares from './lugares.repository.js';
 import * as importaciones from './importaciones.service.js';
 import * as stock from './stock.service.js';
@@ -9,7 +9,8 @@ import * as tipos from './tipos.repository.js';
 import * as entradasSalidas from './entradas-salidas.service.js';
 import { ACCION, cambios, registrar } from '../audit/audit.js';
 import { badRequest, notFound, parseId } from '../errors.js';
-import { filtrosMovimientosSchema } from './pecuaria.schema.js';
+import { filtrosMovimientosSchema, grupoSchema } from './pecuaria.schema.js';
+import * as feedlot from './feedlot.service.js';
 
 // Las claves que vinieron en el body: son las que se comparan para auditar.
 const clavesEnviadas = (body) => Object.keys(body).filter((k) => body[k] !== undefined);
@@ -78,6 +79,13 @@ export const camposController = abm({
   noEncontrado: 'Campo no encontrado',
 });
 
+// ?grupo=estancias|feedlots → el filtro de campos del usuario para ese grupo.
+function filtroDelGrupo(req) {
+  const r = grupoSchema.safeParse(req.query);
+  if (!r.success) throw badRequest(r.error.issues[0].message);
+  return filtroGrupo(req.user, r.data.grupo);
+}
+
 // Cada uno ve solo sus estancias (alcance.js).
 camposController.list = async (req, res) => res.json(await lugares.listCampos(filtroCampos(req.user)));
 
@@ -115,7 +123,7 @@ export async function listPotreros(req, res) {
 
 // "Todas las estancias": los potreros de todas las del usuario.
 export async function listPotrerosTodas(req, res) {
-  res.json(await lugares.listPotrerosTodas(filtroCampos(req.user)));
+  res.json(await lugares.listPotrerosTodas(filtroDelGrupo(req)));
 }
 
 export async function createPotrero(req, res) {
@@ -203,7 +211,18 @@ export async function putUso(req, res) {
 
 // Todas las estancias que el usuario puede ver, sumadas.
 export async function getResumenTodas(req, res) {
-  res.json(await resumenTodas(filtroCampos(req.user)));
+  res.json(await resumenTodas(filtroDelGrupo(req)));
+}
+
+// --- Feedlot: el análisis por corral ---
+
+export async function getFeedlot(req, res) {
+  res.json(await feedlot.feedlotCampo(req.params.campoId));
+}
+
+// Todos los feedlots del usuario.
+export async function getFeedlots(req, res) {
+  res.json(await feedlot.feedlotsTodos(filtroGrupo(req.user, 'feedlots')));
 }
 
 export async function getResumen(req, res) {
@@ -212,17 +231,12 @@ export async function getResumen(req, res) {
 
 // --- Lotes y movimientos ---
 
+// El nombre y, en el feedlot, la entrada al corral. Solo se audita lo que cambió.
 export async function patchLote(req, res) {
-  const { antes, despues } = await stock.renombrarLote(req.params.id, req.body.nombre);
-  if (antes.nombre !== despues.nombre) {
-    await registrar(req, {
-      accion: ACCION.LOTE_EDITADO,
-      entidad: 'lote',
-      entidadId: despues.id,
-      detalle: { antes: { nombre: antes.nombre }, despues: { nombre: despues.nombre } },
-    });
-  }
-  res.json({ id: despues.id, nombre: despues.nombre, potreroId: despues.potreroId, categoriaId: despues.categoriaId, activo: despues.activo });
+  const { antes, despues, lote } = await stock.editarLote(req.params.id, req.body);
+  const detalle = cambios(antes, despues, clavesEnviadas(req.body));
+  if (detalle) await registrar(req, { accion: ACCION.LOTE_EDITADO, entidad: 'lote', entidadId: lote.id, detalle });
+  res.json({ id: lote.id, potreroId: lote.potreroId, categoriaId: lote.categoriaId, activo: lote.activo, ...despues });
 }
 
 export async function postVistaPreviaMovimiento(req, res) {
@@ -284,7 +298,7 @@ export async function getMovimientos(req, res) {
 export async function getMovimientosTodas(req, res) {
   const filtros = filtrosMovimientosSchema.safeParse(req.query);
   if (!filtros.success) throw badRequest(filtros.error.issues[0].message);
-  res.json(await movimientos.listarTodas(filtroCampos(req.user), filtros.data));
+  res.json(await movimientos.listarTodas(filtroDelGrupo(req), filtros.data));
 }
 
 // --- Entradas y salidas ---

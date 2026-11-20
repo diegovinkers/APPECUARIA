@@ -72,6 +72,8 @@ export function categoriasCortas(lotes = []) {
 // peso, no hay promedio.
 export const pesoPromedio = (p) => (p.stock?.cabezas && p.stock.kilosCompletos && p.stock.kilos != null ? p.stock.kilos / p.stock.cabezas : null);
 
+// Un corral (feedlot) sin uso de suelo cargado se muestra como "Corral".
+const usoDe = (p) => p.usoActual ?? (p.tipo === 'CORRAL' ? { nombre: 'Corral', grupo: 'CORRAL' } : null);
 const grupoDe = (p) => (p.tipo === 'CORRAL' ? 'CORRAL' : (p.usoActual?.grupo ?? 'OTRO'));
 const incompleto = (p) => p.hectareasAConfirmar || (p.stock && !p.stock.kilosCompletos);
 
@@ -358,13 +360,13 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
         {/* Debajo, en renglones propios: el uso y lo que hay (pedido de Diego, 19/11). */}
         <div className="mt-0.5 text-xs font-normal leading-4 text-suelo-600 md:hidden" data-testid="linea-celular">
           <div className="flex min-w-0">
-            <UsoBadge uso={p.usoActual} chico />
+            <UsoBadge uso={usoDe(p)} chico />
           </div>
           <span className="mt-0.5 block truncate">{vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}</span>
         </div>
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`}>
-        <UsoBadge uso={p.usoActual} />
+        <UsoBadge uso={usoDe(p)} />
       </td>
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap text-right tabular-nums`}>
         {p.hectareasAConfirmar ? (

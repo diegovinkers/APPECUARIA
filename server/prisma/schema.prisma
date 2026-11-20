@@ -324,6 +324,8 @@ model Potrero {
   /// Lo que usa de verdad el uso de suelo (ej. 40 de 50 ha sembradas). La
   /// carga por hectárea se calcula sobre esto. null = todas las hectáreas.
   areaUtilizable      Decimal?    @map("area_utilizable") @db.Decimal(10, 2)
+  /// Corrales del feedlot: los metros de comedero (columna "mts.com." de la hoja de corrales).
+  metrosComedero      Decimal?    @map("metros_comedero") @db.Decimal(8, 2)
   idAreaManejoCigam   String?     @map("id_area_manejo_cigam") @db.VarChar(30)
   activo              Boolean     @default(true)
   orden               Int         @default(0)
@@ -510,6 +512,11 @@ model Lote {
   /// parte que se apartó de otro ("sigue siendo el mismo lote"), el lote
   /// original. Las partes de una familia comparten la raíz; la raíz no tiene.
   raizId        Int?     @map("raiz_id")
+  /// Feedlot: cuándo entró al corral ("fecha inicio" de la hoja de corrales)
+  /// y con cuánto peso promedio ("kg inicio"). Sirven para los días de
+  /// encierre, el peso estimado y la salida probable (feedlot.service.js).
+  fechaEntrada  DateTime? @map("fecha_entrada") @db.Date
+  pesoEntradaKg Decimal?  @map("peso_entrada_kg") @db.Decimal(7, 2)
   creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
   actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
 

@@ -1,10 +1,78 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { getLote } from '../api/pecuaria';
+import { editarLote, getLote } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
-import { ErrorList } from '../components/ui';
+import { ErrorList, Notice, inputClass } from '../components/ui';
 import { formatFecha, formatNumero } from '../components/pecuaria';
 import { MovimientoItem } from '../components/movimientos';
+import usePuede from '../hooks/usePuede';
+
+const hoy = () => new Date().toLocaleDateString('sv-SE');
+const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
+
+// Feedlot: cuándo entró el lote al corral y con cuánto peso promedio. Con eso
+// el Resumen del feedlot calcula los días de encierre, el peso de hoy y la
+// salida probable. Se edita con el permiso de registrar (como el nombre).
+export function EntradaCorral({ lote, puedeEditar, onGuardar }) {
+  const [editando, setEditando] = useState(false);
+  const [fecha, setFecha] = useState(lote.fechaEntrada ?? '');
+  const [peso, setPeso] = useState(lote.pesoEntradaKg == null ? '' : String(lote.pesoEntradaKg));
+  const [ocupado, setOcupado] = useState(false);
+  const pesoNum = aNumero(peso);
+  const pesoMal = pesoNum != null && !(pesoNum > 0);
+
+  async function guardar(e) {
+    e.preventDefault();
+    setOcupado(true);
+    try {
+      if (await onGuardar({ fechaEntrada: fecha || null, pesoEntradaKg: pesoNum })) setEditando(false);
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <section className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3" aria-label="Entrada al corral">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="font-semibold">Entrada al corral</p>
+        {puedeEditar && !editando && (
+          <button type="button" onClick={() => setEditando(true)} className="text-sm text-campo-600 hover:underline">
+            Editar
+          </button>
+        )}
+      </div>
+      {!editando ? (
+        <p className="mt-1 text-sm text-suelo-700">
+          {lote.fechaEntrada ? `Entró el ${formatFecha(lote.fechaEntrada)}` : 'Sin fecha de entrada'}
+          {' · '}
+          {lote.pesoEntradaKg != null ? `${formatNumero(lote.pesoEntradaKg)} kg promedio` : 'sin peso de entrada'}
+        </p>
+      ) : (
+        <form onSubmit={guardar} className="mt-2 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm text-suelo-600">
+              Fecha de entrada
+              <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
+            </label>
+            <label className="text-sm text-suelo-600">
+              Peso de entrada (kg promedio)
+              <input inputMode="decimal" value={peso} onChange={(e) => setPeso(e.target.value)} aria-label="Peso de entrada" className={`${inputClass} mt-1`} />
+            </label>
+          </div>
+          {pesoMal && <p className="text-sm text-red-700">El peso tiene que ser mayor que cero.</p>}
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setEditando(false)} className="rounded-md border border-suelo-300 px-3 py-2 text-sm">
+              Cancelar
+            </button>
+            <button type="submit" disabled={ocupado || pesoMal} className="rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+              {ocupado ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
 
 // Un lote repartido en varios potreros (familia de lotes): sus partes, con
 // las cabezas de cada una y el total.
@@ -44,14 +112,36 @@ function Familia({ familia, loteId }) {
 // Historial de un lote: dónde está, qué tiene y por dónde pasó.
 export default function LotePage() {
   const { id } = useParams();
+  const puedo = usePuede();
   const [datos, setDatos] = useState(null);
   const [errors, setErrors] = useState([]);
+  const [aviso, setAviso] = useState(null);
 
+  const cargar = useCallback(
+    () =>
+      getLote(id)
+        .then(({ data }) => setDatos(data))
+        .catch((error) => setErrors(getErrorMessages(error, 'No se pudo cargar el lote'))),
+    [id],
+  );
   useEffect(() => {
-    getLote(id)
-      .then(({ data }) => setDatos(data))
-      .catch((error) => setErrors(getErrorMessages(error, 'No se pudo cargar el lote')));
-  }, [id]);
+    cargar();
+  }, [cargar]);
+
+  // Devuelve true si se guardó.
+  async function guardarEntrada(cambio) {
+    try {
+      await editarLote(id, cambio);
+      setErrors([]);
+      setAviso('Entrada al corral guardada.');
+      await cargar();
+      return true;
+    } catch (error) {
+      setAviso(null);
+      setErrors(getErrorMessages(error, 'No se pudo guardar'));
+      return false;
+    }
+  }
 
   if (!datos) {
     return (
@@ -62,6 +152,8 @@ export default function LotePage() {
     );
   }
   const { lote, actual, familia, movimientos } = datos;
+  // La entrada al corral se ve en un corral, o si ya tiene datos (un lote que salió del feedlot).
+  const conEntrada = lote.potrero.tipo === 'CORRAL' || lote.fechaEntrada || lote.pesoEntradaKg != null;
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
       <Link to="/pecuaria/movimientos" className="text-sm text-campo-600 hover:underline">
@@ -89,6 +181,12 @@ export default function LotePage() {
       ) : (
         <p className="mt-4 text-suelo-600">Hoy no tiene animales.</p>
       )}
+
+      <div className="mt-3">
+        <ErrorList errors={errors} />
+        <Notice tone="ok">{aviso}</Notice>
+      </div>
+      {conEntrada && <EntradaCorral key={`${lote.fechaEntrada}-${lote.pesoEntradaKg}`} lote={lote} puedeEditar={puedo('pecuaria:CREAR')} onGuardar={guardarEntrada} />}
 
       {familia && <Familia familia={familia} loteId={lote.id} />}
 

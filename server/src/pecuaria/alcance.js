@@ -20,6 +20,14 @@ export const puedeCampo = (user, campoId) => veTodas(user) || user.campoIds.incl
 // El filtro para listar campos: undefined (todas) o { id: { in: [...] } }.
 export const filtroCampos = (user) => (veTodas(user) ? undefined : { id: { in: user.campoIds } });
 
+// Los dos grupos del selector de arriba (feedlots, 19/11): "Todas las
+// estancias" son las estancias y las granjas; "Todos los feedlots", los
+// confinamientos. Su análisis es distinto: no se suman entre sí.
+export const TIPOS_GRUPO = { estancias: ['ESTANCIA', 'GRANJA'], feedlots: ['CONFINAMIENTO'] };
+
+// filtroCampos más el tipo de campo del grupo.
+export const filtroGrupo = (user, grupo = 'estancias') => ({ ...filtroCampos(user), tipo: { in: TIPOS_GRUPO[grupo] } });
+
 function exigir(user, campoId) {
   if (campoId == null || !puedeCampo(user, campoId)) throw notFound(NO_ENCONTRADO);
 }

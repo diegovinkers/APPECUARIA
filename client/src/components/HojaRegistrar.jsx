@@ -19,7 +19,8 @@ const TONO = {
 export default function HojaRegistrar({ acciones, onCerrar }) {
   const navigate = useNavigate();
   const estancia = useEstancia();
-  // Con "Todas las estancias" elegido, primero se pide cuál.
+  // Con "Todas las estancias" o "Todos los feedlots" elegido, primero se pide
+  // cuál (de ese grupo).
   const [elegida, setElegida] = useState(null);
   const campoId = estancia.todas ? elegida?.id : estancia.campoId;
   const campo = estancia.todas ? elegida : estancia.campo;
@@ -62,7 +63,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
 
   const pideEstancia = accion && estancia.todas && !elegida;
   let titulo = 'Registrar';
-  if (pideEstancia) titulo = '¿En qué estancia?';
+  if (pideEstancia) titulo = estancia.esFeedlot ? '¿En qué feedlot?' : '¿En qué estancia?';
   else if (accion && !potrero) titulo = accion.pregunta;
   if (potrero) titulo = `¿Qué lote de ${potrero.nombre}?`;
 
@@ -111,7 +112,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
 
         {pideEstancia && (
           <ul className="-mx-1 divide-y divide-suelo-200">
-            {(estancia.campos ?? []).map((c) => (
+            {(estancia.camposDelGrupo ?? estancia.campos ?? []).map((c) => (
               <li key={c.id}>
                 <button type="button" onClick={() => setElegida(c)} className="w-full px-2 py-3 text-left font-medium hover:bg-suelo-100">
                   {c.nombre}

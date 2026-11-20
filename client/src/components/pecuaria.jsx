@@ -88,3 +88,23 @@ export function Dato({ valor, etiqueta }) {
     </div>
   );
 }
+
+// --- Feedlot ---
+
+// Una fecha corta para las tablas del celular: "28/12" (si es de otro año que
+// hoy, "28/12/27").
+export function formatDiaMes(iso, hoy) {
+  if (!iso) return '—';
+  const [a, m, d] = iso.split('-');
+  return hoy && hoy.slice(0, 4) !== a ? `${d}/${m}/${a.slice(2)}` : `${d}/${m}`;
+}
+
+// Cuánto falta para la salida: "en 20 d", "hoy" o "hace 3 d" (ya pasó).
+export function textoFaltan(dias) {
+  if (dias == null) return '—';
+  if (dias === 0) return 'hoy';
+  return dias > 0 ? `en ${formatNumero(dias)} d` : `hace ${formatNumero(-dias)} d`;
+}
+
+// Metros de comedero por cabeza: "0,32 m".
+export const formatMetros = (m) => (m == null ? '—' : `${formatNumero(m, 2)} m`);

@@ -1,25 +1,33 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getResumenTodas } from '../../api/pecuaria';
+import { getFeedlot, getFeedlots, getResumenTodas } from '../../api/pecuaria';
 import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, Notice } from '../../components/ui';
 import { Dato, formatFecha, formatNumero } from '../../components/pecuaria';
 import ResumenCampo, { TablaResumen } from '../../components/ResumenCampo';
+import FeedlotAnalisis from '../../components/FeedlotAnalisis';
 import { Encabezado, SinEstancia } from './comun';
 
 // Lo primero que se ve al entrar: los totales de la estancia y el resumen por
 // categoría (CN / Verdeos / Corral / Otro). Con "Todas las estancias", las
 // suma y muestra una fila por estancia (tocarla la elige).
+// Con un feedlot o "Todos los feedlots", la vista del feedlot: una tabla por
+// corral (FeedlotAnalisis), que no se mezcla con las estancias.
 export default function ResumenPage() {
   const location = useLocation();
-  const { campoId, todas } = useEstancia();
+  const { campoId, todas, esFeedlot } = useEstancia();
+
+  let contenido;
+  if (esFeedlot && (todas || campoId)) contenido = <ResumenFeedlot campoId={campoId} todas={todas} />;
+  else if (todas) contenido = <ResumenTodas />;
+  else if (campoId) contenido = <ResumenUna campoId={campoId} />;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
       <Notice tone="ok">{location.state?.aviso}</Notice>
-      {todas ? <ResumenTodas /> : campoId ? <ResumenUna campoId={campoId} /> : (
+      {contenido ?? (
         <>
           <Encabezado titulo="Resumen" />
           <SinEstancia />
@@ -60,13 +68,43 @@ function ResumenUna({ campoId }) {
   );
 }
 
+// La vista del feedlot: de uno, o de todos los del usuario.
+export function ResumenFeedlot({ campoId, todas }) {
+  const { setCampoId } = useEstancia();
+  const [analisis, setAnalisis] = useState(null);
+  const [errors, setErrors] = useState([]);
+
+  useEffect(() => {
+    setAnalisis(null);
+    setErrors([]);
+    let vigente = true;
+    (todas ? getFeedlots() : getFeedlot(campoId))
+      .then(({ data }) => vigente && setAnalisis(data))
+      .catch((error) => vigente && setErrors(getErrorMessages(error, 'No se pudo cargar el feedlot')));
+    return () => {
+      vigente = false;
+    };
+  }, [campoId, todas]);
+
+  return (
+    <>
+      <Encabezado titulo="Resumen">
+        {analisis?.fecha && <span className="text-sm text-suelo-500">dato al {formatFecha(analisis.fecha)}</span>}
+      </Encabezado>
+      <ErrorList errors={errors} />
+      {!analisis && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {analisis && <FeedlotAnalisis analisis={analisis} todas={todas} onElegir={setCampoId} />}
+    </>
+  );
+}
+
 function ResumenTodas() {
   const { setCampoId } = useEstancia();
   const [resumen, setResumen] = useState(null);
   const [errors, setErrors] = useState([]);
 
   useEffect(() => {
-    getResumenTodas()
+    getResumenTodas('estancias')
       .then(({ data }) => setResumen(data))
       .catch((error) => setErrors(getErrorMessages(error, 'No se pudo cargar el resumen')));
   }, []);

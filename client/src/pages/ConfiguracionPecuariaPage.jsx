@@ -29,6 +29,8 @@ const SEXOS = [
 ];
 const boton = 'rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white hover:bg-campo-700 disabled:opacity-50';
 const selectClass = 'rounded-md border border-suelo-300 bg-white px-2 py-1.5 text-sm text-suelo-900';
+// "1,5" o "1.5" → 1.5 (vacío: null).
+const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).trim().replace(',', '.')));
 // "Ternero, Terneros" → ["Ternero", "Terneros"]
 const separarAlias = (texto) =>
   texto
@@ -41,6 +43,8 @@ const separarAlias = (texto) =>
 // cambio queda en la auditoría.
 export default function ConfiguracionPecuariaPage() {
   const [kgPorUg, setKgPorUg] = useState('');
+  const [gmd, setGmd] = useState('');
+  const [ciclo, setCiclo] = useState('');
   const [usos, setUsos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -50,7 +54,10 @@ export default function ConfiguracionPecuariaPage() {
 
   const cargar = useCallback(async () => {
     const [p, u, c, t, ca] = await Promise.all([getParametros(), getUsosSuelo(), getCategorias(), getTiposMovimiento(), getCausas()]);
-    setKgPorUg(String(p.data.find((x) => x.clave === 'KG_POR_UG')?.valor ?? ''));
+    const valor = (clave) => String(p.data.find((x) => x.clave === clave)?.valor ?? '').replace('.', ',');
+    setKgPorUg(valor('KG_POR_UG'));
+    setGmd(valor('GMD_FEEDLOT_KG'));
+    setCiclo(valor('CICLO_FEEDLOT_DIAS'));
     setUsos(u.data);
     setCategorias(c.data);
     setTipos(t.data);
@@ -104,6 +111,38 @@ export default function ConfiguracionPecuariaPage() {
           />
           <span className="text-sm">kg de peso vivo</span>
           <button type="submit" className={boton} disabled={!(Number(kgPorUg.replace(',', '.')) > 0)}>
+            Guardar
+          </button>
+        </form>
+      </section>
+
+      <section className="mb-8 rounded-lg border border-suelo-200 p-4" aria-label="Feedlot">
+        <h2 className="mb-1 text-lg font-semibold">Feedlot</h2>
+        <p className="mb-3 text-sm text-suelo-600">
+          Para el Resumen del feedlot: el peso estimado de hoy (peso de entrada + días × ganancia diaria) y la salida probable (entrada + días del
+          ciclo). Los valores de arranque son los de CIGAM.
+        </p>
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            guardar(async () => {
+              await setParametro('GMD_FEEDLOT_KG', aNumero(gmd));
+              await setParametro('CICLO_FEEDLOT_DIAS', aNumero(ciclo));
+            }, `Listo: ${gmd} kg por día y ${ciclo} días de ciclo.`);
+          }}
+        >
+          <label className="flex items-center gap-2 text-sm">
+            Ganancia diaria
+            <input inputMode="decimal" value={gmd} onChange={(e) => setGmd(e.target.value)} aria-label="Ganancia diaria (kg por día)" className={`${inputClass.replace('w-full', '')} w-20`} />
+            kg por día
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            Ciclo
+            <input inputMode="numeric" value={ciclo} onChange={(e) => setCiclo(e.target.value)} aria-label="Días del ciclo" className={`${inputClass.replace('w-full', '')} w-20`} />
+            días
+          </label>
+          <button type="submit" className={boton} disabled={!(aNumero(gmd) > 0 && aNumero(ciclo) > 0)}>
             Guardar
           </button>
         </form>

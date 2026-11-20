@@ -3,19 +3,23 @@ import { getCampos } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { useAuth } from './AuthContext';
 import { puede } from '../navegacion/menu';
+import { FEEDLOTS, TODAS, grupoDeCampo, seleccionValida, separarGrupos } from '../navegacion/grupos';
 
 // La estancia (campo) que se está mirando. La elige el selector de la barra de
 // arriba y la usan Resumen, Potreros, Movimientos y el botón "+".
-// Quien tiene más de una puede elegir "Todas": el Resumen las suma, y Potreros,
-// Movimientos y el "+" piden elegir una (todas = true, campoId = null).
-// Se recuerda en este celular; si no se puede (modo privado), arranca en la primera.
+// Hay dos grupos (feedlots, 19/11): las estancias (y granjas) y los feedlots
+// (confinamientos), que se analizan distinto y no se suman entre sí.
+// Quien tiene más de un campo en un grupo puede elegir "Todas las estancias"
+// o "Todos los feedlots": el Resumen los suma, Potreros y Movimientos los
+// listan juntos, y el "+" pide elegir uno (todas = true, campoId = null).
+// Se recuerda en este celular; si no se puede (modo privado), arranca en el primero.
 const CLAVE = 'sapsa.estancia';
-export const TODAS = 'todas';
+export { TODAS, FEEDLOTS, grupoDeCampo, separarGrupos } from '../navegacion/grupos';
 
 function leerGuardada() {
   try {
     const v = localStorage.getItem(CLAVE);
-    return v === TODAS ? TODAS : Number(v) || null;
+    return v === TODAS || v === FEEDLOTS ? v : Number(v) || null;
   } catch {
     return null;
   }
@@ -39,15 +43,12 @@ export function EstanciaProvider({ children }) {
     getCampos()
       .then(({ data }) => {
         setCampos(data);
-        setSeleccion((actual) => {
-          if (actual === TODAS && data.length > 1) return TODAS;
-          return data.some((c) => c.id === actual) ? actual : (data[0]?.id ?? null);
-        });
+        setSeleccion((actual) => seleccionValida(actual, data));
       })
       .catch((error) => setErrors(getErrorMessages(error, 'No se pudieron cargar las estancias')));
   }, [habilitado]);
 
-  // id de una estancia, o TODAS.
+  // id de un campo, TODAS o FEEDLOTS.
   function setCampoId(valor) {
     setSeleccion(valor);
     try {
@@ -58,9 +59,13 @@ export function EstanciaProvider({ children }) {
   }
 
   const value = useMemo(() => {
-    const todas = seleccion === TODAS;
+    const todas = seleccion === TODAS || seleccion === FEEDLOTS;
     const campoId = todas ? null : seleccion;
-    return { campos, campoId, todas, campo: campos?.find((c) => c.id === campoId) ?? null, setCampoId, errors };
+    const campo = campos?.find((c) => c.id === campoId) ?? null;
+    const grupo = seleccion === FEEDLOTS ? 'feedlots' : seleccion === TODAS ? 'estancias' : grupoDeCampo(campo);
+    // Los campos del grupo elegido (lo que ofrece el "+" con "Todos").
+    const camposDelGrupo = separarGrupos(campos ?? [])[grupo];
+    return { campos, campoId, todas, campo, grupo, esFeedlot: grupo === 'feedlots', camposDelGrupo, setCampoId, errors };
   }, [campos, seleccion, errors]);
   return <EstanciaContext.Provider value={value}>{children}</EstanciaContext.Provider>;
 }

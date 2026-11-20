@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aprox, cabezasPorCategoria, familiasJuntas, formatUsd, nombreConSigla } from './pecuaria.jsx';
+import { aprox, cabezasPorCategoria, familiasJuntas, formatDiaMes, formatMetros, formatUsd, nombreConSigla, textoFaltan } from './pecuaria.jsx';
 
 describe('nombreConSigla', () => {
   const p = { nombre: '8.1', campo: { sigla: 'EG' } };
@@ -49,5 +49,26 @@ describe('aprox y formatUsd', () => {
     expect(aprox(false, '1,25')).toBe('1,25');
     expect(formatUsd(93500)).toBe('USD 93.500');
     expect(formatUsd(null)).toBe('—');
+  });
+});
+
+describe('formateos del feedlot', () => {
+  it('fecha corta: día/mes, y el año si no es el de hoy', () => {
+    expect(formatDiaMes('2026-12-28', '2026-11-19')).toBe('28/12');
+    expect(formatDiaMes('2027-01-29', '2026-11-19')).toBe('29/01/27');
+    expect(formatDiaMes(null, '2026-11-19')).toBe('—');
+  });
+
+  it('cuánto falta para la salida', () => {
+    expect(textoFaltan(20)).toBe('en 20 d');
+    expect(textoFaltan(0)).toBe('hoy');
+    expect(textoFaltan(-3)).toBe('hace 3 d');
+    expect(textoFaltan(null)).toBe('—');
+  });
+
+  it('metros de comedero por cabeza', () => {
+    expect(formatMetros(0.3)).toBe('0,3 m');
+    expect(formatMetros(1.6)).toBe('1,6 m');
+    expect(formatMetros(null)).toBe('—');
   });
 });

@@ -184,7 +184,7 @@ function Selector({ etiqueta, valor, onChange, children }) {
 // se despliega con sus pasos. Se ordena tocando el título de la columna; abajo,
 // los totales de lo filtrado. En el celular se desplaza de costado con la
 // fecha fija. Registrar se hace desde el botón "+".
-export default function MovimientosLista({ campoId, potreros, todas = false }) {
+export default function MovimientosLista({ campoId, potreros, todas = false, grupo = 'estancias' }) {
   const puedo = usePuede();
   const [params, setParams] = useSearchParams();
   const f = {
@@ -222,10 +222,10 @@ export default function MovimientosLista({ campoId, potreros, todas = false }) {
 
   const cargar = useCallback(
     () =>
-      (todas ? getMovimientosTodas(filtrosApi) : getMovimientos(campoId, filtrosApi))
+      (todas ? getMovimientosTodas(filtrosApi, grupo) : getMovimientos(campoId, filtrosApi))
         .then(({ data }) => setDatos(data))
         .catch((error) => setErrors(getErrorMessages(error, 'No se pudieron cargar los movimientos'))),
-    [campoId, todas, filtrosApi],
+    [campoId, todas, grupo, filtrosApi],
   );
   useEffect(() => {
     cargar();

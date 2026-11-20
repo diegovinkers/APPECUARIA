@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Lo que devuelven los contextos y la API, a mano en cada test.
-const estado = vi.hoisted(() => ({ user: null, campos: [], potreros: [], todas: false }));
+const estado = vi.hoisted(() => ({ user: null, campos: [], potreros: [], todas: false, grupo: 'estancias', setCampoId: null }));
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ user: estado.user, logout: vi.fn() }),
@@ -17,7 +17,10 @@ vi.mock('../context/EstanciaContext', () => ({
     todas: estado.todas,
     campoId: estado.todas ? null : (estado.campos[0]?.id ?? null),
     campo: estado.todas ? null : (estado.campos[0] ?? null),
-    setCampoId: vi.fn(),
+    grupo: estado.grupo,
+    esFeedlot: estado.grupo === 'feedlots',
+    camposDelGrupo: estado.campos.filter((c) => (c.tipo === 'CONFINAMIENTO') === (estado.grupo === 'feedlots')),
+    setCampoId: estado.setCampoId ?? vi.fn(),
     errors: [],
   }),
 }));
@@ -70,6 +73,8 @@ beforeEach(() => {
   estado.campos = [EG];
   estado.potreros = [];
   estado.todas = false;
+  estado.grupo = 'estancias';
+  estado.setCampoId = null;
   contenedor = document.createElement('div');
   document.body.appendChild(contenedor);
   root = createRoot(contenedor);
@@ -122,6 +127,53 @@ describe('Marco: barras y panel', () => {
     montar();
     const select = contenedor.querySelector('select[aria-label="Estancia"]');
     expect([...select.options].map((o) => o.textContent)).toEqual(['Todas las estancias', 'La Gateada', 'Otra estancia']);
+  });
+
+  it('con feedlots, dos grupos: Estancias y Feedlots, cada uno con su "Todas / Todos"', () => {
+    estado.campos = [
+      EG,
+      { id: 2, sigla: 'ES', nombre: 'Otra estancia' },
+      { id: 7, sigla: 'FA', nombre: 'Feedlot A', tipo: 'CONFINAMIENTO' },
+      { id: 8, sigla: 'FB', nombre: 'Feedlot B', tipo: 'CONFINAMIENTO' },
+    ];
+    estado.setCampoId = vi.fn();
+    montar();
+    const select = contenedor.querySelector('select[aria-label="Estancia"]');
+    const grupos = [...select.querySelectorAll('optgroup')].map((g) => [g.label, [...g.querySelectorAll('option')].map((o) => o.textContent)]);
+    expect(grupos).toEqual([
+      ['Estancias', ['Todas las estancias', 'La Gateada', 'Otra estancia']],
+      ['Feedlots', ['Todos los feedlots', 'Feedlot A', 'Feedlot B']],
+    ]);
+    act(() => {
+      select.value = 'feedlots';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(estado.setCampoId).toHaveBeenCalledWith('feedlots');
+    act(() => {
+      select.value = '7';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(estado.setCampoId).toHaveBeenLastCalledWith(7);
+  });
+
+  it('con "Todos los feedlots" elegido, el selector lo muestra; con un solo feedlot, no hay "Todos"', () => {
+    estado.campos = [EG, { id: 7, sigla: 'FA', nombre: 'Feedlot A', tipo: 'CONFINAMIENTO' }];
+    montar();
+    const select = contenedor.querySelector('select[aria-label="Estancia"]');
+    expect([...select.options].map((o) => o.textContent)).toEqual(['La Gateada', 'Feedlot A']);
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    estado.campos = [EG, { id: 7, sigla: 'FA', nombre: 'Feedlot A', tipo: 'CONFINAMIENTO' }, { id: 8, sigla: 'FB', nombre: 'Feedlot B', tipo: 'CONFINAMIENTO' }];
+    estado.todas = true;
+    estado.grupo = 'feedlots';
+    montar();
+    expect(contenedor.querySelector('select[aria-label="Estancia"]').value).toBe('feedlots');
+  });
+
+  it('sin feedlots, la lista no tiene grupos', () => {
+    estado.campos = [EG, { id: 2, sigla: 'ES', nombre: 'Otra estancia' }];
+    montar();
+    expect(contenedor.querySelector('select[aria-label="Estancia"] optgroup')).toBeNull();
   });
 
   it('el botón ☰ de arriba despliega el menú, y tocar afuera lo cierra', () => {
@@ -266,6 +318,18 @@ describe('Marco: el botón +', () => {
     expect(texto()).toContain('¿A qué potrero entran?');
     elegir('14');
     expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14');
+  });
+
+  it('con "Todos los feedlots" elegido, pregunta en qué feedlot (solo los feedlots)', () => {
+    estado.campos = [EG, { id: 7, sigla: 'FA', nombre: 'Feedlot A', tipo: 'CONFINAMIENTO' }, { id: 8, sigla: 'FB', nombre: 'Feedlot B', tipo: 'CONFINAMIENTO' }];
+    estado.todas = true;
+    estado.grupo = 'feedlots';
+    montar();
+    click(boton('Registrar'));
+    elegir('Entrada');
+    expect(texto()).toContain('¿En qué feedlot?');
+    const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
+    expect(opciones).toEqual(['Feedlot A', 'Feedlot B']);
   });
 
   it('la búsqueda filtra los potreros', () => {

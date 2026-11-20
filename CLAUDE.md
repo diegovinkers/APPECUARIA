@@ -200,11 +200,36 @@ En `client/`: `npm run dev`.
         - Salen de la hoja KG.$ del DICOSE al 30/06. Diego aprobó la correspondencia; las "supuesto" (Terneros/Terneras chicos, Vacas, Vacas CUT, Vaquillonas paridas, Novillos y Vaquillonas generales) no tienen fila propia en la hoja.
         - Resultado: **USD 11,84 M** por 10.934 cabezas (EG 6,99 M · ES 1,32 M · ER 1,16 M · ELS 1,52 M · LA PALMA 0,45 M · ESP 0,39 M). UG/ha estimada: CN 0,81 y Verdeos 0,89.
         - En Render falta correr la misma receta con `correr-en-render.mjs`: el código ya está publicado.
-      - **Columna Valor en la tabla del Resumen (19/11), hecha en desarrollo, sin commitear:**
+      - **Precios de mercado (19/11), en la base local:**
+        - Receta `docs/info santi/precios-mercado-11-2026.mjs` (fuera de git). Reemplaza los precios del DICOSE; los pesos quedan los de la hoja KG.$.
+        - Fuentes: Plaza Rural remate 330 (USD/kg en pie: terneros 4,11 · terneras 4,33 · vaquillonas 1-2 3,78 · +2 3,38 · novillos 1-2 3,69 · 2-3 3,30 · vacas de invernada 2,78), Lote 21 (vientres preñados ~USD 1.350/cab), novillo gordo en pie 3,30 y zafra de toros 2026 (USD 4.958; Angus 5.059, Brangus 4.917).
+        - Resultado: **USD 12,57 M** por 10.934 cabezas.
+        - **Cargados también en Render (19/11)** con `correr-en-render.mjs`: 33 categorías, **USD 12,86 M** por 10.934 cabezas (EG 7,60 M).
+        - En Render el parámetro "kg por UG" vale **250**, no 380 (lo cambió Diego en Configuración). Por eso allá la UG/ha da más alta: CN 1,39 y Verdeos 1,35.
+        - **Control de la planilla (19/11):** la que Diego mandó por WhatsApp (copia en `docs/info santi/archivos/cargas ganado sapsa 2026-47.xlsx`) es igual celda por celda a la ya cargada. Render tiene las 10.934 cabezas de la hoja 13.11.2026. La única diferencia es el movimiento #15 (19/11): 575 Terneros de EG Cerro sumados a Frente A, sin revertir. **La hoja de corrales (12/11) nunca se cargó:** unas 2.400 cabezas (≈1.370 en el feedlot de La Gateada, ≈1.050 en el de La Seda), fuera de la v1.
+        - La URL de `sapsa-db` (con la clave) quedó en el chat y en un .txt de Documentos (se sincroniza con Drive): Diego tiene que borrar ese archivo, sacar su IP de Access Control y cambiar la clave de la base.
+      - **Columna Valor en la tabla del Resumen (19/11), publicada (`a42f32a`):**
         - Va entre los grupos y el Total, y solo aparece si hay precios cargados.
         - Cada celda muestra arriba el valor de la categoría ("2,74 M", "391 mil") y abajo, en chico, el valor por cabeza ("800/cab"). Lleva un "*" si está incompleto.
         - `formatUsdCorto` en `components/pecuaria.jsx`. Cada fila del resumen trae `valorUsd` y `valorCompleto`.
         - Tests: 98 en el front.
+    - **Feedlots (19/11), hecho en desarrollo, sin commitear:**
+      - Encargo: `docs/superpowers/prompts/2026-11-19-feedlots.md`. Plan: `docs/superpowers/plans/2026-11-19-feedlots.md`.
+      - Los dos feedlots son campos CONFINAMIENTO aparte: **FEG** "Feedlot La Gateada" y **FELS** "Feedlot La Seda" (orden 10 y 11).
+      - Dos grupos: "Todas las estancias" (ESTANCIA y GRANJA) y "Todos los feedlots" (CONFINAMIENTO). No se suman entre sí.
+        - Servidor: `GET /resumen`, `/potreros` y `/movimientos` con `?grupo=estancias|feedlots` (sin él, estancias). `filtroGrupo` en `alcance.js`.
+        - Front: `navegacion/grupos.js`; `EstanciaContext` da `grupo`, `esFeedlot` y `camposDelGrupo`. Selector con `<optgroup>` (sin feedlots, como antes). El "+" y Movimiento múltiple, con "Todos", piden el feedlot.
+      - Migración `datos_del_feedlot`: `potrero.metros_comedero`, `lote.fecha_entrada` y `lote.peso_entrada_kg`.
+        - Se editan en la ficha del corral (metros, con EDITAR) y la del lote ("Entrada al corral", con CREAR). Auditados.
+        - Al llegar a un corral por "Mover entre campos", el lote toma la fecha del movimiento y el peso, si estaban vacíos.
+      - Parámetros `GMD_FEEDLOT_KG` (1,5) y `CICLO_FEEDLOT_DIAS` (120) en el seed; se editan en Configuración → Feedlot.
+      - Análisis: `feedlot.service.js` (`analisisFeedlot`, pura). Rutas `GET /campos/:id/feedlot` y `GET /feedlots`.
+        - El Resumen de un feedlot es una tabla por corral (`FeedlotAnalisis.jsx`): días de encierre, peso estimado (≈), salida probable (ámbar si pasó o falta menos de una semana), m de comedero por cabeza y valor.
+      - Carga local: receta `docs/info santi/feedlots-12-11.mjs` (fuera de git), hoja "corral 12.11.2026" al 12/11.
+        - **FEG 1.372 cabezas en 11 corrales; FELS 1.046 en 10 (2 vacíos).** Las filas TOTAL de la hoja (1.097 y 891) están viejas: no cuentan los corrales 1, 2 y 11 de FEG ni el 10 de FELS.
+        - Categorías por la observación, **confirmadas por Diego (19/11)**: gordos, gordos prontos y sin observación → Novillos 1-2; terneros nuevos y "ter. 15M" → Terneros; vaquillonas → Vaquillonas; toros nuevos → Toros.
+        - Las estancias siguen en 10.934 cabezas. En Render no se cargó nada.
+      - Tests: `pecuaria-feedlot.test.js` (21); 341 en el servidor y 115 en el front.
     - Para levantar la app desde la app de escritorio: `.claude/launch.json` (configuraciones `api` y `web`).
     - `exceljs` trae un `uuid` viejo: está forzado a `^11.1.1` con `overrides` en `server/package.json`.
   - **Módulo Parcelas:** en diseño (`docs/DECISIONES.md` §9).

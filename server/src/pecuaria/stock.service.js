@@ -29,7 +29,7 @@ const lineaSelect = {
   categoriaId: true,
   cabezas: true,
   pesoPromedioKg: true,
-  lote: { select: { nombre: true, raizId: true } },
+  lote: { select: { nombre: true, raizId: true, fechaEntrada: true, pesoEntradaKg: true } },
   categoria: { select: { nombre: true, orden: true, pesoPromedioKg: true } },
 };
 
@@ -49,6 +49,9 @@ const toLinea = (l) => {
     categoria: l.categoria.nombre,
     cabezas: l.cabezas,
     pesoPromedioKg: l.pesoPromedioKg == null ? null : Number(l.pesoPromedioKg),
+    // Feedlot: la entrada al corral.
+    fechaEntrada: fechaISO(l.lote.fechaEntrada),
+    pesoEntradaKg: l.lote.pesoEntradaKg == null ? null : Number(l.lote.pesoEntradaKg),
   };
   // Sin peso propio: el de su categoría, si tiene (se muestra con "≈").
   const pesoEstimadoKg = linea.pesoPromedioKg == null && l.categoria.pesoPromedioKg != null ? Number(l.categoria.pesoPromedioKg) : null;
@@ -71,10 +74,11 @@ async function buscarPotrero(id) {
         hectareas: true,
         hectareasAConfirmar: true,
         areaUtilizable: true,
+        metrosComedero: true,
         idAreaManejoCigam: true,
         activo: true,
         orden: true,
-        campo: { select: { id: true, sigla: true, nombre: true } },
+        campo: { select: { id: true, sigla: true, nombre: true, tipo: true } },
         subdivisiones: { select: { id: true, codigo: true, idTalhaoCigam: true }, orderBy: { id: 'asc' } },
         usos: { where: { hasta: null }, orderBy: { desde: 'desc' }, take: 1, select: { desde: true, usoSuelo: true } },
         versionesStock: {
@@ -95,7 +99,7 @@ async function buscarPotrero(id) {
 }
 
 export async function detallePotrero(id) {
-  const { usos, versionesStock, hectareas, areaUtilizable: area, ...p } = await buscarPotrero(id);
+  const { usos, versionesStock, hectareas, areaUtilizable: area, metrosComedero, ...p } = await buscarPotrero(id);
   const [uso] = usos;
   const [version] = versionesStock;
   const kg = await parametrosCarga();
@@ -118,6 +122,7 @@ export async function detallePotrero(id) {
     ...p,
     hectareas: ha,
     areaUtilizable,
+    metrosComedero: metrosComedero == null ? null : Number(metrosComedero),
     usoActual: uso
       ? { id: uso.usoSuelo.id, nombre: uso.usoSuelo.nombre, grupo: uso.usoSuelo.grupo, desde: fechaISO(uso.desde) }
       : null,
@@ -333,13 +338,28 @@ export async function cambiarUso(id, { usoSueloId, desde, areaUtilizable = null 
   };
 }
 
-// Renombra un lote. Devuelve { antes, despues }.
-export async function renombrarLote(id, nombre) {
+// Lo que se puede editar de un lote, como se muestra y se audita.
+const loteEditable = (l) => ({
+  nombre: l.nombre,
+  fechaEntrada: fechaISO(l.fechaEntrada),
+  pesoEntradaKg: l.pesoEntradaKg == null ? null : Number(l.pesoEntradaKg),
+});
+
+// Edita un lote: el nombre y, en el feedlot, la fecha y el peso de entrada al
+// corral. Devuelve { antes, despues, lote } (antes y despues: lo editable).
+export async function editarLote(id, { nombre, fechaEntrada, pesoEntradaKg }) {
   const loteId = parseId(id);
   const lote = loteId && (await prisma.lote.findUnique({ where: { id: loteId } }));
   if (!lote) throw notFound('Lote no encontrado');
-  if (await nombreOcupado(prisma, lote.campoId, nombre, lote.id)) throw conflict(`Ya existe un lote "${nombre}" en este campo`);
-  const despues = await prisma.lote.update({ where: { id: lote.id }, data: { nombre } });
-  return { antes: lote, despues };
+  if (nombre !== undefined && (await nombreOcupado(prisma, lote.campoId, nombre, lote.id))) {
+    throw conflict(`Ya existe un lote "${nombre}" en este campo`);
+  }
+  const data = {
+    ...(nombre !== undefined && { nombre }),
+    ...(fechaEntrada !== undefined && { fechaEntrada: fechaEntrada == null ? null : aFecha(fechaEntrada) }),
+    ...(pesoEntradaKg !== undefined && { pesoEntradaKg }),
+  };
+  const despues = await prisma.lote.update({ where: { id: lote.id }, data });
+  return { antes: loteEditable(lote), despues: loteEditable(despues), lote: despues };
 }
 

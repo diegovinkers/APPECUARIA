@@ -2,17 +2,18 @@ import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { useEstancia } from '../../context/EstanciaContext';
 import { ErrorList } from '../../components/ui';
 import { DestinoBotonFiltros } from '../../components/PanelFiltros';
+import { nombreGrupo } from '../../navegacion/grupos';
 
 // Encabezado de Resumen, Potreros y Movimientos, en un solo renglón (pedido de
 // Diego, 19/11): el título, la estancia chica al lado y, en el celular, el
 // botón "Filtros" de la pantalla (si tiene).
 export function Encabezado({ titulo, children }) {
-  const { campo, todas } = useEstancia();
+  const { campo, todas, grupo } = useEstancia();
   return (
     <div className="mb-2 flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1">
       <h1 className="text-xl font-bold leading-tight sm:text-2xl">
         {titulo}
-        {(campo || todas) && <span className="ml-2 text-sm font-normal text-suelo-600">{todas ? 'Todas las estancias' : campo.nombre}</span>}
+        {(campo || todas) && <span className="ml-2 text-sm font-normal text-suelo-600">{todas ? nombreGrupo(grupo) : campo.nombre}</span>}
       </h1>
       <DestinoBotonFiltros />
       {children && <div className="ml-auto">{children}</div>}
@@ -43,15 +44,16 @@ export function SinEstancia() {
   );
 }
 
-// Con "Todas las estancias" elegido, las pantallas que necesitan una sola
-// estancia (Movimiento múltiple) piden cuál.
-export function ElegirEstancia({ texto = '¿De qué estancia?' }) {
-  const { campos, setCampoId } = useEstancia();
+// Con "Todas las estancias" (o "Todos los feedlots") elegido, las pantallas
+// que necesitan un solo campo (Movimiento múltiple) piden cuál, del grupo.
+export function ElegirEstancia({ texto }) {
+  const { campos, camposDelGrupo, esFeedlot, setCampoId } = useEstancia();
+  const lista = camposDelGrupo ?? campos;
   return (
     <div className="rounded-lg border border-suelo-200 bg-white p-4">
-      <p className="mb-3 text-suelo-700">{texto}</p>
+      <p className="mb-3 text-suelo-700">{texto ?? (esFeedlot ? '¿De qué feedlot?' : '¿De qué estancia?')}</p>
       <div className="grid gap-2 sm:grid-cols-2">
-        {campos.map((c) => (
+        {lista.map((c) => (
           <button
             key={c.id}
             type="button"

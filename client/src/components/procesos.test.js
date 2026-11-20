@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { aplicaServicio, campaniasParaFiltro, cuerpoProceso, formatoPorcentaje, nombreProceso, textoBotonEtapa } from './procesos';
+import {
+  aplicaServicio,
+  campaniasParaFiltro,
+  cuerpoDiagnostico,
+  cuerpoProceso,
+  destinoParaApi,
+  destinoPorDefecto,
+  formatoPorcentaje,
+  gruposDiagnostico,
+  nombreProceso,
+  ofreceNuevoServicio,
+  procesosParaEvento,
+  textoBotonEtapa,
+  totalDiagnostico,
+} from './procesos';
 
 describe('procesos (puro)', () => {
   it('el nombre lleva la sigla con todas las estancias', () => {
@@ -66,5 +80,89 @@ describe('procesos (puro)', () => {
         lotes: [{ loteId: 1, rol: 'PRENADAS' }, { loteId: 2, rol: 'PARIDAS' }],
       },
     });
+  });
+});
+
+describe('diagnóstico (puro)', () => {
+  // Lote 1: 50 cabezas en el potrero 8, con sus categorías sugeridas.
+  const lote = { loteId: 1, nombre: 'Lote V', cabezas: 50, potrero: { id: 8, nombre: 'P8' }, categoriaId: 3, sugeridas: { PRENADA: 4, VACIA: 5 } };
+
+  it('los grupos salen de lo cargado: un grupo por mes con preñadas, y las vacías', () => {
+    expect(gruposDiagnostico({ prenadas: { '2027-10': '18', '2027-11': '', sin: '2' }, vacias: '10' })).toEqual([
+      { clave: '2027-10', cabezas: 18, nombre: 'Preñadas oct' },
+      { clave: 'sin', cabezas: 2, nombre: 'Preñadas (sin mes)' },
+      { clave: 'vacias', cabezas: 10, nombre: 'Vacías' },
+    ]);
+    expect(totalDiagnostico({ prenadas: { '2027-10': '18', sin: '2' }, vacias: '10' })).toBe(30);
+  });
+
+  it('el destino por defecto: las preñadas se quedan con la categoría sugerida; las vacías, para decidir después', () => {
+    expect(destinoPorDefecto(lote, 'PRENADAS')).toEqual({ tipo: 'QUEDAN', categoriaId: '4' });
+    expect(destinoPorDefecto(lote, 'VACIAS')).toEqual({ tipo: 'DESPUES', categoriaId: '5' });
+  });
+
+  it('el cuerpo del diagnóstico, con la decisión de cada grupo', () => {
+    const datos = { 1: { prenadas: { '2027-10': '18', '2027-11': '22' }, vacias: '10' } };
+    const destinos = {
+      1: {
+        '2027-10': { tipo: 'POTRERO', potreroId: '12', categoriaId: '4' },
+        vacias: { tipo: 'VENTA', guia: ' G-1 ', precio: '900', categoriaId: '5' },
+      },
+    };
+    expect(cuerpoDiagnostico({ fecha: '2026-11-18', metodo: 'TACTO', lotes: [lote], datos, destinos })).toEqual({
+      fecha: '2026-11-18',
+      metodo: 'TACTO',
+      lineas: [{ loteId: 1, prenadas: { '2027-10': 18, '2027-11': 22 }, vacias: 10 }],
+      decision: [
+        {
+          loteId: 1,
+          grupos: [
+            { clave: '2027-10', destino: { potreroId: 12 }, categoriaId: 4 },
+            { clave: '2027-11', destino: { potreroId: 8 }, categoriaId: 4 },
+            { clave: 'vacias', destino: { venta: { guia: 'G-1', precioVentaUsd: 900, precioVentaPor: 'CABEZA' } } },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('las otras decisiones de las vacías', () => {
+    expect(destinoParaApi({ tipo: 'DESPUES' }, lote)).toEqual({ destino: { despues: true } });
+    expect(destinoParaApi({ tipo: 'REENTORE' }, lote)).toEqual({ destino: { reentore: true } });
+    expect(destinoParaApi({ tipo: 'INVERNADA', categoriaId: '5' }, lote)).toEqual({ destino: { invernada: true }, categoriaId: 5 });
+    expect(destinoParaApi({ tipo: 'POTRERO', potreroId: '12' }, lote)).toEqual({ destino: { potreroId: 12 } });
+  });
+});
+
+describe('¿de qué proceso? (Eventos)', () => {
+  const p = (id, etapa, loteIds = []) => ({ id, nombre: `Proceso ${id}`, etapa, loteIds });
+  const procesos = [p(1, 'SERVICIO'), p(2, 'ESPERA_DIAGNOSTICO'), p(3, 'PRENEZ', [30]), p(4, 'PARICION'), p(5, 'CRIA')];
+  const de = (clave, extra) => procesosParaEvento(clave, procesos, extra).map((x) => [x.proceso.id, x.etapa]);
+
+  it('cada evento de reproducción, en los procesos donde tiene sentido y con su etapa', () => {
+    expect(de('ENTORE')).toEqual([[1, 'REPASO']]);
+    expect(de('FIN_SERVICIO')).toEqual([[1, 'FIN_SERVICIO']]);
+    expect(de('ECOGRAFIA')).toEqual([
+      [1, 'DIAGNOSTICO'],
+      [2, 'DIAGNOSTICO'],
+      [3, 'REVISION'],
+      [4, 'REVISION'],
+    ]);
+    expect(de('ABORTO')).toEqual([
+      [3, 'ABORTO'],
+      [4, 'ABORTO'],
+    ]);
+    expect(de('INSEMINACION')).toEqual([]);
+    expect(de('VACUNA_AFTOSA')).toEqual([]);
+  });
+
+  it('el proceso del lote de donde se abrió va primero', () => {
+    expect(de('ECOGRAFIA', { loteId: 30 })[0]).toEqual([3, 'REVISION']);
+  });
+
+  it('el entore y la inseminación ofrecen empezar un servicio', () => {
+    expect(ofreceNuevoServicio({ clave: 'ENTORE' })).toBe(true);
+    expect(ofreceNuevoServicio({ clave: 'INSEMINACION' })).toBe(true);
+    expect(ofreceNuevoServicio({ clave: 'ECOGRAFIA' })).toBe(false);
   });
 });

@@ -227,49 +227,57 @@ export function sugerirCategoria(paso, categoria, categorias) {
 
 // El plan de la decisión del diagnóstico (diseño §8), sin tocar la base.
 //   lote: { id, cabezas, categoriaId, potreroId }
-//   grupos: [{ clave, cabezas, destino, categoriaId? }], con destino:
-//     { potreroId } · { venta: { precioVentaUsd?, precioVentaPor? } } ·
+//   grupos: [{ clave, cabezas, destino, categoriaId?, clase? }], con destino:
+//     { potreroId } · { venta: { guia?, precioVentaUsd?, precioVentaPor?, pesoPromedioKg? } } ·
 //     { invernada: true, potreroId? } · { reentore: true } · { despues: true }
-// Devuelve { pasos, queda } o { error }. Los grupos que van al mismo potrero
-// con la misma categoría se juntan en un lote. El lote original se queda con
-// un bloque: el que no cambia nada; si no, el más grande de los que se quedan
-// en el potrero (cambia de categoría al final); si todos se van, el más grande
-// (se lleva el lote entero). Los demás son partes de la familia. Las ventas van
-// primero. Las cabezas sin diagnosticar se quedan como estaban.
+//   clase: PRENADAS (por defecto) o VACIAS (la clave 'vacias').
+// Devuelve { pasos, queda, bloques } o { error }. Los grupos que van al mismo
+// potrero, con la misma categoría, la misma clase y el mismo destino se juntan
+// en un lote; preñadas y vacías nunca. El lote original se queda con un
+// bloque: el más grande de los que no cambian ni de potrero ni de categoría;
+// si no hay, el más grande de los que se quedan en el potrero (cambia de
+// categoría al final); si todos se van, el más grande (se lleva el lote
+// entero). Los demás son partes de la familia. Las ventas van primero. Las
+// cabezas sin diagnosticar se quedan como estaban (clase SIN).
 //   pasos: { tipo: 'VENTA', grupos, cabezas, venta } ·
 //          { tipo: 'PARTE' | 'MOVER_ENTERO', grupos, cabezas, potreroId, categoriaId } ·
 //          { tipo: 'CATEGORIA', grupos, cabezas, categoriaId }
+//   bloques: [{ grupos, cabezas, potreroId, categoriaId, clase, destino, queda }]
+//     (destino: DESPUES · REENTORE · INVERNADA · null)
 export function planDecision({ lote, grupos }) {
   const total = grupos.reduce((s, g) => s + num(g.cabezas), 0);
   if (total > lote.cabezas) return { error: `El lote tiene ${lote.cabezas} cabezas: los grupos suman ${total}` };
 
   const ventas = [];
   const bloques = [];
-  const agregar = (clave, cabezas, potreroId, categoriaId) => {
-    const b = bloques.find((x) => x.potreroId === potreroId && x.categoriaId === categoriaId);
+  const agregar = (clave, cabezas, potreroId, categoriaId, clase, destino) => {
+    const b = bloques.find((x) => x.potreroId === potreroId && x.categoriaId === categoriaId && x.clase === clase && x.destino === destino);
     if (b) {
       b.grupos.push(clave);
       b.cabezas += cabezas;
     } else {
-      bloques.push({ grupos: [clave], cabezas, potreroId, categoriaId });
+      bloques.push({ grupos: [clave], cabezas, potreroId, categoriaId, clase, destino });
     }
   };
   for (const g of grupos) {
     const n = num(g.cabezas);
     if (n <= 0) continue;
     const d = g.destino ?? { despues: true };
+    const clase = g.clase ?? (g.clave === 'vacias' ? 'VACIAS' : 'PRENADAS');
+    const marca = d.reentore ? 'REENTORE' : d.invernada ? 'INVERNADA' : d.despues ? 'DESPUES' : null;
     if (d.venta) ventas.push({ tipo: 'VENTA', grupos: [g.clave], cabezas: n, venta: d.venta });
-    else if (d.despues || d.reentore) agregar(g.clave, n, lote.potreroId, g.categoriaId ?? lote.categoriaId);
-    else agregar(g.clave, n, d.potreroId ?? lote.potreroId, g.categoriaId ?? lote.categoriaId);
+    else if (d.despues || d.reentore) agregar(g.clave, n, lote.potreroId, g.categoriaId ?? lote.categoriaId, clase, marca);
+    else agregar(g.clave, n, d.potreroId ?? lote.potreroId, g.categoriaId ?? lote.categoriaId, clase, marca);
   }
-  if (total < lote.cabezas) agregar('sinDiagnostico', lote.cabezas - total, lote.potreroId, lote.categoriaId);
+  if (total < lote.cabezas) agregar('sinDiagnostico', lote.cabezas - total, lote.potreroId, lote.categoriaId, 'SIN', null);
 
   const mayor = (lista) => lista.reduce((m, b) => (m == null || b.cabezas > m.cabezas ? b : m), null);
   const enPotrero = bloques.filter((b) => b.potreroId === lote.potreroId);
-  const queda = enPotrero.find((b) => b.categoriaId === lote.categoriaId) ?? mayor(enPotrero) ?? mayor(bloques);
+  const queda = mayor(enPotrero.filter((b) => b.categoriaId === lote.categoriaId)) ?? mayor(enPotrero) ?? mayor(bloques);
 
   const pasos = [...ventas];
   for (const b of bloques) {
+    b.queda = b === queda;
     if (b !== queda) pasos.push({ tipo: 'PARTE', grupos: b.grupos, cabezas: b.cabezas, potreroId: b.potreroId, categoriaId: b.categoriaId });
   }
   if (queda && queda.potreroId !== lote.potreroId) {
@@ -277,5 +285,5 @@ export function planDecision({ lote, grupos }) {
   } else if (queda && queda.categoriaId !== lote.categoriaId) {
     pasos.push({ tipo: 'CATEGORIA', grupos: queda.grupos, cabezas: queda.cabezas, categoriaId: queda.categoriaId });
   }
-  return { pasos, queda: queda?.grupos ?? [] };
+  return { pasos, queda: queda?.grupos ?? [], bloques };
 }

@@ -7,7 +7,15 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ getProceso: vi.fn(), editarProceso: vi.fn(), anularGrupoEventos: vi.fn() }));
+const api = vi.hoisted(() => ({
+  getProceso: vi.fn(),
+  editarProceso: vi.fn(),
+  anularCargaProceso: vi.fn(),
+  cerrarProceso: vi.fn(),
+  anularProceso: vi.fn(),
+  getSueltos: vi.fn(),
+  asociarSueltos: vi.fn(),
+}));
 const permisos = vi.hoisted(() => ({ lista: ['pecuaria:VER', 'pecuaria:CREAR'] }));
 vi.mock('../../api/pecuaria', () => api);
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { esSuperadmin: false, permisos: permisos.lista } }) }));
@@ -117,11 +125,36 @@ describe('la ficha del proceso', () => {
     act(() => root.unmount());
     root = createRoot(contenedor);
     permisos.lista = ['pecuaria:VER', 'pecuaria:CREAR', 'pecuaria:ANULAR'];
-    api.anularGrupoEventos.mockResolvedValue({ data: {} });
+    api.anularCargaProceso.mockResolvedValue({ data: {} });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     await montar();
     const anular = [...etapaEn('INICIO').querySelectorAll('button')].find((b) => b.textContent === 'Anular');
     await act(async () => anular.click());
-    expect(api.anularGrupoEventos).toHaveBeenCalledWith('g1');
+    expect(api.anularCargaProceso).toHaveBeenCalledWith(7, 'g1');
+  });
+
+  it('cerrar el proceso (con nota) y anularlo (solo con el permiso de anular)', async () => {
+    permisos.lista = ['pecuaria:VER', 'pecuaria:CREAR'];
+    api.cerrarProceso.mockResolvedValue({ data: {} });
+    vi.spyOn(window, 'prompt').mockReturnValue('Se vendió todo');
+    await montar();
+    act(() => contenedor.querySelector('[aria-label="Más acciones"]').click());
+    expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent === 'Anular el proceso')).toBe(false);
+    await act(async () => [...contenedor.querySelectorAll('button')].find((b) => b.textContent === 'Cerrar el proceso').click());
+    expect(api.cerrarProceso).toHaveBeenCalledWith(7, { nota: 'Se vendió todo' });
+  });
+
+  it('sumar eventos sueltos: la lista con la etapa que toman, y "Sumar"', async () => {
+    api.getSueltos.mockResolvedValue({ data: [{ id: 31, fecha: '2026-11-14', tipo: { clave: 'ECOGRAFIA', nombre: 'Ecografía' }, lote: { id: 1, nombre: 'Lote V' }, cabezas: 50, texto: '40 preñadas · 10 vacías', etapa: 'DIAGNOSTICO' }] });
+    api.asociarSueltos.mockResolvedValue({ data: {} });
+    await montar();
+    act(() => contenedor.querySelector('[aria-label="Más acciones"]').click());
+    await act(async () => [...contenedor.querySelectorAll('button')].find((b) => b.textContent === 'Sumar eventos sueltos').click());
+    const caja = contenedor.querySelector('[aria-label="Eventos sueltos"]');
+    expect(caja.textContent).toContain('Ecografía');
+    expect(caja.textContent).toContain('como diagnóstico');
+    act(() => caja.querySelector('input[type="checkbox"]').click());
+    await act(async () => [...caja.querySelectorAll('button')].find((b) => b.textContent === 'Sumar al proceso').click());
+    expect(api.asociarSueltos).toHaveBeenCalledWith(7, [31]);
   });
 });

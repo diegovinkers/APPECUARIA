@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getCategorias, getPotrero, getPotreros, registrarMovimiento, vistaPreviaMovimiento } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
-import { ErrorList, buttonClass, inputClass } from '../components/ui';
+import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { UsoBadge, cabezasPorCategoria, formatNumero } from '../components/pecuaria';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
@@ -381,6 +381,11 @@ export default function MoverPage() {
       </section>
 
       {problema && <p className="mt-4 rounded-md bg-amber-500/15 px-3 py-2 text-sm text-amber-900">{problema}</p>}
+      {previa?.avisos?.map((a) => (
+        <div key={a} className="mt-3">
+          <Notice>{a}</Notice>
+        </div>
+      ))}
       {previa && <Impacto previa={previa} />}
 
       <button type="button" disabled={!previa || ocupado} onClick={confirmar} className={`${buttonClass} mt-6`}>

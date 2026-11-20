@@ -337,3 +337,54 @@ describe('procesos: un entore que empieza un servicio', () => {
     expect(texto()).toContain('Va al proceso Servicio 2026-27 · Vacas (repaso)');
   });
 });
+
+describe('procesos: ¿de qué proceso?', () => {
+  const abiertos = [
+    { id: 7, nombre: 'Servicio 2026-27 · Vacas', etapa: 'ESPERA_DIAGNOSTICO', textoEtapa: 'Esperando el diagnóstico', cabezas: 40, loteIds: [102] },
+    { id: 8, nombre: 'Servicio 2026-27 · Vaquillonas', etapa: 'SERVICIO', textoEtapa: 'En servicio', cabezas: 30, loteIds: [] },
+  ];
+
+  it('una ecografía: elegir el proceso lleva a la pantalla de su etapa', async () => {
+    api.getProcesos.mockResolvedValue({ data: abiertos });
+    await montar('/pecuaria/eventos/nuevo?tipo=16');
+    const opciones = [...contenedor.querySelectorAll('[data-testid="de-proceso"] button')].map((b) => b.textContent);
+    expect(opciones[0]).toContain('Servicio 2026-27 · Vacas');
+    expect(opciones[0]).toContain('Esperando el diagnóstico');
+    await click(boton('Servicio 2026-27 · Vacas'));
+    expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/procesos/7/etapa/DIAGNOSTICO');
+  });
+
+  it('"Anotarla suelta" sigue con el camino de siempre', async () => {
+    api.getProcesos.mockResolvedValue({ data: abiertos });
+    await montar('/pecuaria/eventos/nuevo?tipo=16');
+    await click(boton('Anotarla suelta'));
+    expect(pasoActual()).toMatch(/2A quién/);
+    expect(casilla('10.3 · Vacas')).toBeTruthy();
+  });
+
+  it('un entore: repaso en el que está en servicio, o empezar un ciclo reproductivo nuevo', async () => {
+    api.getProcesos.mockResolvedValue({ data: abiertos });
+    await montar('/pecuaria/eventos/nuevo?tipo=18');
+    const opciones = [...contenedor.querySelectorAll('[data-testid="de-proceso"] button')].map((b) => b.textContent);
+    expect(opciones.some((t) => t.includes('Servicio 2026-27 · Vaquillonas') && t.includes('repaso'))).toBe(true);
+    expect(opciones.some((t) => t.includes('Vacas') && !t.includes('Vaquillonas'))).toBe(false);
+    await click(boton('Empezar un ciclo reproductivo'));
+    await click(casilla('10.3 · Vacas'));
+    // El lote 102 ya está en un proceso: no se ofrece empezar otro con él.
+    await click(seguir());
+    expect(contenedor.querySelector('[data-testid="empezar-servicio"]')).toBeNull();
+  });
+
+  it('sin procesos donde tenga sentido, no se pregunta', async () => {
+    api.getProcesos.mockResolvedValue({ data: [abiertos[1]] });
+    await montar('/pecuaria/eventos/nuevo?tipo=16');
+    // El 8 está en servicio: la ecografía sí tiene sentido ahí.
+    expect(contenedor.querySelector('[data-testid="de-proceso"]')).toBeTruthy();
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    api.getProcesos.mockResolvedValue({ data: [] });
+    await montar('/pecuaria/eventos/nuevo?tipo=16');
+    expect(contenedor.querySelector('[data-testid="de-proceso"]')).toBeNull();
+    expect(pasoActual()).toMatch(/2A quién/);
+  });
+});

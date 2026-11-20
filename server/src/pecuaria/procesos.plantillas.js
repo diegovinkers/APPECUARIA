@@ -21,6 +21,8 @@ export const PLANTILLAS = {
       { clave: 'FIN_SERVICIO', nombre: 'Fin del servicio', tipos: ['FIN_SERVICIO'], unica: true, linea: true, toma: ['VIENTRES'] },
       { clave: 'DIAGNOSTICO', nombre: 'Diagnóstico', tipos: ['ECOGRAFIA'], unica: true, linea: true, toma: ['VIENTRES'], mueve: true },
       { clave: 'REVISION', nombre: 'Revisión del diagnóstico', tipos: ['ECOGRAFIA'], unica: true, linea: false, toma: ['VACIAS', 'PRENADAS'], mueve: true },
+      // Lo que se decidió después con las vacías (venta, invernada, reentore).
+      { clave: 'DECISION', nombre: 'Decisión', tipos: ['ECOGRAFIA'], unica: false, linea: false, toma: ['VACIAS'], mueve: true },
       { clave: 'ABORTO', nombre: 'Aborto', tipos: ['ABORTO'], unica: false, linea: false, toma: ['PRENADAS', 'VIENTRES'], mueve: true },
       { clave: 'PARICION', nombre: 'Parición', tipos: ['PARICION'], unica: false, linea: true, toma: ['PRENADAS', 'VIENTRES'], mueve: true },
       { clave: 'FIN_PARICION', nombre: 'Fin de la parición', tipos: ['PARICION'], unica: true, linea: false, toma: ['PRENADAS', 'VIENTRES'], mueve: true },

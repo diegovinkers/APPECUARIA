@@ -91,3 +91,8 @@ export const crearProceso = (datos) => api.post('/pecuaria/procesos', datos);
 export const editarProceso = (id, datos) => api.patch(`/pecuaria/procesos/${id}`, datos);
 export const vistaPreviaEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}/vista-previa`, datos);
 export const registrarEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}`, datos);
+export const anularCargaProceso = (id, grupoId) => api.post(`/pecuaria/procesos/${id}/cargas/${grupoId}/anular`);
+export const cerrarProceso = (id, datos = {}) => api.post(`/pecuaria/procesos/${id}/cerrar`, datos);
+export const anularProceso = (id) => api.post(`/pecuaria/procesos/${id}/anular`);
+export const getSueltos = (id) => api.get(`/pecuaria/procesos/${id}/sueltos`);
+export const asociarSueltos = (id, registroIds) => api.post(`/pecuaria/procesos/${id}/asociar`, { registroIds });

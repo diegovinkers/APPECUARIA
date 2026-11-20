@@ -250,48 +250,54 @@ export async function vistaPrevia(body) {
 
 const textoCausa = (c) => (c ? `${c.codigo} ${c.nombre}` : undefined);
 
-export async function registrar(body, usuarioId) {
-  const { plan, ids } = await prisma.$transaction(
-    async (tx) => {
-      const plan = await planificar(tx, body);
-      const fecha = aFecha(plan.dia);
-      const sale = plan.tipo.efecto === 'SALE';
-      const comun = {
-        campoId: plan.campoId,
-        tipoId: plan.tipo.id,
-        fecha,
-        modo: sale ? 'SALIDA' : 'ENTRADA',
-        causaId: plan.causa?.id ?? null,
-        guia: plan.guia,
-        campoOtroId: plan.campoOtro?.id ?? null,
-        loteMadresId: plan.madres?.id ?? null,
-        nota: plan.nota,
-        usuarioId,
-      };
-      const version = { fecha, origen: 'MOVIMIENTO', usuarioId, nota: plan.nota };
+// Planifica y guarda una entrada o una salida dentro de una transacción ya
+// abierta (la usan registrar y los procesos: la venta de las vacías, los
+// nacimientos de la parición). extra: { eventoId, procesoId, registroId }.
+// Devuelve { plan, ids } (los movimientos creados).
+export async function aplicarEntradaSalida(tx, body, usuarioId, { eventoId = null, procesoId = null, registroId = null } = {}) {
+  const plan = await planificar(tx, body);
+  const fecha = aFecha(plan.dia);
+  const sale = plan.tipo.efecto === 'SALE';
+  const comun = {
+    campoId: plan.campoId,
+    tipoId: plan.tipo.id,
+    fecha,
+    modo: sale ? 'SALIDA' : 'ENTRADA',
+    causaId: plan.causa?.id ?? null,
+    guia: plan.guia,
+    campoOtroId: plan.campoOtro?.id ?? null,
+    loteMadresId: plan.madres?.id ?? null,
+    nota: plan.nota,
+    eventoId,
+    procesoId,
+    registroId,
+    usuarioId,
+  };
+  const version = { fecha, origen: 'MOVIMIENTO', usuarioId, nota: plan.nota };
 
-      const ids = [];
-      const creados = new Map(); // línea `nuevo` → id del lote creado
-      for (const paso of plan.pasos) {
-        if (paso.lote.id == null) {
-          const nuevo = await crearLote(tx, { campoId: plan.campoId, potrero: plan.potrero, categoria: paso.categoria, nombre: paso.lote.nombre });
-          creados.set(paso.lote.nuevo, nuevo.id);
-          paso.lote.id = nuevo.id;
-        }
-        const lineas = paso.lineas.map((l) => ({ ...l, loteId: l.loteId ?? creados.get(l.nuevo) }));
-        const v = await crearVersion(tx, { ...version, potreroId: plan.potrero.id, lineas });
-        const lado = sale
-          ? { loteOrigenId: paso.lote.id, potreroOrigenId: plan.potrero.id, categoriaOrigenId: paso.categoria.id, versionOrigenId: v.id }
-          : { loteDestinoId: paso.lote.id, potreroDestinoId: plan.potrero.id, categoriaDestinoId: paso.categoria.id, versionDestinoId: v.id };
-        const venta = paso.precioVentaUsd != null ? { precioVentaUsd: paso.precioVentaUsd, precioVentaPor: paso.precioVentaPor } : {};
-        const m = await tx.movimiento.create({ data: { ...comun, ...lado, cabezas: paso.cabezas, pesoPromedioKg: paso.pesoPromedioKg, ...venta } });
-        ids.push(m.id);
-      }
-      if (sale && plan.cierraLote) await tx.lote.update({ where: { id: plan.pasos[0].lote.id }, data: { activo: false } });
-      return { plan, ids };
-    },
-    { timeout: 30_000, maxWait: 10_000 },
-  );
+  const ids = [];
+  const creados = new Map(); // línea `nuevo` → id del lote creado
+  for (const paso of plan.pasos) {
+    if (paso.lote.id == null) {
+      const nuevo = await crearLote(tx, { campoId: plan.campoId, potrero: plan.potrero, categoria: paso.categoria, nombre: paso.lote.nombre });
+      creados.set(paso.lote.nuevo, nuevo.id);
+      paso.lote.id = nuevo.id;
+    }
+    const lineas = paso.lineas.map((l) => ({ ...l, loteId: l.loteId ?? creados.get(l.nuevo) }));
+    const v = await crearVersion(tx, { ...version, potreroId: plan.potrero.id, lineas });
+    const lado = sale
+      ? { loteOrigenId: paso.lote.id, potreroOrigenId: plan.potrero.id, categoriaOrigenId: paso.categoria.id, versionOrigenId: v.id }
+      : { loteDestinoId: paso.lote.id, potreroDestinoId: plan.potrero.id, categoriaDestinoId: paso.categoria.id, versionDestinoId: v.id };
+    const venta = paso.precioVentaUsd != null ? { precioVentaUsd: paso.precioVentaUsd, precioVentaPor: paso.precioVentaPor } : {};
+    const m = await tx.movimiento.create({ data: { ...comun, ...lado, cabezas: paso.cabezas, pesoPromedioKg: paso.pesoPromedioKg, ...venta } });
+    ids.push(m.id);
+  }
+  if (sale && plan.cierraLote) await tx.lote.update({ where: { id: plan.pasos[0].lote.id }, data: { activo: false } });
+  return { plan, ids };
+}
+
+export async function registrar(body, usuarioId) {
+  const { plan, ids } = await prisma.$transaction((tx) => aplicarEntradaSalida(tx, body, usuarioId), { timeout: 30_000, maxWait: 10_000 });
 
   const movimientos = await aItems(prisma, await prisma.movimiento.findMany({ where: { id: { in: ids } }, include: incluir, orderBy: { id: 'asc' } }));
   const sale = plan.tipo.efecto === 'SALE';

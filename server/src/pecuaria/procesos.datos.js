@@ -38,6 +38,71 @@ export function lineaSimple(etapa, linea, lote) {
   return { cabezas, parte: cabezas < lote.cabezas, datos: {} };
 }
 
+const MES = /^\d{4}-\d{2}$/;
+const ENTERO_CERO = numero(z.int({ error: 'tienen que ser un número entero' }).min(0, 'no pueden ser negativas').max(1_000_000, 'son demasiadas').optional());
+
+// Una línea del diagnóstico: { cabezas, datos: { metodo, prenadas: { [mes | 'sin']: n }, vacias } }
+// o { error }. Las preñadas vienen por mes de parición esperado (o 'sin').
+export function lineaDiagnostico(linea, lote, metodo) {
+  const en = ` (lote ${lote.nombre})`;
+  const prenadas = {};
+  const crudo = linea?.prenadas ?? {};
+  if (typeof crudo !== 'object' || Array.isArray(crudo)) return { error: `Las preñadas tienen que venir por mes${en}` };
+  for (const [mes, valor] of Object.entries(crudo)) {
+    if (mes !== 'sin' && !MES.test(mes)) return { error: `El mes ${mes} no es válido${en}` };
+    const r = ENTERO_CERO.safeParse(valor);
+    if (!r.success) return { error: `Las preñadas ${r.error.issues[0].message}${en}` };
+    if (r.data) prenadas[mes] = r.data;
+  }
+  const v = ENTERO_CERO.safeParse(linea?.vacias);
+  if (!v.success) return { error: `Las vacías ${v.error.issues[0].message}${en}` };
+  const vacias = v.data ?? 0;
+  const total = Object.values(prenadas).reduce((s, n) => s + n, 0) + vacias;
+  if (total < 1) return { error: `Escribí cuántas preñadas y cuántas vacías hay${en}` };
+  if (total > lote.cabezas) return { error: `El lote ${lote.nombre} tiene ${lote.cabezas} cabezas: preñadas y vacías suman ${total}` };
+  return { cabezas: total, datos: { metodo: metodo ?? 'ECOGRAFIA', prenadas, vacias } };
+}
+
+// Una línea de la revisión: { cabezas, datos: { aPrenadas, aVacias }, aLoteId } o { error }.
+export function lineaRevision(linea, lote) {
+  const en = ` (lote ${lote.nombre})`;
+  const a = ENTERO_CERO.safeParse(linea?.aPrenadas);
+  const b = ENTERO_CERO.safeParse(linea?.aVacias);
+  if (!a.success || !b.success) return { error: `Las cabezas de la revisión tienen que ser números enteros${en}` };
+  const aPrenadas = a.data ?? 0;
+  const aVacias = b.data ?? 0;
+  if (aPrenadas + aVacias < 1) return { error: `Escribí cuántas cambian${en}` };
+  if (aPrenadas + aVacias > lote.cabezas) return { error: `El lote ${lote.nombre} tiene ${lote.cabezas} cabezas` };
+  return { cabezas: aPrenadas + aVacias, datos: { aPrenadas, aVacias }, aLoteId: linea.aLoteId ?? null };
+}
+
+// Una línea de la parición: { datos: { madres, machos, hembras, muertos, madresMuertas }, avisos } o { error }.
+// lote: { nombre, cabezas } (las que quedan sin parir). Vacío = 0.
+export function lineaParicion(linea, lote) {
+  const en = ` (lote ${lote.nombre})`;
+  const datos = {};
+  for (const [campo, que] of [
+    ['madres', 'Las madres que parieron'],
+    ['machos', 'Los terneros'],
+    ['hembras', 'Las terneras'],
+    ['muertos', 'Los nacidos muertos'],
+    ['madresMuertas', 'Las madres muertas'],
+  ]) {
+    const r = ENTERO_CERO.safeParse(linea?.[campo]);
+    if (!r.success) return { error: `${que} ${r.error.issues[0].message}${en}` };
+    datos[campo] = r.data ?? 0;
+  }
+  const { madres, machos, hembras, muertos, madresMuertas } = datos;
+  if (madres + madresMuertas + machos + hembras + muertos < 1) return { error: `Escribí cuántas parieron${en}` };
+  if (madres + madresMuertas > lote.cabezas) {
+    return { error: `En el lote ${lote.nombre} quedan ${lote.cabezas} sin parir: no pueden haber parido ${madres} y muerto ${madresMuertas}` };
+  }
+  const nacidos = machos + hembras + muertos;
+  if (nacidos < madres) return { error: `En el lote ${lote.nombre} parieron ${madres} madres, pero nacieron ${nacidos} (vivos y muertos)` };
+  const avisos = nacidos > madres + madresMuertas ? [`En el lote ${lote.nombre} nacieron más terneros que madres: ¿mellizos?`] : [];
+  return { datos, avisos };
+}
+
 const fmt = (n) => Number(n ?? 0).toLocaleString('es-UY');
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const nombreMes = (mes) => (mes === 'sin' ? 'sin mes' : MESES[Number(mes.slice(5, 7)) - 1]);
@@ -65,6 +130,8 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
       return [d.aPrenadas && `${fmt(d.aPrenadas)} pasan a preñadas`, d.aVacias && `${fmt(d.aVacias)} pasan a vacías`].filter(Boolean).join(' · ') || 'sin cambios';
     case 'ABORTO':
       return `${fmt(cabezas)} abortos`;
+    case 'DECISION':
+      return { VENTA: 'venta', INVERNADA: 'a invernada', REENTORE: 'para el próximo servicio (reentore)', MOVER: 'a otro potrero' }[d.destino] ?? 'decisión';
     case 'PARICION':
       return `${fmt(d.madres)} paridas · ${fmt(d.machos)} machos y ${fmt(d.hembras)} hembras${d.muertos ? ` · ${fmt(d.muertos)} nacidos muertos` : ''}`;
     case 'FIN_PARICION':

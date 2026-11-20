@@ -111,7 +111,7 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
       {puedo('pecuaria:CREAR') && (
         <div className="mb-2 flex shrink-0 justify-end">
           <Link to="/pecuaria/procesos/nuevo" className="min-h-11 rounded-md bg-campo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-campo-700">
-            + Nuevo servicio
+            + Nuevo proceso
           </Link>
         </div>
       )}
@@ -121,7 +121,7 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
         !errors.length && <p className="text-suelo-600">Cargando…</p>
       ) : datos.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">
-          {activos ? 'No hay procesos con esos filtros.' : 'Todavía no hay procesos abiertos. Se empiezan con "+ Nuevo servicio" o desde Eventos → Entore.'}
+          {activos ? 'No hay procesos con esos filtros.' : 'Todavía no hay procesos abiertos. Se empiezan con "+ Nuevo proceso" o desde Eventos → Entore o Inseminación.'}
         </p>
       ) : (
         <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white">

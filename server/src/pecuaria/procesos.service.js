@@ -14,14 +14,17 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { Prisma } from '../generated/prisma/client.ts';
-import { badRequest, conflict, notFound, parseId } from '../errors.js';
+import { HttpError, badRequest, conflict, notFound, parseId } from '../errors.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
-import { fotoActual } from './lotes.js';
+import { fotoActual, nombreLibre } from './lotes.js';
 import { fechaUY } from './stock.service.js';
 import { tipoPorClave } from './tipos.repository.js';
-import { TEXTO_ETAPA, campaniaDe, embudo, etapaActual, proximas } from './procesos.calculos.js';
+import { TEXTO_ETAPA, campaniaDe, embudo, etapaActual, fechasServicio, mesesEsperados, planDecision, proximas, sugerirCategoria, sumarDias, textoMeses } from './procesos.calculos.js';
+import { aplicar, revertirEventoEn } from './movimientos.service.js';
+import { aplicarEntradaSalida } from './entradas-salidas.service.js';
 import { ETAPAS_UNICAS, PLANTILLAS, TIPOS_REPRODUCCION, etapaDe, etapaDePlantilla } from './procesos.plantillas.js';
-import { MODALIDAD, lineaSimple, textoAncla } from './procesos.datos.js';
+import { textoDatos } from './eventos.datos.js';
+import { MODALIDAD, lineaDiagnostico, lineaParicion, lineaRevision, lineaSimple, textoAncla } from './procesos.datos.js';
 
 const TX = { timeout: 60_000, maxWait: 10_000 };
 const plural = (n, uno, varios) => `${n.toLocaleString('es-UY')} ${n === 1 ? uno : varios}`;
@@ -67,7 +70,7 @@ export async function procesoAbiertoDe(db, loteId) {
     where: { loteId, hasta: null, proceso: { estado: 'ABIERTO' } },
     include: { proceso: { select: { id: true, nombre: true, tipo: true } } },
   });
-  return pl ? { ...pl.proceso, rol: pl.rol, mes: pl.mes } : null;
+  return pl ? { ...pl.proceso, rol: pl.rol, mes: pl.mes, destino: pl.destino } : null;
 }
 
 // Los procesos abiertos de unos lotes: Map loteId → { id, nombre, textoEtapa }.
@@ -96,15 +99,18 @@ async function lotesParaEmpezar(db, ids, campoId) {
   const campo = campoId ?? lotes[0].campoId;
   const cabezas = await cabezasDeHoy(db, lotes);
   const porId = new Map(lotes.map((l) => [l.id, l]));
+  const anteriores = new Map(); // loteId → proceso del que viene (reentore)
   for (const id of ids) {
     const l = porId.get(id);
     if (l.campoId !== campo) throw badRequest('Los lotes tienen que ser de la misma estancia');
     if (!l.activo || !cabezas.get(l.id)) throw badRequest(`El lote ${l.nombre} no tiene animales`);
     if (l.categoria.sexo === 'MACHO') throw badRequest(`El lote ${l.nombre} es de ${l.categoria.nombre}: un servicio es para hembras`);
     const otro = await procesoAbiertoDe(db, l.id);
-    if (otro) throw conflict(`El lote ${l.nombre} ya está en el proceso "${otro.nombre}"`);
+    // Las vacías que quedaron para el reentore pasan al servicio nuevo.
+    if (otro?.destino === 'REENTORE') anteriores.set(l.id, otro.id);
+    else if (otro) throw conflict(`El lote ${l.nombre} ya está en el proceso "${otro.nombre}"`);
   }
-  return { campoId: campo, lotes: ids.map((id) => ({ ...porId.get(id), cabezas: cabezas.get(id) })) };
+  return { campoId: campo, anteriores, lotes: ids.map((id) => ({ ...porId.get(id), cabezas: cabezas.get(id) })) };
 }
 
 async function nombreLibreProceso(db, campoId, base) {
@@ -123,7 +129,7 @@ async function exigirNombreLibre(db, campoId, nombre, exceptoId = null) {
 async function planCrear(db, body) {
   const enCurso = body.enCurso ?? null;
   const ids = enCurso ? enCurso.lotes.map((l) => l.loteId) : (body.lineas ?? []).map((l) => l.loteId);
-  const { campoId, lotes } = await lotesParaEmpezar(db, ids, body.campoId ?? null);
+  const { campoId, lotes, anteriores } = await lotesParaEmpezar(db, ids, body.campoId ?? null);
   const dia = enCurso ? enCurso.inicio : (body.fecha ?? hoyISO());
   const campania = campaniaDe(dia);
 
@@ -149,7 +155,7 @@ async function planCrear(db, body) {
   let nombre = body.nombre?.trim();
   if (nombre) await exigirNombreLibre(db, campoId, nombre);
   else nombre = await nombreLibreProceso(db, campoId, `Servicio ${campania} · ${categorias.join(' y ')}`.slice(0, 115));
-  return { campoId, lotes, lineas, enCurso, dia, campania, nombre, modalidad: body.modalidad, toros: body.toros ?? null, nota: body.nota ?? null };
+  return { campoId, lotes, anteriores, lineas, enCurso, dia, campania, nombre, modalidad: body.modalidad, toros: body.toros ?? null, nota: body.nota ?? null };
 }
 
 const oracionCrear = (plan) => {
@@ -197,10 +203,15 @@ async function crearEn(tx, body, usuarioId) {
       fechaInicio: aFecha(plan.dia),
       datos: { modalidad: plan.modalidad, ...(plan.toros != null && { toros: plan.toros }) },
       nota: plan.nota,
+      procesoAnteriorId: [...plan.anteriores.values()][0] ?? null,
       usuarioId,
     },
   });
   const desde = aFecha(plan.enCurso ? hoyISO() : plan.dia);
+  // Reentore: las vacías dejan el proceso anterior.
+  for (const [loteId, anteriorId] of plan.anteriores) {
+    await tx.procesoLote.update({ where: { procesoId_loteId: { procesoId: anteriorId, loteId } }, data: { hasta: desde } });
+  }
   const roles = new Map((plan.enCurso?.lotes ?? []).map((l) => [l.loteId, l]));
   for (const l of plan.lotes) {
     await tx.procesoLote.create({
@@ -277,7 +288,52 @@ export function cuerpoDesdeEvento(tipo, body) {
   };
 }
 
-// --- Las etapas ---
+// --- Las cargas de las etapas ---
+//
+// Una carga guarda los anclas (uno por lote) y hace sus movimientos, todo en
+// la transacción que recibe. La vista previa hace lo mismo y lo deshace
+// (Simulacion), así lo que se ve es exactamente lo que se guardaría.
+
+class Simulacion extends Error {
+  constructor(resultado) {
+    super('simulación');
+    this.resultado = resultado;
+  }
+}
+
+const MES = /^\d{4}-\d{2}$/;
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const nombreMes = (mes) => MESES[Number(mes.slice(5, 7)) - 1];
+const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+// "preñadas oct", "vacías", "sin diagnosticar" (para los errores y los nombres).
+function nombreGrupo(clave) {
+  if (clave === 'vacias') return 'vacías';
+  if (clave === 'sin') return 'preñadas';
+  if (clave === 'sinDiagnostico') return 'sin diagnosticar';
+  return MES.test(clave) ? `preñadas ${nombreMes(clave)}` : clave;
+}
+
+// El sufijo del lote que forma un bloque: "preñadas oct", "preñadas nov–dic", "vacías".
+function sufijoDe(bloque) {
+  if (bloque.clase === 'VACIAS') return 'vacías';
+  const meses = [...new Set(bloque.grupos.filter((c) => MES.test(c)))].sort();
+  if (!meses.length) return 'preñadas';
+  return `preñadas ${textoMeses(meses)}`;
+}
+
+// El texto de un movimiento de un proceso (la vista previa y la ficha).
+function textoMovimiento({ modo, cabezas, potrero, lote, loteOrigen, categoria, tipo, guia }) {
+  const n = cabezas.toLocaleString('es-UY');
+  if (modo === 'CATEGORIA') return `${loteOrigen} pasa a ${categoria}`;
+  if (modo === 'SUMAR') return `${n} → lote ${lote}`;
+  if (modo === 'SALIDA') return `${n} salen: ${tipo.toLowerCase()}${guia ? ` (guía ${guia})` : ''}`;
+  if (modo === 'ENTRADA') return `${n} entran a ${lote} (${categoria})`;
+  return `${n} → ${potrero}, lote ${lote} (${categoria})`;
+}
+
+const textoDelPlan = (p) =>
+  textoMovimiento({ modo: p.modo, cabezas: p.cabezas, potrero: p.destino.nombre, lote: p.loteDestino.nombre, loteOrigen: p.lote.nombre, categoria: p.categoriaDestino.nombre });
 
 async function bloquear(tx, id) {
   await tx.$queryRaw`SELECT id FROM proceso WHERE id = ${id} FOR UPDATE`;
@@ -302,6 +358,18 @@ async function exigirLibre(tx, procesoId, etapa, lote) {
   const ya = await tx.eventoRegistro.findFirst({ where: { procesoId, etapa, loteId: lote.id, anulado: false }, select: { fecha: true } });
   if (ya) {
     throw conflict(`El lote ${lote.nombre} ya tiene su ${nombreEtapa(etapa)} (${fechaUY(fechaISO(ya.fecha))}). Para corregirlo, anulalo y cargalo de nuevo.`);
+  }
+}
+
+// La fecha no puede ser anterior a las etapas de antes de ese lote.
+async function exigirDespuesDe(ctx, lote, etapas) {
+  const antes = await ctx.tx.eventoRegistro.findFirst({
+    where: { procesoId: ctx.proceso.id, loteId: lote.id, etapa: { in: etapas }, anulado: false },
+    orderBy: { fecha: 'desc' },
+    select: { fecha: true, etapa: true },
+  });
+  if (antes && ctx.dia < fechaISO(antes.fecha)) {
+    throw badRequest(`La fecha no puede ser anterior al ${nombreEtapa(antes.etapa)} del lote ${lote.nombre} (${fechaUY(fechaISO(antes.fecha))})`);
   }
 }
 
@@ -337,7 +405,11 @@ async function lotesDeLaCarga(tx, proceso, etapaDef, lineas) {
     tx,
     elegidos.map((e) => e.pl.lote),
   );
-  return elegidos.map(({ pl, linea }) => ({ pl, linea, lote: { ...pl.lote, cabezas: cabezas.get(pl.loteId) } }));
+  return elegidos.map(({ pl, linea }) => {
+    const lote = { ...pl.lote, cabezas: cabezas.get(pl.loteId) };
+    if (!lote.activo || !lote.cabezas) throw badRequest(`El lote ${lote.nombre} no tiene animales`);
+    return { pl, linea, lote };
+  });
 }
 
 function fechaDeCarga(proceso, body) {
@@ -347,88 +419,652 @@ function fechaDeCarga(proceso, body) {
   return dia;
 }
 
-// Las etapas que solo anotan: repaso, fin del servicio y aborto (este último,
-// sin pasarlas a vacías: eso llega con la parición).
-async function planSimple(tx, proceso, etapaDef, body) {
-  const dia = fechaDeCarga(proceso, body);
-  const elegidos = await lotesDeLaCarga(tx, proceso, etapaDef, body.lineas);
-  const tipo = await tipoPorClave(tx, etapaDef.tipos[0]);
-  const lineas = [];
-  for (const { lote, linea } of elegidos) {
-    if (!lote.activo || !lote.cabezas) throw badRequest(`El lote ${lote.nombre} no tiene animales`);
-    await exigirLibre(tx, proceso.id, etapaDef.clave, lote);
-    const r = lineaSimple(etapaDef.clave, linea, lote);
-    if (r.error) throw badRequest(r.error);
-    lineas.push({ lote, cabezas: r.cabezas, parte: r.parte, datos: r.datos });
-  }
-  return { dia, tipo, lineas };
-}
-
-const ETAPAS_SIMPLES = new Set(['REPASO', 'FIN_SERVICIO', 'ABORTO']);
-
-async function planEtapa(tx, proceso, etapa, body) {
-  const etapaDef = etapaDePlantilla(etapa, proceso.tipo);
-  if (!etapaDef) throw notFound('Etapa no encontrada');
-  if (ETAPAS_SIMPLES.has(etapa)) return { etapaDef, ...(await planSimple(tx, proceso, etapaDef, body)) };
-  throw badRequest(`La etapa ${nombreEtapa(etapa)} todavía no se puede cargar`);
-}
-
-const oracionEtapa = (plan) => {
-  const cabezas = plan.lineas.reduce((s, l) => s + l.cabezas, 0);
-  return `Vas a anotar ${plan.etapaDef.nombre.toLowerCase()} en ${plural(plan.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')}) el ${fechaUY(plan.dia)}`;
-};
-
-export async function vistaPreviaEtapa(id, etapa, body) {
-  // Simula sin guardar: el plan solo lee.
-  return prisma.$transaction(async (tx) => {
-    const proceso = await procesoParaCargar(tx, id);
-    const plan = await planEtapa(tx, proceso, etapa, body);
-    return {
-      etapa,
-      oracion: oracionEtapa(plan),
-      lineas: plan.lineas.map((l) => ({ loteId: l.lote.id, lote: l.lote.nombre, cabezas: l.cabezas, texto: textoAncla(etapa, l.datos, l.cabezas) })),
-      avisos: plan.avisos ?? [],
-    };
-  }, TX);
-}
-
-export async function registrarEtapa(id, etapa, body, usuarioId) {
-  const r = await enTransaccion(async (tx) => {
-    const proceso = await procesoParaCargar(tx, id);
-    const plan = await planEtapa(tx, proceso, etapa, body);
-    const grupoId = randomUUID();
-    for (const l of plan.lineas) {
-      await tx.eventoRegistro.create({
-        data: {
-          tipoId: plan.tipo.id,
-          fecha: aFecha(plan.dia),
-          campoId: proceso.campoId,
-          potreroId: l.lote.potreroId,
-          loteId: l.lote.id,
-          categoriaId: l.lote.categoriaId,
-          nivel: l.parte ? 'PARTE_LOTE' : 'LOTE',
-          cabezas: l.cabezas,
-          datos: l.datos,
-          nota: body.nota ?? null,
-          grupoId,
-          procesoId: proceso.id,
-          etapa,
-          usuarioId,
-        },
-      });
-    }
-    return { proceso, plan, grupoId };
+// El ancla de un lote en esta carga.
+async function crearAncla(ctx, tipo, lote, cabezas, datos) {
+  const r = await ctx.tx.eventoRegistro.create({
+    data: {
+      tipoId: tipo.id,
+      fecha: aFecha(ctx.dia),
+      campoId: ctx.proceso.campoId,
+      potreroId: lote.potreroId,
+      loteId: lote.id,
+      categoriaId: lote.categoriaId,
+      nivel: cabezas < lote.cabezas ? 'PARTE_LOTE' : 'LOTE',
+      cabezas,
+      datos,
+      nota: ctx.nota,
+      grupoId: ctx.grupoId,
+      procesoId: ctx.proceso.id,
+      etapa: ctx.etapa,
+      usuarioId: ctx.usuarioId,
+    },
   });
+  ctx.lineas.push({ lote, cabezas, datos });
+  ctx.primerAncla ??= r.id;
+  return r;
+}
+
+// Lo que va en cada movimiento de la carga: el evento PROCESO (se crea con el
+// primero), el proceso y el ancla.
+async function extraDe(ctx, registro) {
+  if (!ctx.evento) {
+    ctx.evento = await ctx.tx.eventoMovimiento.create({
+      data: { tipo: 'PROCESO', campoId: ctx.proceso.campoId, fecha: aFecha(ctx.dia), nota: ctx.nota, procesoId: ctx.proceso.id, grupoId: ctx.grupoId, usuarioId: ctx.usuarioId },
+    });
+  }
+  return { eventoId: ctx.evento.id, procesoId: ctx.proceso.id, registroId: registro?.id ?? null };
+}
+
+// El rol de un lote en el proceso: lo crea o lo cambia.
+async function guardarRol(ctx, loteId, { rol, mes = null, destino = null, hasta = null }, registro) {
+  if (!ctx.rolesAntes.has(loteId)) {
+    const antes = await ctx.tx.procesoLote.findUnique({ where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId } } });
+    ctx.rolesAntes.set(loteId, antes && { rol: antes.rol, mes: antes.mes, destino: antes.destino, hasta: fechaISO(antes.hasta) });
+  }
+  await ctx.tx.procesoLote.upsert({
+    where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId } },
+    update: { rol, mes, destino, hasta: hasta ? aFecha(hasta) : null },
+    create: { procesoId: ctx.proceso.id, loteId, rol, mes, destino, hasta: hasta ? aFecha(hasta) : null, desde: aFecha(ctx.dia), registroId: registro?.id ?? null },
+  });
+}
+
+// Hace la decisión de un lote (diseño §8): planDecision dice los pasos; cada
+// uno es un movimiento que cuelga del ancla. Después, el rol de cada lote que
+// quedó. Un error dice de qué grupo es ("Preñadas oct: ...").
+async function ejecutarDecision(ctx, lote, grupos, registro) {
+  const plan = planDecision({ lote, grupos });
+  if (plan.error) throw badRequest(plan.error);
+  const { tx, dia, usuarioId } = ctx;
+  const creados = new Map(); // grupos del bloque → lote creado
+  for (const paso of plan.pasos) {
+    try {
+      if (paso.tipo === 'VENTA') {
+        const venta = await tipoPorClave(tx, 'VENTA');
+        const v = paso.venta;
+        await aplicarEntradaSalida(
+          tx,
+          {
+            tipoId: venta.id,
+            loteId: lote.id,
+            cabezas: paso.cabezas,
+            fecha: dia,
+            nota: ctx.nota,
+            guia: v.guia ?? null,
+            precioVentaUsd: v.precioVentaUsd ?? null,
+            precioVentaPor: v.precioVentaPor ?? null,
+            pesoPromedioKg: v.pesoPromedioKg ?? null,
+          },
+          usuarioId,
+          await extraDe(ctx, registro),
+        );
+        ctx.pasos.push({ texto: textoMovimiento({ modo: 'SALIDA', cabezas: paso.cabezas, tipo: venta.nombre, guia: v.guia }) });
+        continue;
+      }
+      const base = { loteOrigenId: lote.id, cabezas: paso.cabezas, fecha: dia, nota: ctx.nota };
+      const cuerpo =
+        paso.tipo === 'PARTE'
+          ? { ...base, destinoPotreroId: paso.potreroId, modo: 'NUEVO', parteFamilia: { categoriaId: paso.categoriaId, sufijo: sufijoDe(plan.bloques.find((b) => b.grupos === paso.grupos)) } }
+          : paso.tipo === 'CATEGORIA'
+            ? { ...base, destinoPotreroId: lote.potreroId, modo: 'CATEGORIA', categoriaId: paso.categoriaId }
+            : { ...base, destinoPotreroId: paso.potreroId, modo: 'ENTERO', categoriaId: paso.categoriaId };
+      const p = await aplicar(tx, cuerpo, usuarioId, await extraDe(ctx, registro));
+      if (paso.tipo === 'PARTE') creados.set(paso.grupos, p.loteDestino.id);
+      ctx.pasos.push({ texto: textoDelPlan(p) });
+    } catch (error) {
+      if (error instanceof HttpError) error.message = `${mayuscula(paso.grupos.map(nombreGrupo).join(' y '))}: ${error.message}`;
+      throw error;
+    }
+  }
+
+  for (const b of plan.bloques) {
+    const loteId = b.queda ? lote.id : creados.get(b.grupos);
+    const meses = [...new Set(b.grupos.filter((c) => MES.test(c)))];
+    const mes = meses.length === 1 && !b.grupos.includes('sin') ? meses[0] : null;
+    const n = b.cabezas.toLocaleString('es-UY');
+    if (b.clase === 'PRENADAS') await guardarRol(ctx, loteId, { rol: 'PRENADAS', mes }, registro);
+    else if (b.clase === 'SIN') await guardarRol(ctx, loteId, { rol: 'VIENTRES' }, registro);
+    else if (b.destino === 'INVERNADA') await guardarRol(ctx, loteId, { rol: 'LIBRES', destino: 'INVERNADA', hasta: dia }, registro);
+    else if (b.destino === 'REENTORE') {
+      await guardarRol(ctx, loteId, { rol: 'VACIAS', destino: 'REENTORE' }, registro);
+      ctx.pasos.push({ texto: `${n} vacías: para el próximo servicio (reentore)` });
+    } else {
+      await guardarRol(ctx, loteId, { rol: 'VACIAS' }, registro);
+      if (b.destino === 'DESPUES') ctx.pasos.push({ texto: `${n} vacías: las decidís después` });
+    }
+  }
+  // Si se vendió todo el lote, queda anotado así.
+  if (!plan.bloques.length) await guardarRol(ctx, lote.id, { rol: 'VACIAS', destino: 'VENTA', hasta: dia }, registro);
+}
+
+// Las etapas que solo anotan: repaso, fin del servicio y aborto.
+async function cargaSimple(ctx, body) {
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const tipo = await tipoPorClave(ctx.tx, ctx.etapaDef.tipos[0]);
+  for (const { lote, linea } of elegidos) {
+    await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
+    const r = lineaSimple(ctx.etapa, linea, lote);
+    if (r.error) throw badRequest(r.error);
+    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, ctx.etapa === 'ABORTO' && body.aVacias ? { aVacias: true } : r.datos);
+    if (ctx.etapa === 'ABORTO' && body.aVacias) await abortoAVacias(ctx, lote, r.cabezas, registro);
+  }
+}
+
+// Las preñadas (por mes) y las vacías de un diagnóstico, como grupos.
+const gruposDelDiagnostico = (datos) => [
+  ...Object.entries(datos.prenadas)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([clave, cabezas]) => ({ clave, cabezas, clase: 'PRENADAS' })),
+  ...(datos.vacias ? [{ clave: 'vacias', cabezas: datos.vacias, clase: 'VACIAS' }] : []),
+];
+
+// El diagnóstico (ecografía o tacto) con la decisión de cada grupo (diseño §8).
+// Lo que no se decide: las preñadas se quedan en su potrero, con la categoría
+// sugerida; las vacías, para decidir después.
+async function cargaDiagnostico(ctx, body) {
+  if (!body.lineas?.length) throw badRequest('Escribí las preñadas y las vacías de cada lote');
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const tipo = await tipoPorClave(ctx.tx, 'ECOGRAFIA');
+  const categorias = await ctx.tx.categoria.findMany({ select: { id: true, nombre: true } });
+  const decisiones = new Map((body.decision ?? []).map((d) => [d.loteId, d.grupos ?? []]));
+  for (const loteId of decisiones.keys()) {
+    if (!elegidos.some((e) => e.lote.id === loteId)) throw badRequest('Hay una decisión de un lote que no está en el diagnóstico');
+  }
+  for (const { lote, linea } of elegidos) {
+    await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
+    await exigirDespuesDe(ctx, lote, ['INICIO', 'REPASO', 'FIN_SERVICIO']);
+    const r = lineaDiagnostico(linea, lote, body.metodo);
+    if (r.error) throw badRequest(r.error);
+    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, r.datos);
+    const grupos = gruposDelDiagnostico(r.datos);
+    const dec = decisiones.get(lote.id) ?? [];
+    for (const g of dec) if (!grupos.some((x) => x.clave === g.clave)) throw badRequest(`El grupo ${nombreGrupo(g.clave)} no está en el diagnóstico del lote ${lote.nombre}`);
+    const sugerida = (paso) => sugerirCategoria(paso, lote.categoria, categorias).id;
+    const finales = grupos.map((g) => {
+      const d = dec.find((x) => x.clave === g.clave);
+      const vacia = g.clase === 'VACIAS';
+      const destino = d?.destino ?? (vacia ? { despues: true } : { potreroId: lote.potreroId });
+      const categoriaId = d?.categoriaId ?? (vacia ? (destino.invernada ? sugerida('VACIA') : lote.categoriaId) : sugerida('PRENADA'));
+      return { ...g, destino, categoriaId };
+    });
+    await ejecutarDecision(ctx, lote, finales, registro);
+  }
+}
+
+// La revisión del diagnóstico: "de 10 vacías, 2 estaban preñadas". Con
+// aLoteId, las que cambian se suman a ese lote del proceso.
+async function cargaRevision(ctx, body) {
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const tipo = await tipoPorClave(ctx.tx, 'ECOGRAFIA');
+  for (const { lote, linea } of elegidos) {
+    await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
+    const r = lineaRevision(linea, lote);
+    if (r.error) throw badRequest(r.error);
+    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, r.datos);
+    if (!r.aLoteId) {
+      ctx.avisos.push(`Las que cambian siguen en el lote ${lote.nombre}: separalas con el + si hace falta`);
+      continue;
+    }
+    if (r.datos.aPrenadas && r.datos.aVacias) throw badRequest(`En el lote ${lote.nombre}: para mandarlas a otro lote, que cambien en un solo sentido`);
+    const destino = await ctx.tx.procesoLote.findUnique({ where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId: r.aLoteId } }, include: { lote: true } });
+    const rolDestino = r.datos.aPrenadas ? 'PRENADAS' : 'VACIAS';
+    if (!destino || destino.rol !== rolDestino || !destino.lote.activo) throw badRequest(`El lote de destino tiene que ser de ${rolDestino === 'PRENADAS' ? 'preñadas' : 'vacías'} del proceso`);
+    const p = await aplicar(
+      ctx.tx,
+      { loteOrigenId: lote.id, cabezas: r.cabezas, destinoPotreroId: destino.lote.potreroId, modo: 'SUMAR', loteDestinoId: destino.loteId, fecha: ctx.dia, nota: ctx.nota },
+      ctx.usuarioId,
+      await extraDe(ctx, registro),
+    );
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+  }
+}
+
+const destinoDecision = (d) => (d?.venta ? 'VENTA' : d?.invernada ? 'INVERNADA' : d?.reentore ? 'REENTORE' : d?.potreroId ? 'MOVER' : null);
+
+// Lo que se decide después con las vacías (diseño §8, "Decidir"): cada lote
+// de vacías sin destino, entero, a venta, invernada, reentore u otro potrero.
+async function cargaDecision(ctx, body) {
+  if (!body.lineas?.length) throw badRequest('Elegí qué hacés con las vacías');
+  const tipo = await tipoPorClave(ctx.tx, 'ECOGRAFIA');
+  const categorias = await ctx.tx.categoria.findMany({ select: { id: true, nombre: true } });
+  for (const linea of body.lineas) {
+    const pl = await ctx.tx.procesoLote.findUnique({
+      where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId: linea.loteId } },
+      include: { lote: { include: { categoria: true } } },
+    });
+    const nombre = pl?.lote.nombre ?? (await ctx.tx.lote.findUnique({ where: { id: linea.loteId }, select: { nombre: true } }))?.nombre ?? 'elegido';
+    if (!pl || pl.rol !== 'VACIAS' || pl.destino || pl.hasta || !pl.lote.activo) throw badRequest(`El lote ${nombre} no tiene nada para decidir`);
+    const destino = destinoDecision(linea.destino);
+    if (!destino) throw badRequest(`Elegí qué hacés con las vacías del lote ${nombre}`);
+    const lote = { ...pl.lote, cabezas: (await cabezasDeHoy(ctx.tx, [pl.lote])).get(pl.loteId) };
+    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { destino });
+    const categoriaId = linea.categoriaId ?? (destino === 'INVERNADA' ? sugerirCategoria('VACIA', lote.categoria, categorias).id : lote.categoriaId);
+    await ejecutarDecision(ctx, lote, [{ clave: 'vacias', cabezas: lote.cabezas, clase: 'VACIAS', destino: linea.destino, categoriaId }], registro);
+  }
+}
+
+// --- Parición (diseño §9) ---
+
+// Un lote del proceso con ese rol y mes, en el mismo potrero y de la misma
+// familia (o, para las crías, con el nombre de la familia y del sexo).
+async function loteDelMes(ctx, { rol, mes, potreroId, raizId, raizNombre, sexo = null }) {
+  const pls = await ctx.tx.procesoLote.findMany({
+    where: { procesoId: ctx.proceso.id, rol, mes, hasta: null, lote: { activo: true, potreroId } },
+    include: { lote: { include: { categoria: { select: { sexo: true } } } } },
+    orderBy: { id: 'asc' },
+  });
+  return (
+    pls.find((pl) =>
+      sexo ? pl.lote.categoria.sexo === sexo && pl.lote.nombre.startsWith(`${raizNombre} · `) : pl.lote.id === raizId || pl.lote.raizId === raizId,
+    ) ?? null
+  );
+}
+
+// Avisa si la parición es antes de inicio + 260 días.
+async function avisoTemprano(ctx) {
+  const anclas = (await ctx.tx.eventoRegistro.findMany({ where: { procesoId: ctx.proceso.id, anulado: false }, select: anclaSelect })).map(aAncla);
+  const { inicio } = fechasServicio(anclas);
+  if (!inicio || ctx.dia >= sumarDias(inicio, 260)) return;
+  const { gestacionDias } = await parametrosProceso(ctx.tx);
+  const probable = sumarDias(inicio, gestacionDias);
+  const faltan = Math.round((new Date(`${probable}T12:00:00Z`) - new Date(`${ctx.dia}T12:00:00Z`)) / 86_400_000);
+  ctx.avisos.push(`La parición del ${fechaUY(ctx.dia)} es temprana: faltan ${faltan} días para la fecha probable (${fechaUY(probable)}). ¿Está bien la fecha?`);
+}
+
+// La parición de cada lote de preñadas (una carga; puede haber muchas, una
+// por recorrida). Por cada lote:
+//   1. las madres muertas al parto salen como muerte (causa Parto);
+//   2. las que parieron se suman a "<raíz> · paridas <mes>" (en el mismo
+//      potrero, de la familia), que se crea si no existe; si parieron todas y
+//      no hay paridas de ese mes, el lote mismo cambia de categoría;
+//   3. los terneros y terneras entran con Nacimiento a "<raíz> · terneros <mes>"
+//      y "· terneras <mes>", con el lote de las madres anotado.
+// Los nacidos muertos solo quedan en el ancla: nunca entraron al stock.
+async function cargaParicion(ctx, body) {
+  if (!body.lineas?.length) throw badRequest('Escribí la parición de cada lote');
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const { tx } = ctx;
+  const categorias = await tx.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
+  const tipos = { PARICION: await tipoPorClave(tx, 'PARICION'), NACIMIENTO: await tipoPorClave(tx, 'NACIMIENTO'), MUERTE: await tipoPorClave(tx, 'MUERTE') };
+  const causa = await tx.causaMovimiento.findUnique({ where: { codigo: 'PA-001' } });
+  const mes = ctx.dia.slice(0, 7);
+  const sufMes = nombreMes(mes);
+  await avisoTemprano(ctx);
+
+  for (const { lote, linea } of elegidos) {
+    const r = lineaParicion(linea, lote);
+    if (r.error) throw badRequest(r.error);
+    ctx.avisos.push(...r.avisos);
+    const { madres, machos, hembras, madresMuertas } = r.datos;
+    const registro = await crearAncla(ctx, tipos.PARICION, lote, madres + madresMuertas, { ...r.datos, mes });
+    const extra = await extraDe(ctx, registro);
+    const raizId = lote.raizId ?? lote.id;
+    const raizNombre = lote.raizId ? (await tx.lote.findUnique({ where: { id: raizId }, select: { nombre: true } })).nombre : lote.nombre;
+    const sugerida = (paso) => sugerirCategoria(paso, lote.categoria, categorias);
+
+    if (madresMuertas) {
+      if (!causa) throw badRequest('Falta la causa "Parto" (PA-001) en Configuración → Causas');
+      await aplicarEntradaSalida(tx, { tipoId: tipos.MUERTE.id, loteId: lote.id, cabezas: madresMuertas, fecha: ctx.dia, causaId: causa.id, nota: ctx.nota }, ctx.usuarioId, extra);
+      ctx.pasos.push({ texto: `${madresMuertas.toLocaleString('es-UY')} madres muertas al parto` });
+    }
+
+    let madresId = null;
+    if (madres) {
+      const restantes = lote.cabezas - madresMuertas;
+      const categoriaId = linea.categoriaMadresId ?? sugerida('PARIDA').id;
+      const paridas = await loteDelMes(ctx, { rol: 'PARIDAS', mes, potreroId: lote.potreroId, raizId });
+      const base = { loteOrigenId: lote.id, cabezas: madres, destinoPotreroId: lote.potreroId, fecha: ctx.dia, nota: ctx.nota };
+      if (paridas) {
+        const p = await aplicar(tx, { ...base, modo: 'SUMAR', loteDestinoId: paridas.loteId }, ctx.usuarioId, extra);
+        ctx.pasos.push({ texto: textoDelPlan(p) });
+        madresId = paridas.loteId;
+      } else if (madres === restantes) {
+        if (categoriaId !== lote.categoriaId) {
+          const p = await aplicar(tx, { ...base, modo: 'CATEGORIA', categoriaId }, ctx.usuarioId, extra);
+          ctx.pasos.push({ texto: textoDelPlan(p) });
+        }
+        madresId = lote.id;
+        await guardarRol(ctx, lote.id, { rol: 'PARIDAS', mes }, registro);
+      } else {
+        const p = await aplicar(tx, { ...base, modo: 'NUEVO', parteFamilia: { categoriaId, sufijo: `paridas ${sufMes}` } }, ctx.usuarioId, extra);
+        ctx.pasos.push({ texto: textoDelPlan(p) });
+        madresId = p.loteDestino.id;
+        await guardarRol(ctx, madresId, { rol: 'PARIDAS', mes }, registro);
+      }
+    }
+
+    const crias = [];
+    for (const [sexo, n, paso, palabra] of [
+      ['MACHO', machos, 'CRIA_MACHO', 'terneros'],
+      ['HEMBRA', hembras, 'CRIA_HEMBRA', 'terneras'],
+    ]) {
+      if (!n) continue;
+      const ya = await loteDelMes(ctx, { rol: 'CRIAS', mes, potreroId: lote.potreroId, raizNombre, sexo });
+      if (ya) crias.push({ cabezas: n, loteId: ya.loteId });
+      else crias.push({ cabezas: n, nuevoLote: { nombre: await nombreLibre(tx, lote.campoId, `${raizNombre} · ${palabra} ${sufMes}`), categoriaId: sugerida(paso).id } });
+    }
+    if (crias.length) {
+      const { plan } = await aplicarEntradaSalida(
+        tx,
+        { tipoId: tipos.NACIMIENTO.id, potreroId: lote.potreroId, fecha: ctx.dia, nota: ctx.nota, ...(madresId && { loteMadresId: madresId }), lineas: crias },
+        ctx.usuarioId,
+        extra,
+      );
+      for (const [i, paso] of plan.pasos.entries()) {
+        ctx.pasos.push({ texto: textoMovimiento({ modo: 'ENTRADA', cabezas: paso.cabezas, lote: paso.lote.nombre, categoria: paso.categoria.nombre }) });
+        if (crias[i].nuevoLote) await guardarRol(ctx, paso.lote.id, { rol: 'CRIAS', mes }, registro);
+      }
+    }
+  }
+}
+
+// El fin de la parición de un lote: las que quedaron sin parir pasan a
+// vacías ("falladas"), con la misma decisión que en el diagnóstico (por
+// defecto, para decidir después).
+async function cargaFinParicion(ctx, body) {
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const tipo = await tipoPorClave(ctx.tx, 'PARICION');
+  const categorias = await ctx.tx.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
+  for (const { lote, linea } of elegidos) {
+    await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
+    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { falladas: lote.cabezas });
+    const destino = linea.destino ?? { despues: true };
+    const categoriaId = linea.categoriaId ?? (destino.invernada ? sugerirCategoria('VACIA', lote.categoria, categorias).id : lote.categoriaId);
+    await ejecutarDecision(ctx, lote, [{ clave: 'vacias', cabezas: lote.cabezas, clase: 'VACIAS', destino, categoriaId }], registro);
+  }
+}
+
+// Un aborto con "pasarlas a vacías": las que abortaron se van a un lote de
+// vacías del proceso (en el mismo potrero, de la familia), para decidir después.
+async function abortoAVacias(ctx, lote, cabezas, registro) {
+  const raizId = lote.raizId ?? lote.id;
+  const vacias = await ctx.tx.procesoLote.findFirst({
+    where: { procesoId: ctx.proceso.id, rol: 'VACIAS', destino: null, hasta: null, lote: { activo: true, potreroId: lote.potreroId, OR: [{ id: raizId }, { raizId }] } },
+  });
+  const extra = await extraDe(ctx, registro);
+  const base = { loteOrigenId: lote.id, cabezas, destinoPotreroId: lote.potreroId, fecha: ctx.dia, nota: ctx.nota };
+  if (vacias && vacias.loteId !== lote.id) {
+    const p = await aplicar(ctx.tx, { ...base, modo: 'SUMAR', loteDestinoId: vacias.loteId }, ctx.usuarioId, extra);
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+  } else if (cabezas === lote.cabezas) {
+    await guardarRol(ctx, lote.id, { rol: 'VACIAS' }, registro);
+  } else {
+    const p = await aplicar(ctx.tx, { ...base, modo: 'NUEVO', parteFamilia: { sufijo: 'vacías' } }, ctx.usuarioId, extra);
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+    await guardarRol(ctx, p.loteDestino.id, { rol: 'VACIAS' }, registro);
+  }
+}
+
+// --- Destete (diseño §10) ---
+
+const aNumero = (v) => (v == null || v === '' ? null : Number(String(v).trim().replace(',', '.')));
+
+// El lote de las madres de unas crías: el del nacimiento (si sigue activo y
+// en el mismo potrero); si no, el de paridas del mismo mes en ese potrero.
+async function madresDe(ctx, crias, pl) {
+  const nacimiento = await ctx.tx.movimiento.findFirst({
+    where: { loteDestinoId: crias.id, modo: 'ENTRADA', loteMadresId: { not: null } },
+    orderBy: { id: 'desc' },
+    include: { loteMadres: { include: { categoria: true } } },
+  });
+  const m = nacimiento?.loteMadres;
+  if (m?.activo && m.potreroId === crias.potreroId) return m;
+  const paridas = await ctx.tx.procesoLote.findFirst({
+    where: { procesoId: ctx.proceso.id, rol: 'PARIDAS', mes: pl.mes, hasta: null, lote: { activo: true, potreroId: crias.potreroId } },
+    include: { lote: { include: { categoria: true } } },
+  });
+  return paridas?.lote ?? null;
+}
+
+// El destete de cada lote de crías (entero): se va a otro potrero, con el
+// lote de las madres anotado, y puede cambiar de categoría al llegar. Cuando
+// a las madres ya no les quedan crías al pie, vuelven a ser de cría
+// (categoría sugerida) y dejan el proceso.
+async function cargaDestete(ctx, body) {
+  if (!body.lineas?.length) throw badRequest('Elegí los terneros que se destetan');
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const tipo = await tipoPorClave(ctx.tx, 'DESTETE');
+  const categorias = await ctx.tx.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
+  for (const { lote, linea, pl } of elegidos) {
+    await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
+    if (!linea.destinoPotreroId) throw badRequest(`Elegí a qué potrero se van los terneros del lote ${lote.nombre}`);
+    if (linea.cabezas != null && linea.cabezas !== '' && Number(linea.cabezas) !== lote.cabezas) {
+      throw badRequest(`El lote ${lote.nombre} se desteta entero (${lote.cabezas} cabezas)`);
+    }
+    const madres = await madresDe(ctx, lote, pl);
+    if (!madres) throw badRequest(`Las madres de ${lote.nombre} no están en su potrero: no se puede destetar desde acá`);
+    const peso = aNumero(linea.pesoPromedioKg);
+    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { destetados: lote.cabezas, ...(peso != null && { pesoPromedioKg: peso }) });
+    const extra = await extraDe(ctx, registro);
+    const p = await aplicar(
+      ctx.tx,
+      {
+        loteOrigenId: lote.id,
+        cabezas: lote.cabezas,
+        destinoPotreroId: linea.destinoPotreroId,
+        modo: 'ENTERO',
+        ...(linea.categoriaId && { categoriaId: linea.categoriaId }),
+        ...(peso != null && { pesoPromedioKg: peso }),
+        destete: true,
+        loteMadresId: madres.id,
+        fecha: ctx.dia,
+        nota: ctx.nota,
+      },
+      ctx.usuarioId,
+      extra,
+    );
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+    await guardarRol(ctx, lote.id, { rol: 'CRIAS', mes: pl.mes, hasta: ctx.dia }, registro);
+
+    // ¿Les quedan crías al pie a las madres?
+    const quedan = await ctx.tx.procesoLote.count({
+      where: { procesoId: ctx.proceso.id, rol: 'CRIAS', mes: pl.mes, hasta: null, lote: { activo: true, potreroId: madres.potreroId } },
+    });
+    if (!quedan) {
+      const plMadres = await ctx.tx.procesoLote.findUnique({ where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId: madres.id } } });
+      const categoriaId = linea.categoriaMadresId ?? sugerirCategoria('DESTETE_MADRE', madres.categoria, categorias).id;
+      if (categoriaId !== madres.categoriaId) {
+        const n = (await cabezasDeHoy(ctx.tx, [madres])).get(madres.id);
+        const q = await aplicar(ctx.tx, { loteOrigenId: madres.id, cabezas: n, destinoPotreroId: madres.potreroId, modo: 'CATEGORIA', categoriaId, fecha: ctx.dia, nota: ctx.nota }, ctx.usuarioId, extra);
+        ctx.pasos.push({ texto: textoDelPlan(q) });
+      }
+      if (plMadres) await guardarRol(ctx, madres.id, { rol: 'LIBRES', mes: plMadres.mes, hasta: ctx.dia }, registro);
+    }
+  }
+}
+
+// --- Cierre y anular ---
+
+// Se cierra solo cuando terminó (todas las crías destetadas, nada sin parir)
+// y no queda nada por decidir; se vuelve a abrir si deja de estar terminado
+// (por ejemplo, al anular el último destete).
+async function revisarCierre(tx, procesoId) {
+  const p = await tx.proceso.findUnique({ where: { id: procesoId }, include: { registros: { select: anclaSelect }, lotes: { include: { lote: { select: { activo: true } } } } } });
+  const etapa = etapaActual(p.registros.map(aAncla), p.lotes.map(aLoteRol));
+  const pendientes = p.lotes.some((pl) => pl.rol === 'VACIAS' && !pl.destino && pl.hasta == null && pl.lote.activo);
+  if (p.estado === 'ABIERTO' && etapa === 'TERMINADO' && !pendientes) {
+    await tx.proceso.update({ where: { id: p.id }, data: { estado: 'CERRADO', cerradoEn: new Date() } });
+  } else if (p.estado === 'CERRADO' && etapa !== 'TERMINADO') {
+    await tx.proceso.update({ where: { id: p.id }, data: { estado: 'ABIERTO', cerradoEn: null } });
+  }
+}
+
+// Anula una carga: revierte sus movimientos (del último al primero; solo si
+// después no hubo otros cambios en esos potreros), anula sus anclas y deja los
+// lotes del proceso como estaban antes. Todo junto o nada.
+export async function anularCarga(id, grupoId, usuarioId) {
+  const procesoId = parseId(id);
+  const r = await prisma.$transaction(async (tx) => {
+    const proceso = procesoId && (await tx.proceso.findUnique({ where: { id: procesoId } }));
+    if (!proceso) throw notFound('Proceso no encontrado');
+    await bloquear(tx, proceso.id);
+    if (proceso.estado === 'ANULADO') throw conflict('El proceso está anulado');
+    const anclas = await tx.eventoRegistro.findMany({ where: { procesoId: proceso.id, grupoId: String(grupoId).slice(0, 36) }, orderBy: { id: 'asc' }, include: { lote: { select: { nombre: true } } } });
+    if (!anclas.length) throw notFound('Carga no encontrada');
+    if (anclas.every((a) => a.anulado)) throw conflict('Esta carga ya está anulada');
+    const ev = await tx.eventoMovimiento.findFirst({ where: { procesoId: proceso.id, grupoId: anclas[0].grupoId, tipo: 'PROCESO' }, include: { revertidoPor: { select: { id: true } } } });
+    let movimientos = 0;
+    if (ev && !ev.revertidoPor) movimientos = (await revertirEventoEn(tx, ev.id, usuarioId, { desdeProceso: true })).pasos.length;
+    for (const a of anclas) {
+      for (const { loteId, antes } of a.rolesAntes ?? []) {
+        if (!antes) await tx.procesoLote.deleteMany({ where: { procesoId: proceso.id, loteId } });
+        else {
+          await tx.procesoLote.update({
+            where: { procesoId_loteId: { procesoId: proceso.id, loteId } },
+            data: { rol: antes.rol, mes: antes.mes, destino: antes.destino, hasta: antes.hasta ? aFecha(antes.hasta) : null },
+          });
+        }
+      }
+    }
+    await tx.eventoRegistro.updateMany({ where: { id: { in: anclas.map((a) => a.id) }, anulado: false }, data: { anulado: true, anuladoEn: new Date(), anuladoPorId: usuarioId } });
+    await revisarCierre(tx, proceso.id);
+    return { proceso, anclas, movimientos };
+  }, TX);
   return {
-    grupoId: r.grupoId,
-    oracion: oracionEtapa(r.plan).replace(/^Vas a anotar/, 'Anotaste'),
     ficha: await ficha(r.proceso.id),
     auditoria: {
       proceso: r.proceso.nombre,
+      etapa: r.anclas[0].etapa,
+      fecha: fechaISO(r.anclas[0].fecha),
+      grupoId: r.anclas[0].grupoId,
+      registros: r.anclas.map((a) => a.id),
+      lotes: r.anclas.map((a) => ({ lote: a.lote?.nombre ?? null, cabezas: a.cabezas })),
+      movimientosRevertidos: r.movimientos,
+    },
+  };
+}
+
+// Cerrar a mano (por ejemplo, si se vendió todo), con una nota opcional.
+export async function cerrar(id, { nota } = {}) {
+  const procesoId = parseId(id);
+  const p = procesoId && (await prisma.proceso.findUnique({ where: { id: procesoId } }));
+  if (!p) throw notFound('Proceso no encontrado');
+  if (p.estado !== 'ABIERTO') throw conflict(`El proceso ya está ${p.estado === 'CERRADO' ? 'cerrado' : 'anulado'}`);
+  const despues = await prisma.proceso.update({ where: { id: p.id }, data: { estado: 'CERRADO', cerradoEn: new Date(), ...(nota && { nota }) } });
+  return { proceso: toProceso(despues), auditoria: { nombre: p.nombre, ...(nota && { nota }) } };
+}
+
+// Anular el proceso entero: solo si ninguna carga vigente movió animales
+// (esas se anulan primero, de la última a la primera).
+export async function anularProceso(id, usuarioId) {
+  const procesoId = parseId(id);
+  const r = await prisma.$transaction(async (tx) => {
+    const p = procesoId && (await tx.proceso.findUnique({ where: { id: procesoId } }));
+    if (!p) throw notFound('Proceso no encontrado');
+    await bloquear(tx, p.id);
+    if (p.estado === 'ANULADO') throw conflict('El proceso ya está anulado');
+    const conMovimientos = await tx.eventoMovimiento.count({ where: { procesoId: p.id, tipo: 'PROCESO', revertidoPor: null, movimientos: { some: {} } } });
+    if (conMovimientos) throw conflict('Este proceso tiene cargas que movieron animales: anulalas primero, de la última a la primera');
+    const anuladas = await tx.eventoRegistro.updateMany({ where: { procesoId: p.id, anulado: false }, data: { anulado: true, anuladoEn: new Date(), anuladoPorId: usuarioId } });
+    const despues = await tx.proceso.update({ where: { id: p.id }, data: { estado: 'ANULADO' } });
+    return { p, despues, anclas: anuladas.count };
+  }, TX);
+  return { proceso: toProceso(r.despues), auditoria: { nombre: r.p.nombre, anclasAnuladas: r.anclas } };
+}
+
+const CARGAS = {
+  REPASO: cargaSimple,
+  FIN_SERVICIO: cargaSimple,
+  ABORTO: cargaSimple,
+  DIAGNOSTICO: cargaDiagnostico,
+  REVISION: cargaRevision,
+  DECISION: cargaDecision,
+  PARICION: cargaParicion,
+  FIN_PARICION: cargaFinParicion,
+  DESTETE: cargaDestete,
+};
+
+// Hace la carga de una etapa en la transacción. Devuelve el contexto: los
+// anclas (lineas), los pasos (textos de los movimientos) y los avisos.
+async function cargar(tx, proceso, etapa, body, usuarioId) {
+  const etapaDef = etapaDePlantilla(etapa, proceso.tipo);
+  if (!etapaDef) throw notFound('Etapa no encontrada');
+  if (etapa === 'INICIO') throw badRequest('El inicio del servicio se carga al empezar el proceso');
+  const carga = CARGAS[etapa];
+  if (!carga) throw badRequest(`La etapa ${nombreEtapa(etapa)} todavía no se puede cargar`);
+  const ctx = {
+    tx,
+    proceso,
+    etapa,
+    etapaDef,
+    dia: fechaDeCarga(proceso, body),
+    usuarioId,
+    grupoId: randomUUID(),
+    nota: body.nota ?? null,
+    evento: null,
+    lineas: [],
+    pasos: [],
+    avisos: [],
+    rolesAntes: new Map(),
+    primerAncla: null,
+  };
+  await carga(ctx, body);
+  // Cómo estaban los lotes del proceso (para anular la carga), en el primer ancla.
+  if (ctx.primerAncla && ctx.rolesAntes.size) {
+    await tx.eventoRegistro.update({ where: { id: ctx.primerAncla }, data: { rolesAntes: [...ctx.rolesAntes].map(([loteId, antes]) => ({ loteId, antes })) } });
+  }
+  await revisarCierre(tx, proceso.id);
+  return ctx;
+}
+
+function oracionEtapa(ctx) {
+  const cabezas = ctx.lineas.reduce((s, l) => s + l.cabezas, 0);
+  if (ctx.etapa === 'DIAGNOSTICO') {
+    const prenadas = ctx.lineas.reduce((s, l) => s + Object.values(l.datos.prenadas).reduce((a, b) => a + b, 0), 0);
+    return `Vas a anotar el diagnóstico de ${plural(cabezas, 'cabeza', 'cabezas')} (${plural(prenadas, 'preñada', 'preñadas')}, ${plural(cabezas - prenadas, 'vacía', 'vacías')}) el ${fechaUY(ctx.dia)}`;
+  }
+  if (ctx.etapa === 'PARICION') {
+    const madres = ctx.lineas.reduce((s, l) => s + l.datos.madres, 0);
+    const vivos = ctx.lineas.reduce((s, l) => s + l.datos.machos + l.datos.hembras, 0);
+    return `Vas a anotar la parición de ${plural(madres, 'madre', 'madres')} (${plural(vivos, 'ternero vivo', 'terneros vivos')}) el ${fechaUY(ctx.dia)}`;
+  }
+  if (ctx.etapa === 'FIN_PARICION') return `Vas a anotar el fin de la parición: ${plural(cabezas, 'no parió', 'no parieron')} (pasan a vacías) el ${fechaUY(ctx.dia)}`;
+  if (ctx.etapa === 'DESTETE') return `Vas a anotar el destete de ${plural(cabezas, 'ternero', 'terneros')} el ${fechaUY(ctx.dia)}`;
+  if (ctx.etapa === 'DECISION') return `Vas a decidir qué se hace con ${plural(cabezas, 'vacía', 'vacías')} el ${fechaUY(ctx.dia)}`;
+  return `Vas a anotar ${ctx.etapaDef.nombre.toLowerCase()} en ${plural(ctx.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')}) el ${fechaUY(ctx.dia)}`;
+}
+
+const resumenCarga = (ctx) => ({
+  etapa: ctx.etapa,
+  grupoId: ctx.grupoId,
+  dia: ctx.dia,
+  oracion: oracionEtapa(ctx),
+  lineas: ctx.lineas.map((l) => ({ loteId: l.lote.id, lote: l.lote.nombre, cabezas: l.cabezas, texto: textoAncla(ctx.etapa, l.datos, l.cabezas) })),
+  pasos: ctx.pasos,
+  avisos: ctx.avisos,
+});
+
+export async function vistaPreviaEtapa(id, etapa, body) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const proceso = await procesoParaCargar(tx, id);
+      const { grupoId, dia, ...resumen } = resumenCarga(await cargar(tx, proceso, etapa, body, null));
+      throw new Simulacion(resumen);
+    }, TX);
+  } catch (error) {
+    if (error instanceof Simulacion) return error.resultado;
+    if (esP2002(error)) throw conflict('Esa etapa ya está cargada para ese lote (la acaban de cargar). Actualizá la ficha.');
+    throw error;
+  }
+  throw new Error('La simulación no devolvió nada');
+}
+
+export async function registrarEtapa(id, etapa, body, usuarioId) {
+  const { proceso, resumen } = await enTransaccion(async (tx) => {
+    const proceso = await procesoParaCargar(tx, id);
+    return { proceso, resumen: resumenCarga(await cargar(tx, proceso, etapa, body, usuarioId)) };
+  });
+  return {
+    grupoId: resumen.grupoId,
+    oracion: resumen.oracion.replace(/^Vas a anotar/, 'Anotaste').replace(/^Vas a decidir/, 'Decidiste'),
+    pasos: resumen.pasos,
+    ficha: await ficha(proceso.id),
+    auditoria: {
+      proceso: proceso.nombre,
       etapa,
-      fecha: r.plan.dia,
-      grupoId: r.grupoId,
-      lineas: r.plan.lineas.map((l) => ({ lote: l.lote.nombre, cabezas: l.cabezas, ...l.datos })),
+      fecha: resumen.dia,
+      grupoId: resumen.grupoId,
+      lineas: resumen.lineas.map((l) => ({ lote: l.lote, cabezas: l.cabezas, texto: l.texto })),
+      pasos: resumen.pasos.map((p) => p.texto),
     },
   };
 }
@@ -497,6 +1133,44 @@ export async function ficha(id) {
     p.lotes.map((pl) => pl.lote),
   );
 
+  // Los movimientos de cada carga (por el grupo del evento PROCESO).
+  const movs = await prisma.movimiento.findMany({
+    where: { procesoId: p.id },
+    include: {
+      evento: { select: { grupoId: true, revertidoPor: { select: { id: true } } } },
+      loteOrigen: { select: { nombre: true } },
+      loteDestino: { select: { nombre: true } },
+      potreroDestino: { select: { nombre: true } },
+      tipo: { select: { nombre: true } },
+    },
+    orderBy: { id: 'asc' },
+  });
+  const nombresCategoria = new Map(
+    (await prisma.categoria.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.categoriaDestinoId).filter(Boolean))] } }, select: { id: true, nombre: true } })).map((c) => [
+      c.id,
+      c.nombre,
+    ]),
+  );
+  const movsDe = new Map();
+  for (const m of movs) {
+    const g = m.evento?.grupoId;
+    if (!movsDe.has(g)) movsDe.set(g, []);
+    movsDe.get(g).push({
+      id: m.id,
+      revertido: Boolean(m.evento?.revertidoPor),
+      texto: textoMovimiento({
+        modo: m.modo,
+        cabezas: m.cabezas,
+        potrero: m.potreroDestino?.nombre,
+        lote: m.loteDestino?.nombre,
+        loteOrigen: m.loteOrigen?.nombre,
+        categoria: nombresCategoria.get(m.categoriaDestinoId),
+        tipo: m.tipo.nombre,
+        guia: m.guia,
+      }),
+    });
+  }
+
   const etapas = PLANTILLAS[p.tipo].etapas.map((e) => {
     const deEtapa = p.registros.filter((r) => r.etapa === e.clave);
     const vigentes = deEtapa.filter((r) => !r.anulado);
@@ -511,8 +1185,8 @@ export async function ficha(id) {
       inicial: Boolean(rs[0].datos?.inicial),
       anulada: rs.every((r) => r.anulado),
       lineas: rs.map((r) => ({ registroId: r.id, loteId: r.loteId, lote: r.lote?.nombre ?? null, cabezas: r.cabezas, datos: r.datos, texto: textoAncla(e.clave, r.datos, r.cabezas) })),
-      movimientos: [],
-      puedeAnular: !rs.every((r) => r.anulado),
+      movimientos: movsDe.get(grupoId) ?? [],
+      puedeAnular: !rs.every((r) => r.anulado) && p.estado !== 'ANULADO',
     }));
     let estado = vigentes.length ? 'HECHA' : 'PENDIENTE';
     if (!vigentes.length && proxima.etapa === e.clave && proxima.atrasada) estado = 'ATRASADA';
@@ -527,6 +1201,13 @@ export async function ficha(id) {
     };
   });
 
+  // La categoría que se sugiere en cada paso para cada lote (las pantallas la preeligen).
+  const categorias = await prisma.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
+  const PASOS_CATEGORIA = ['PRENADA', 'VACIA', 'PARIDA', 'DESTETE_MADRE', 'CRIA_MACHO', 'CRIA_HEMBRA'];
+  const sugeridas = (pl) =>
+    Object.fromEntries(PASOS_CATEGORIA.map((paso) => [paso, sugerirCategoria(paso, { id: pl.lote.categoriaId, nombre: pl.lote.categoria.nombre }, categorias)?.id ?? null]));
+  const servicio = fechasServicio(anclas);
+
   const lotes = p.lotes.map((pl) => ({
     loteId: pl.loteId,
     nombre: pl.lote.nombre,
@@ -538,6 +1219,8 @@ export async function ficha(id) {
     destino: pl.destino,
     activo: pl.lote.activo && pl.hasta == null,
     salio: pl.hasta != null || !pl.lote.activo,
+    categoriaId: pl.lote.categoriaId,
+    sugeridas: sugeridas(pl),
   }));
 
   return {
@@ -546,6 +1229,8 @@ export async function ficha(id) {
     textoEtapa: TEXTO_ETAPA[etapa],
     proxima,
     embudo: embudo(anclas, await movimientosEmbudo(prisma, p.lotes)),
+    // Los meses en que se espera la parición (para repartir las preñadas en el diagnóstico).
+    meses: servicio.inicio ? mesesEsperados(servicio, parametros.gestacionDias) : [],
     lotes,
     etapas,
     pendientes: lotes.filter((l) => l.rol === 'VACIAS' && !l.destino && l.activo).map((l) => ({ tipo: 'DECIDIR_VACIAS', loteId: l.loteId, lote: l.nombre, cabezas: l.cabezas })),
@@ -626,4 +1311,58 @@ export async function editar(id, { nombre, nota }) {
 export async function campoDeProceso(id) {
   const procesoId = parseId(id);
   return procesoId ? ((await prisma.proceso.findUnique({ where: { id: procesoId }, select: { campoId: true } }))?.campoId ?? undefined) : undefined;
+}
+
+// --- Eventos sueltos (diseño §13) ---
+
+// La etapa que tomaría un evento suelto en el proceso (la ecografía, solo como diagnóstico).
+const etapaDeSuelto = (clave, hechas) => (clave === 'ECOGRAFIA' ? 'DIAGNOSTICO' : etapaDe(clave, hechas));
+
+async function sueltosDe(db, procesoId, ids = null) {
+  const pls = await db.procesoLote.findMany({ where: { procesoId, hasta: null }, select: { loteId: true } });
+  return db.eventoRegistro.findMany({
+    where: {
+      procesoId: null,
+      anulado: false,
+      loteId: { in: pls.map((pl) => pl.loteId) },
+      tipo: { clave: { in: [...TIPOS_REPRODUCCION] } },
+      ...(ids && { id: { in: ids } }),
+    },
+    include: { tipo: { select: { clave: true, nombre: true } }, lote: { select: { id: true, nombre: true } } },
+    orderBy: [{ fecha: 'asc' }, { id: 'asc' }],
+  });
+}
+
+// Los entores, inseminaciones, ecografías y abortos sueltos de los lotes del
+// proceso, con la etapa que tomarían.
+export async function sueltos(id) {
+  const procesoId = parseId(id);
+  if (!procesoId || !(await prisma.proceso.findUnique({ where: { id: procesoId }, select: { id: true } }))) throw notFound('Proceso no encontrado');
+  const filas = await sueltosDe(prisma, procesoId);
+  const lista = [];
+  for (const r of filas) {
+    const hechas = (await prisma.eventoRegistro.findMany({ where: { procesoId, loteId: r.loteId, anulado: false }, select: { etapa: true } })).map((h) => h.etapa);
+    lista.push({ id: r.id, fecha: fechaISO(r.fecha), tipo: r.tipo, lote: r.lote, cabezas: r.cabezas, texto: textoDatos(r.tipo.clave, r.datos), etapa: etapaDeSuelto(r.tipo.clave, hechas) });
+  }
+  return lista;
+}
+
+// Suma eventos sueltos al proceso, con la etapa que les toca (si está libre).
+export async function asociar(id, { registroIds = [] }, usuarioId) {
+  const r = await enTransaccion(async (tx) => {
+    const proceso = await procesoParaCargar(tx, id);
+    const filas = await sueltosDe(tx, proceso.id, registroIds);
+    if (filas.length !== new Set(registroIds).size) throw badRequest('Hay eventos que no se pueden sumar: ya son de un proceso, están anulados o no son de los lotes del proceso');
+    const hechos = [];
+    for (const f of filas) {
+      const hechas = (await tx.eventoRegistro.findMany({ where: { procesoId: proceso.id, loteId: f.loteId, anulado: false }, select: { etapa: true } })).map((h) => h.etapa);
+      const etapa = etapaDeSuelto(f.tipo.clave, hechas);
+      await exigirLibre(tx, proceso.id, etapa, f.lote);
+      await tx.eventoRegistro.update({ where: { id: f.id }, data: { procesoId: proceso.id, etapa } });
+      hechos.push({ id: f.id, tipo: f.tipo.nombre, lote: f.lote.nombre, etapa });
+    }
+    await revisarCierre(tx, proceso.id);
+    return { proceso, hechos };
+  });
+  return { ficha: await ficha(r.proceso.id), auditoria: { proceso: r.proceso.nombre, asociados: r.hechos, usuarioId } };
 }

@@ -458,3 +458,43 @@ export async function patchProceso(req, res) {
   if (detalle) await registrar(req, { accion: ACCION.PROCESO_EDITADO, entidad: 'proceso', entidadId: despues.id, detalle });
   res.json(despues);
 }
+
+// La decisión de las vacías: una carga de la etapa DECISION.
+export async function postVistaPreviaDecision(req, res) {
+  res.json(await procesos.vistaPreviaEtapa(req.params.id, 'DECISION', req.body));
+}
+
+export async function postDecision(req, res) {
+  const { auditoria, ...resultado } = await procesos.registrarEtapa(req.params.id, 'DECISION', req.body, req.user.id);
+  await registrar(req, { accion: ACCION.PROCESO_ETAPA, entidad: 'proceso', entidadId: resultado.ficha.proceso.id, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+// Anular una carga de un proceso (con sus movimientos).
+export async function postAnularCarga(req, res) {
+  const { auditoria, ...resultado } = await procesos.anularCarga(req.params.id, req.params.grupoId, req.user.id);
+  await registrar(req, { accion: ACCION.EVENTO_ANULADO, entidad: 'proceso', entidadId: resultado.ficha.proceso.id, detalle: auditoria });
+  res.json(resultado);
+}
+
+export async function postCerrarProceso(req, res) {
+  const { auditoria, ...resultado } = await procesos.cerrar(req.params.id, req.body);
+  await registrar(req, { accion: ACCION.PROCESO_CERRADO, entidad: 'proceso', entidadId: resultado.proceso.id, detalle: auditoria });
+  res.json(resultado);
+}
+
+export async function postAnularProceso(req, res) {
+  const { auditoria, ...resultado } = await procesos.anularProceso(req.params.id, req.user.id);
+  await registrar(req, { accion: ACCION.PROCESO_ANULADO, entidad: 'proceso', entidadId: resultado.proceso.id, detalle: auditoria });
+  res.json(resultado);
+}
+
+export async function getSueltos(req, res) {
+  res.json(await procesos.sueltos(req.params.id));
+}
+
+export async function postAsociar(req, res) {
+  const { auditoria, ...resultado } = await procesos.asociar(req.params.id, req.body, req.user.id);
+  await registrar(req, { accion: ACCION.PROCESO_ETAPA, entidad: 'proceso', entidadId: resultado.ficha.proceso.id, detalle: auditoria });
+  res.json(resultado);
+}

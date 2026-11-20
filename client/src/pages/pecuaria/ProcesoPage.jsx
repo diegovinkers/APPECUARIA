@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { anularGrupoEventos, editarProceso, getProceso } from '../../api/pecuaria';
+import { anularCargaProceso, anularProceso, asociarSueltos, cerrarProceso, editarProceso, getProceso, getSueltos } from '../../api/pecuaria';
+import { NOMBRE_ETAPA } from '../../components/procesos';
 import { getErrorMessages } from '../../api/axios';
 import usePuede from '../../hooks/usePuede';
 import { ErrorList, Notice, inputClass } from '../../components/ui';
@@ -11,7 +12,7 @@ const NOMBRE_ROL = { VIENTRES: 'servidas', PRENADAS: 'preñadas', VACIAS: 'vací
 const MARCA = { HECHA: '✔', PENDIENTE: '○', ATRASADA: '⚠' };
 const COLOR_MARCA = { HECHA: 'bg-campo-600 text-white', PENDIENTE: 'bg-suelo-200 text-suelo-500', ATRASADA: 'bg-amber-500 text-white' };
 // Las etapas que se pueden cargar además de la que sigue (menú ⋯).
-const OTRAS_ETAPAS = ['REPASO', 'ABORTO'];
+const OTRAS_ETAPAS = ['REPASO', 'REVISION', 'ABORTO', 'FIN_PARICION'];
 
 // La ficha de un proceso (diseño de procesos §12): el embudo, la línea de
 // tiempo (cada etapa hecha, pendiente o atrasada, con sus cargas), los lotes
@@ -26,6 +27,9 @@ export default function ProcesoPage() {
   const [menu, setMenu] = useState(false);
   const [renombrando, setRenombrando] = useState(false);
   const [nombre, setNombre] = useState('');
+  // Eventos sueltos de los lotes del proceso, para sumarlos (diseño §13).
+  const [sueltos, setSueltos] = useState(null);
+  const [elegidosSueltos, setElegidosSueltos] = useState([]);
 
   const cargar = useCallback(
     () =>
@@ -52,15 +56,66 @@ export default function ProcesoPage() {
   }
 
   async function anular(carga, etapa) {
-    if (!window.confirm(`¿Anular ${etapa.nombre.toLowerCase()} del ${formatFecha(carga.fecha)}? Queda registrado, tachado, y se puede volver a cargar.`)) return;
+    const movidos = carga.movimientos?.length ? ' Sus movimientos se deshacen (los potreros vuelven a como estaban).' : '';
+    if (!window.confirm(`¿Anular ${etapa.nombre.toLowerCase()} del ${formatFecha(carga.fecha)}?${movidos} Queda registrado, tachado, y se puede volver a cargar.`)) return;
     try {
-      await anularGrupoEventos(carga.grupoId);
+      await anularCargaProceso(Number(id), carga.grupoId);
       setErrors([]);
       setAviso('Anulado.');
       await cargar();
     } catch (error) {
       setAviso(null);
       setErrors(getErrorMessages(error, 'No se pudo anular'));
+    }
+  }
+
+  async function verSueltos() {
+    setMenu(false);
+    try {
+      const { data } = await getSueltos(Number(id));
+      setSueltos(data);
+      setElegidosSueltos([]);
+    } catch (error) {
+      setErrors(getErrorMessages(error, 'No se pudieron cargar los eventos sueltos'));
+    }
+  }
+
+  async function sumarSueltos() {
+    try {
+      await asociarSueltos(Number(id), elegidosSueltos);
+      setSueltos(null);
+      setErrors([]);
+      setAviso('Listo: los eventos quedaron en el proceso.');
+      await cargar();
+    } catch (error) {
+      setErrors(getErrorMessages(error, 'No se pudieron sumar'));
+    }
+  }
+
+  async function cerrar() {
+    setMenu(false);
+    const nota = window.prompt('¿Por qué se cierra? (opcional; por ejemplo, "se vendió todo")', '');
+    if (nota === null) return;
+    try {
+      await cerrarProceso(Number(id), nota.trim() ? { nota: nota.trim() } : {});
+      setErrors([]);
+      setAviso('Listo: el proceso quedó cerrado.');
+      await cargar();
+    } catch (error) {
+      setErrors(getErrorMessages(error, 'No se pudo cerrar'));
+    }
+  }
+
+  async function anularTodo() {
+    setMenu(false);
+    if (!window.confirm('¿Anular el proceso entero? Queda registrado, tachado. Solo se puede si ninguna carga movió animales.')) return;
+    try {
+      await anularProceso(Number(id));
+      setErrors([]);
+      setAviso('El proceso quedó anulado.');
+      await cargar();
+    } catch (error) {
+      setErrors(getErrorMessages(error, 'No se pudo anular el proceso'));
     }
   }
 
@@ -111,6 +166,17 @@ export default function ProcesoPage() {
                     {textoBotonEtapa(e)}
                   </Link>
                 ))}
+                <button type="button" onClick={verSueltos} className="block min-h-11 w-full border-t border-suelo-100 px-4 text-left text-sm hover:bg-suelo-100">
+                  Sumar eventos sueltos
+                </button>
+                <button type="button" onClick={cerrar} className="block min-h-11 w-full px-4 text-left text-sm hover:bg-suelo-100">
+                  Cerrar el proceso
+                </button>
+                {conAnular && (
+                  <button type="button" onClick={anularTodo} className="block min-h-11 w-full px-4 text-left text-sm text-red-700 hover:bg-red-50">
+                    Anular el proceso
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -137,11 +203,54 @@ export default function ProcesoPage() {
         <Notice tone="ok">{aviso}</Notice>
       </div>
 
+      {sueltos && (
+        <section aria-label="Eventos sueltos" className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm">
+          <p className="mb-2 font-medium">Eventos de reproducción sueltos de los lotes del proceso</p>
+          {sueltos.length === 0 && <p className="text-suelo-600">No hay eventos sueltos para sumar.</p>}
+          <ul className="space-y-1">
+            {sueltos.map((e) => (
+              <li key={e.id}>
+                <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={elegidosSueltos.includes(e.id)}
+                    onChange={() => setElegidosSueltos((x) => (x.includes(e.id) ? x.filter((y) => y !== e.id) : [...x, e.id]))}
+                    className="h-5 w-5 accent-campo-600"
+                  />
+                  <span>
+                    {e.tipo.nombre} del {formatFecha(e.fecha)} · {e.lote.nombre}
+                    {e.texto ? ` · ${e.texto}` : ''}
+                    <span className="block text-xs text-suelo-500">entra como {NOMBRE_ETAPA[e.etapa] ?? e.etapa?.toLowerCase()}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 flex gap-2">
+            {sueltos.length > 0 && (
+              <button type="button" disabled={!elegidosSueltos.length} onClick={sumarSueltos} className="min-h-11 rounded-md bg-campo-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
+                Sumar al proceso
+              </button>
+            )}
+            <button type="button" onClick={() => setSueltos(null)} className="min-h-11 rounded-md border border-suelo-300 px-4 text-sm">
+              Cerrar
+            </button>
+          </div>
+        </section>
+      )}
+
       <Embudo embudo={embudo} />
 
       {pendientes.map((p) => (
-        <p key={p.loteId} className="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-900">
-          ⚠ Falta decidir qué se hace con {formatNumero(p.cabezas)} vacías ({p.lote}).
+        <p key={p.loteId} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-900" data-testid="pendiente">
+          <span>
+            ⚠ Falta decidir qué se hace con {formatNumero(p.cabezas)} vacías ({p.lote}).
+          </span>
+          {registra && (
+            <Link to={`/pecuaria/procesos/${proceso.id}/etapa/DECISION`} className="min-h-11 rounded-md bg-amber-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">
+              Decidir
+            </Link>
+          )}
         </p>
       ))}
 
@@ -166,6 +275,11 @@ export default function ProcesoPage() {
                     <span key={l.registroId} className="block">
                       {l.lote ? `${l.lote}: ` : ''}
                       {l.texto}
+                    </span>
+                  ))}
+                  {c.movimientos?.map((m) => (
+                    <span key={m.id} className={`block pl-3 text-xs ${m.revertido ? 'line-through' : 'text-suelo-600'}`}>
+                      · {m.texto}
                     </span>
                   ))}
                   {c.inicial && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] text-sky-800 no-underline">dato inicial</span>}

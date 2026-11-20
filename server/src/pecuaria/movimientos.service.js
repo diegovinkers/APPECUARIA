@@ -128,6 +128,18 @@ async function planificar(db, body, { entreCampos = false } = {}) {
     loteDestino = { id: d.loteId, nombre: d.lote };
     d.pesoPromedioKg = d.pesoPromedioKg != null && pm != null ? r2((d.cabezas * d.pesoPromedioKg + m * pm) / (d.cabezas + m)) : null;
     d.cabezas += m;
+  } else if (modo === 'NUEVO' && body.parteFamilia) {
+    // Procesos (diagnóstico, parición): una parte de la familia que puede
+    // quedarse en el mismo potrero y cambiar de categoría. Solo la usa el
+    // servicio de procesos (la ruta pública no la acepta).
+    if (m === n) throw badRequest(`Van todas sus cabezas (${n}): el lote entero no se aparta`);
+    const raizId = lote.raizId ?? lote.id;
+    const raiz = lote.raizId ? await db.lote.findUnique({ where: { id: raizId }, select: { nombre: true } }) : lote;
+    const c = body.parteFamilia.categoriaId && body.parteFamilia.categoriaId !== lote.categoriaId ? await categoriaActiva(db, body.parteFamilia.categoriaId) : lote.categoria;
+    categoriaDestino = { id: c.id, nombre: c.nombre };
+    const sufijo = body.parteFamilia.sufijo ?? destino.nombre;
+    loteDestino = { id: null, nombre: await nombreLibre(db, destino.campoId, `${raiz.nombre} · ${sufijo}`), raizId };
+    lineasDestino.push({ loteId: null, lote: loteDestino.nombre, categoriaId: c.id, categoria: c.nombre, cabezas: m, pesoPromedioKg: pm });
   } else if (modo === 'NUEVO' && body.mismoLote) {
     if (m === n) throw badRequest(`Van todas sus cabezas (${n}): mové el lote entero`);
     if (mismoPotrero) throw badRequest('Para que siga siendo el mismo lote, la parte tiene que ir a otro potrero');
@@ -203,6 +215,20 @@ const calc = (potrero, lineas, kg) =>
   calcularPotrero({ hectareas: ha(potrero), hectareasAConfirmar: potrero.hectareasAConfirmar, areaUtilizable: potrero.areaUtilizable, lineas }, kg);
 const sinOrden = (lineas) => lineas.map(({ orden, ...l }) => l);
 
+// Procesos: avisa si los animales salen del proceso de su lote (se suman a un
+// lote de afuera o forman un lote nuevo que no es parte de la familia).
+async function avisosDeProceso(db, plan, body) {
+  const pl = await db.procesoLote.findFirst({ where: { loteId: plan.lote.id, hasta: null, proceso: { estado: 'ABIERTO' } }, include: { proceso: { select: { nombre: true } } } });
+  if (!pl) return [];
+  const sale = `El lote ${plan.lote.nombre} está en el proceso "${pl.proceso.nombre}"`;
+  if (plan.modo === 'SUMAR') {
+    const destino = await db.procesoLote.findFirst({ where: { loteId: plan.loteDestino.id, procesoId: pl.procesoId, hasta: null } });
+    if (!destino) return [`${sale}: si los sumás a ${plan.loteDestino.nombre}, salen del proceso`];
+  }
+  if (plan.modo === 'NUEVO' && !body.mismoLote) return [`${sale}: el lote nuevo no va a ser parte del proceso (con "sigue siendo el mismo lote", sí)`];
+  return [];
+}
+
 export async function vistaPrevia(body) {
   const plan = await planificar(prisma, body);
   const kg = await parametrosCarga();
@@ -222,12 +248,13 @@ export async function vistaPrevia(body) {
     loteMadres: plan.madres?.nombre ?? null,
     origen: lado(plan.origen, plan.fotoOrigen, plan.lineasOrigen),
     destino: plan.mismoPotrero ? null : lado(plan.destino, plan.fotoDestino, plan.lineasDestino),
+    avisos: await avisosDeProceso(prisma, plan, body),
   };
 }
 
 // Planifica y guarda un movimiento dentro de una transacción ya abierta. Lo
 // usan mover, mover entre campos y cada paso de un movimiento múltiple.
-async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = null } = {}) {
+export async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = null, procesoId = null, registroId = null } = {}) {
   const plan = await planificar(tx, body, { entreCampos });
   const { lote, origen, destino, dia } = plan;
   const fecha = aFecha(dia);
@@ -242,6 +269,12 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
     });
     plan.loteDestino.id = nuevo.id;
     for (const l of plan.lineasDestino) if (l.loteId === null) l.loteId = nuevo.id;
+    // Procesos: una parte que "sigue siendo el mismo lote", apartada con el +,
+    // sigue en el proceso del lote con el mismo rol.
+    if (body.mismoLote && !body.parteFamilia) {
+      const pl = await tx.procesoLote.findFirst({ where: { loteId: lote.id, hasta: null, proceso: { estado: 'ABIERTO' } } });
+      if (pl) await tx.procesoLote.create({ data: { procesoId: pl.procesoId, loteId: nuevo.id, rol: pl.rol, mes: pl.mes, destino: pl.destino, desde: fecha } });
+    }
   }
   await entradaAlCorral(tx, plan, { entreCampos });
   if (plan.modo === 'ENTERO' || plan.modo === 'CATEGORIA') {
@@ -277,6 +310,9 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
       // Destete: el lote de las madres.
       ...(plan.madres && { loteMadresId: plan.madres.id }),
       eventoId,
+      // Procesos: el proceso y el ancla de la etapa de la que cuelga.
+      procesoId,
+      registroId,
       versionOrigenId: vOrigen.id,
       versionDestinoId: vDestino.id,
       usuarioId,
@@ -547,6 +583,7 @@ export const incluir = {
   campo: { select: { id: true, sigla: true, nombre: true } },
   campoOtro: { select: { id: true, sigla: true, nombre: true } },
   loteMadres: { select: { id: true, nombre: true } },
+  proceso: { select: { id: true, nombre: true } },
 };
 
 // Los potreros que toca un movimiento, con su versión. Las entradas no tienen
@@ -600,7 +637,8 @@ async function estadoEventos(db, eventoIds) {
     estado.set(e.id, {
       pasos: e.movimientos.length,
       revertido: Boolean(e.revertidoPor),
-      puedeRevertir: e.tipo !== 'REVERSION' && !e.revertidoPor && intacto,
+      // Los de un proceso se anulan desde el proceso.
+      puedeRevertir: e.tipo !== 'REVERSION' && e.tipo !== 'PROCESO' && !e.revertidoPor && intacto,
     });
   }
   return estado;
@@ -790,6 +828,7 @@ export async function revertir(id, usuarioId) {
     async (tx) => {
       const m = movId && (await tx.movimiento.findUnique({ where: { id: movId }, include: { ...incluir, versionOrigen: true, versionDestino: true } }));
       if (!m) throw notFound('Movimiento no encontrado');
+      if (m.procesoId != null) throw badRequest(`Este movimiento es parte del proceso "${m.proceso.nombre}": anulalo desde el proceso`);
       if (m.eventoId != null) {
         throw badRequest('Este movimiento es parte de un movimiento múltiple o entre campos: revertí el evento entero');
       }
@@ -827,7 +866,7 @@ export async function revertir(id, usuarioId) {
   };
 }
 
-const NOMBRE_EVENTO = { MULTIPLE: 'movimiento múltiple', ENTRE_CAMPOS: 'movimiento entre campos', REVERSION: 'reversión' };
+const NOMBRE_EVENTO = { MULTIPLE: 'movimiento múltiple', ENTRE_CAMPOS: 'movimiento entre campos', REVERSION: 'reversión', PROCESO: 'proceso' };
 
 // La estancia de un evento (para el control de alcance de la ruta).
 export async function campoDeEvento(id) {
@@ -835,51 +874,54 @@ export async function campoDeEvento(id) {
   return evId ? ((await prisma.eventoMovimiento.findUnique({ where: { id: evId }, select: { campoId: true } }))?.campoId ?? null) : null;
 }
 
-// Revierte un evento entero (todos sus pasos, del último al primero), como un
-// evento REVERSION. Solo si en ninguno de sus potreros hubo cambios después.
+// Revierte un evento entero (todos sus pasos, del último al primero) dentro de
+// una transacción ya abierta, como un evento REVERSION. Solo si en ninguno de
+// sus potreros hubo cambios después. Los de un proceso solo los revierte el
+// proceso (desdeProceso), al anular su carga.
+export async function revertirEventoEn(tx, evId, usuarioId, { desdeProceso = false } = {}) {
+  const ev =
+    evId &&
+    (await tx.eventoMovimiento.findUnique({
+      where: { id: evId },
+      include: {
+        revertidoPor: { select: { id: true } },
+        proceso: { select: { nombre: true } },
+        movimientos: { include: { ...incluir, versionOrigen: true, versionDestino: true }, orderBy: { id: 'asc' } },
+      },
+    }));
+  if (!ev) throw notFound('Evento no encontrado');
+  if (ev.tipo === 'PROCESO' && !desdeProceso) throw badRequest(`Estos movimientos son parte del proceso "${ev.proceso?.nombre ?? ''}": anulalos desde el proceso`);
+  if (ev.tipo === 'REVERSION') throw badRequest('No se puede revertir una reversión: hacé un movimiento nuevo');
+  if (ev.revertidoPor) throw conflict('Este evento ya fue revertido');
+
+  const deEvento = ultimasDelEvento(ev.movimientos);
+  const ultimas = await ultimasVersiones(tx, [...deEvento.keys()]);
+  for (const [potreroId, versionId] of deEvento) {
+    if (ultimas.get(potreroId) !== versionId) {
+      const m = ev.movimientos.find((x) => x.potreroOrigenId === potreroId || x.potreroDestinoId === potreroId);
+      const nombre = (m.potreroOrigenId === potreroId ? m.potreroOrigen : m.potreroDestino).nombre;
+      throw conflict(`Después de este ${NOMBRE_EVENTO[ev.tipo]} hubo otros cambios en ${nombre}: no se puede revertir. Corregilo con un movimiento nuevo.`);
+    }
+  }
+
+  const reversion = await tx.eventoMovimiento.create({
+    data: {
+      tipo: 'REVERSION',
+      campoId: ev.campoId,
+      fecha: aFecha(hoyISO()),
+      nota: `Reversión del ${NOMBRE_EVENTO[ev.tipo]} del ${fechaUY(fechaISO(ev.fecha))}`,
+      revierteAId: ev.id,
+      usuarioId,
+    },
+  });
+  const pasos = [];
+  for (const m of [...ev.movimientos].reverse()) pasos.push(await deshacer(tx, m, usuarioId, reversion.id));
+  return { ev, reversion, pasos };
+}
+
 export async function revertirEvento(id, usuarioId) {
   const evId = parseId(id);
-  const r = await prisma.$transaction(
-    async (tx) => {
-      const ev =
-        evId &&
-        (await tx.eventoMovimiento.findUnique({
-          where: { id: evId },
-          include: {
-            revertidoPor: { select: { id: true } },
-            movimientos: { include: { ...incluir, versionOrigen: true, versionDestino: true }, orderBy: { id: 'asc' } },
-          },
-        }));
-      if (!ev) throw notFound('Evento no encontrado');
-      if (ev.tipo === 'REVERSION') throw badRequest('No se puede revertir una reversión: hacé un movimiento nuevo');
-      if (ev.revertidoPor) throw conflict('Este evento ya fue revertido');
-
-      const deEvento = ultimasDelEvento(ev.movimientos);
-      const ultimas = await ultimasVersiones(tx, [...deEvento.keys()]);
-      for (const [potreroId, versionId] of deEvento) {
-        if (ultimas.get(potreroId) !== versionId) {
-          const m = ev.movimientos.find((x) => x.potreroOrigenId === potreroId || x.potreroDestinoId === potreroId);
-          const nombre = (m.potreroOrigenId === potreroId ? m.potreroOrigen : m.potreroDestino).nombre;
-          throw conflict(`Después de este ${NOMBRE_EVENTO[ev.tipo]} hubo otros cambios en ${nombre}: no se puede revertir. Corregilo con un movimiento nuevo.`);
-        }
-      }
-
-      const reversion = await tx.eventoMovimiento.create({
-        data: {
-          tipo: 'REVERSION',
-          campoId: ev.campoId,
-          fecha: aFecha(hoyISO()),
-          nota: `Reversión del ${NOMBRE_EVENTO[ev.tipo]} del ${fechaUY(fechaISO(ev.fecha))}`,
-          revierteAId: ev.id,
-          usuarioId,
-        },
-      });
-      const pasos = [];
-      for (const m of [...ev.movimientos].reverse()) pasos.push(await deshacer(tx, m, usuarioId, reversion.id));
-      return { ev, reversion, pasos };
-    },
-    { timeout: 60_000, maxWait: 10_000 },
-  );
+  const r = await prisma.$transaction((tx) => revertirEventoEn(tx, evId, usuarioId), { timeout: 60_000, maxWait: 10_000 });
 
   return {
     evento: { id: r.reversion.id, tipo: 'REVERSION', revierteA: r.ev.id },

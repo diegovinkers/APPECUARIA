@@ -27,6 +27,7 @@ describe('plantilla del reproductivo', () => {
       'FIN_SERVICIO',
       'DIAGNOSTICO',
       'REVISION',
+      'DECISION',
       'ABORTO',
       'PARICION',
       'FIN_PARICION',
@@ -270,6 +271,23 @@ describe('plan de la decisión del diagnóstico', () => {
     expect(r.pasos).toEqual([
       { tipo: 'PARTE', grupos: ['vacias'], cabezas: 10, potreroId: 9, categoriaId: 3 },
       { tipo: 'MOVER_ENTERO', grupos: ['prenadas'], cabezas: 40, potreroId: 12, categoriaId: 2 },
+    ]);
+  });
+
+  it('preñadas y vacías nunca quedan en el mismo lote, aunque tengan la misma categoría y el mismo potrero', () => {
+    const r = planDecision({
+      lote,
+      grupos: [
+        { clave: 'sin', cabezas: 40, destino: { potreroId: 8 } },
+        { clave: 'vacias', cabezas: 10, destino: { despues: true } },
+      ],
+    });
+    // Se queda el bloque más grande; las vacías forman su parte en el mismo potrero.
+    expect(r.queda).toEqual(['sin']);
+    expect(r.pasos).toEqual([{ tipo: 'PARTE', grupos: ['vacias'], cabezas: 10, potreroId: 8, categoriaId: 1 }]);
+    expect(r.bloques.map((b) => [b.grupos, b.clase])).toEqual([
+      [['sin'], 'PRENADAS'],
+      [['vacias'], 'VACIAS'],
     ]);
   });
 

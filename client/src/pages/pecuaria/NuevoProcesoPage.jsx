@@ -27,7 +27,8 @@ const ROLES = [
   ['CRIAS', 'Crías (terneros o terneras)'],
 ];
 
-// Empezar un proceso (diseño de procesos §12 y §14): un servicio nuevo, o uno
+// Empezar un proceso (diseño de procesos §12 y §14). Por ahora hay un tipo, el
+// ciclo reproductivo: un servicio nuevo, o uno
 // que ya está en curso (diagnosticado o pariendo) con sus números de antes.
 //   1. Qué: con toros, inseminación o IATF, o "ya está en curso".
 //   2. A quién: los lotes de hembras de la estancia que no están en otro proceso.
@@ -85,7 +86,7 @@ export default function NuevoProcesoPage() {
   if (!campoId && todas) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
-        <h1 className="mb-3 text-xl font-bold">Nuevo servicio</h1>
+        <h1 className="mb-3 text-xl font-bold">Nuevo proceso</h1>
         <ElegirEstancia />
       </main>
     );
@@ -94,7 +95,7 @@ export default function NuevoProcesoPage() {
   const opcion = (activa) => `flex min-h-11 w-full flex-col rounded-lg border px-4 py-3 text-left ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-white hover:border-campo-400'}`;
   return (
     <Camino
-      titulo="Nuevo servicio"
+      titulo="Nuevo proceso"
       pasos={PASOS}
       actual={paso}
       onIr={(i) => {
@@ -113,7 +114,12 @@ export default function NuevoProcesoPage() {
 
       {paso === 0 && (
         <section aria-label="Qué" className="space-y-2">
-          <p className="text-sm text-suelo-600">¿Cómo es el servicio?</p>
+          <p className="text-sm text-suelo-600">Tipo de proceso</p>
+          <div className={opcion(true)} aria-current="true">
+            <span className="font-semibold">Ciclo reproductivo</span>
+            <span className="text-xs text-suelo-500">Servicio → diagnóstico → parición → destete. Más adelante, otros tipos de proceso.</span>
+          </div>
+          <p className="pt-2 text-sm text-suelo-600">¿Cómo es el servicio?</p>
           {MODALIDADES.map(([valor, texto, detalle]) => (
             <button key={valor} type="button" onClick={() => setModalidad(valor)} aria-pressed={modalidad === valor} className={opcion(modalidad === valor)}>
               <span className="font-semibold">{texto}</span>

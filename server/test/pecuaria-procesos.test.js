@@ -219,3 +219,41 @@ describe('lista, renombrar y alcance', () => {
     expect((await bob.get(`${API}/procesos`).expect(200)).body).toEqual([]);
   });
 });
+
+describe('eventos sueltos y el "+" normal', () => {
+  it('una ecografía suelta de un lote, de antes del proceso, se puede sumar como diagnóstico; si ya tiene, no', async () => {
+    const { agent, tipos, V } = await preparar();
+    const eco = (await agent.post(`${API}/eventos-registro`).send({ tipoId: tipos.ECOGRAFIA.id, fecha: '2026-11-14', lineas: [{ loteId: V.id, prenadas: 40, vacias: 10 }] }).expect(201)).body;
+    expect(eco.eventos[0].proceso).toBeNull();
+    const { proceso } = await crear(agent, servicio(V, { fecha: '2026-11-10' }));
+    const sueltos = (await agent.get(`${API}/procesos/${proceso.id}/sueltos`).expect(200)).body;
+    expect(sueltos.map((e) => [e.id, e.tipo.clave, e.etapa])).toEqual([[eco.eventos[0].id, 'ECOGRAFIA', 'DIAGNOSTICO']]);
+    const r = (await agent.post(`${API}/procesos/${proceso.id}/asociar`).send({ registroIds: [eco.eventos[0].id] }).expect(200)).body;
+    expect(r.ficha.embudo).toMatchObject({ prenadas: 40, vacias: 10 });
+    expect((await agent.get(`${API}/procesos/${proceso.id}/sueltos`).expect(200)).body).toEqual([]);
+    // Otra ecografía suelta (de antes): el diagnóstico ya está.
+    const otra = await prisma.eventoRegistro.create({
+      data: { tipoId: tipos.ECOGRAFIA.id, fecha: new Date('2026-11-14T00:00:00Z'), campoId: V.campoId, potreroId: V.potreroId, loteId: V.id, categoriaId: V.categoriaId, cabezas: 50, datos: { prenadas: 41, vacias: 9 }, grupoId: 'g-suelta' },
+    });
+    expect((await agent.post(`${API}/procesos/${proceso.id}/asociar`).send({ registroIds: [otra.id] }).expect(409)).body.errors[0]).toMatch(/ya tiene su diagnóstico/);
+  });
+
+  it('una parte apartada con el + ("sigue siendo el mismo lote") queda en el proceso con el mismo rol', async () => {
+    const { agent, V, P12 } = await preparar();
+    const { proceso } = await crear(agent, servicio(V));
+    await agent.post(`${API}/movimientos`).send({ loteOrigenId: V.id, cabezas: 20, destinoPotreroId: P12.id, modo: 'NUEVO', mismoLote: true }).expect(201);
+    const parte = await prisma.lote.findFirst({ where: { raizId: V.id } });
+    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: parte.id } })).toMatchObject({ rol: 'VIENTRES' });
+  });
+
+  it('sumar un lote del proceso a uno de afuera avisa; después la ficha lo muestra como que salió', async () => {
+    const { agent, V, W } = await preparar();
+    const { proceso } = await crear(agent, servicio(V));
+    const cuerpo = { loteOrigenId: V.id, cabezas: 50, destinoPotreroId: V.potreroId, modo: 'SUMAR', loteDestinoId: W.id };
+    const previa = (await agent.post(`${API}/movimientos/vista-previa`).send(cuerpo).expect(200)).body;
+    expect(previa.avisos.join(' ')).toMatch(/está en el proceso "Servicio 2026-27 · Vaquillonas"/);
+    await agent.post(`${API}/movimientos`).send(cuerpo).expect(201);
+    const f = (await agent.get(`${API}/procesos/${proceso.id}`).expect(200)).body;
+    expect(f.lotes.find((l) => l.loteId === V.id)).toMatchObject({ activo: false, salio: true });
+  });
+});

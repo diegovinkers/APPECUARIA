@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // La pestaña Procesos de Registro: una fila por proceso, con su etapa, lo que
-// sigue (en ámbar si se atrasó), el embudo corto, los filtros y "+ Nuevo servicio".
+// sigue (en ámbar si se atrasó), el embudo corto, los filtros y "+ Nuevo proceso".
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -129,14 +129,14 @@ describe('la pestaña Procesos', () => {
     expect(api.getProcesos).toHaveBeenLastCalledWith(1, expect.objectContaining({ estado: 'CERRADO' }));
   });
 
-  it('"+ Nuevo servicio" solo para quien registra', async () => {
+  it('"+ Nuevo proceso" solo para quien registra', async () => {
     await montar();
-    const nuevo = [...contenedor.querySelectorAll('a')].find((a) => a.textContent.includes('Nuevo servicio'));
+    const nuevo = [...contenedor.querySelectorAll('a')].find((a) => a.textContent.includes('Nuevo proceso'));
     expect(nuevo.getAttribute('href')).toBe('/pecuaria/procesos/nuevo');
     act(() => root.unmount());
     root = createRoot(contenedor);
     permisos.lista = ['pecuaria:VER'];
     await montar();
-    expect([...contenedor.querySelectorAll('a')].some((a) => a.textContent.includes('Nuevo servicio'))).toBe(false);
+    expect([...contenedor.querySelectorAll('a')].some((a) => a.textContent.includes('Nuevo proceso'))).toBe(false);
   });
 });

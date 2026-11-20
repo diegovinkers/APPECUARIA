@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getLote, getPotrero, getProcesos, getTiposMovimiento, registrarEventoRegistro, vistaPreviaEventoRegistro } from '../../api/pecuaria';
-import { aplicaServicio } from '../../components/procesos';
+import { EVENTOS_DE_PROCESO, NOMBRE_ETAPA, aplicaServicio, ofreceNuevoServicio, procesosParaEvento, textoSuelto } from '../../components/procesos';
 import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
@@ -72,7 +72,11 @@ export default function EventoPage() {
   // Procesos: los lotes que ya están en un proceso abierto, y si este entore
   // (o inseminación) empieza un servicio.
   const [enProceso, setEnProceso] = useState(() => new Set());
+  const [abiertos, setAbiertos] = useState(null);
   const [empezar, setEmpezar] = useState(true);
+  // "¿De qué proceso?" (pedido de Diego, 20/11): null = todavía no se eligió;
+  // 'suelto' o 'nuevo' = sigue el camino de siempre.
+  const [deProceso, setDeProceso] = useState(null);
 
   useEffect(() => {
     getTiposMovimiento()
@@ -99,9 +103,21 @@ export default function EventoPage() {
   useEffect(() => {
     if (!campoId) return;
     getProcesos(campoId, { estado: 'ABIERTO' })
-      .then(({ data }) => setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? []))))
-      .catch(() => setEnProceso(new Set()));
+      .then(({ data }) => {
+        setAbiertos(data);
+        setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? [])));
+      })
+      .catch(() => {
+        setAbiertos([]);
+        setEnProceso(new Set());
+      });
   }, [campoId]);
+
+  // Los procesos donde este evento tiene sentido. Si hay, se pregunta primero.
+  const opcionesProceso = useMemo(() => procesosParaEvento(tipo?.clave, abiertos ?? [], { loteId: contexto.lote }), [tipo, abiertos, contexto.lote]);
+  const preguntaProceso = paso === 1 && deProceso == null && opcionesProceso.length > 0;
+  // Mientras se cargan los procesos, no se muestran los lotes (después puede venir la pregunta).
+  const cargandoProcesos = paso === 1 && deProceso == null && abiertos == null && Boolean(campoId) && EVENTOS_DE_PROCESO.has(tipo?.clave);
 
   // Arranca donde estás: la primera vez, lo de la ficha de donde se abrió.
   useEffect(() => {
@@ -114,6 +130,7 @@ export default function EventoPage() {
   function elegirTipo(t) {
     if (t.id !== tipoId) {
       setTipoId(t.id);
+      setDeProceso(null);
       setDatosLote({});
       setComunes({});
       setPrevia(null);
@@ -223,7 +240,7 @@ export default function EventoPage() {
       titulo={tipo?.nombre ?? 'Anotar un evento'}
       actual={paso}
       onIr={irA}
-      onSeguir={paso === 0 ? null : seguir}
+      onSeguir={paso === 0 || preguntaProceso ? null : seguir}
       textoSeguir={paso === 3 ? 'Confirmar' : paso === 2 ? 'Revisar' : 'Seguir'}
       puedeSeguir={!seguirDeshabilitado}
       ocupado={ocupado}
@@ -241,7 +258,50 @@ export default function EventoPage() {
         </section>
       )}
 
-      {paso === 1 && tipo && (
+      {preguntaProceso && (
+        <section aria-label="De qué proceso" data-testid="de-proceso" className="space-y-2">
+          <p className="text-sm text-suelo-600">¿De qué proceso es?</p>
+          {opcionesProceso.map(({ proceso, etapa }) => (
+            <button
+              key={proceso.id}
+              type="button"
+              onClick={() => navigate(`/pecuaria/procesos/${proceso.id}/etapa/${etapa}`)}
+              className="flex min-h-11 w-full flex-col rounded-lg border border-suelo-300 bg-white px-4 py-3 text-left hover:border-campo-500 hover:bg-campo-50"
+            >
+              <span className="font-semibold">{proceso.nombre}</span>
+              <span className="text-xs text-suelo-500">
+                {proceso.textoEtapa} · {NOMBRE_ETAPA[etapa]}
+                {proceso.cabezas != null ? ` · ${formatNumero(proceso.cabezas)} cab.` : ''}
+              </span>
+            </button>
+          ))}
+          {ofreceNuevoServicio(tipo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setDeProceso('nuevo');
+                setEmpezar(true);
+              }}
+              className="flex min-h-11 w-full items-center rounded-lg border border-campo-200 bg-campo-50 px-4 py-3 text-left font-semibold text-campo-900"
+            >
+              Empezar un ciclo reproductivo
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setDeProceso('suelto');
+              setEmpezar(false);
+            }}
+            className="min-h-11 px-1 text-sm text-campo-700 hover:underline"
+          >
+            {textoSuelto(tipo)}
+          </button>
+        </section>
+      )}
+
+      {cargandoProcesos && <p className="text-suelo-600">Cargando…</p>}
+      {paso === 1 && tipo && !preguntaProceso && !cargandoProcesos && (
         <PasoAQuien
           tipo={tipo}
           estancia={estancia}
@@ -282,7 +342,7 @@ export default function EventoPage() {
         <label data-testid="empezar-servicio" className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-campo-200 bg-campo-50 px-3 py-3 text-sm">
           <input type="checkbox" checked={empezar} onChange={(e) => setEmpezar(e.target.checked)} className="mt-0.5 h-5 w-5 accent-campo-600" />
           <span>
-            <span className="block font-semibold text-campo-900">Empieza un servicio</span>
+            <span className="block font-semibold text-campo-900">Empieza un ciclo reproductivo (proceso)</span>
             <span className="block text-xs text-suelo-600">Queda como un proceso, para seguir el diagnóstico, la parición y el destete (Registro → Procesos).</span>
           </span>
         </label>
@@ -537,8 +597,6 @@ function DatosLote({ formulario, lote: l, datos, onDato }) {
 }
 
 const pesoTexto = (p) => (p == null ? '—' : `${formatNumero(p, 1)} kg`);
-
-const NOMBRE_ETAPA = { INICIO: 'inicio del servicio', REPASO: 'repaso', FIN_SERVICIO: 'fin del servicio', DIAGNOSTICO: 'diagnóstico', ABORTO: 'aborto' };
 
 export function PasoRevisar({ previa }) {
   // Un entore o una inseminación que empieza un servicio: la vista previa del proceso.

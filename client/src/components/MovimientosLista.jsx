@@ -43,7 +43,7 @@ const NOMBRE_MODO = {
   CATEGORIA: 'Cambio de categoría',
   REVERSION: 'Reversión',
 };
-const NOMBRE_EVENTO = { MULTIPLE: 'Múltiple', ENTRE_CAMPOS: 'Entre campos', REVERSION: 'Reversión' };
+const NOMBRE_EVENTO = { MULTIPLE: 'Múltiple', ENTRE_CAMPOS: 'Entre campos', REVERSION: 'Reversión', PROCESO: 'Proceso' };
 
 // [clave, título, solo en la compu]. En el celular la tabla tiene que entrar
 // sin scroll de costado: las "solo en la compu" se esconden y su dato va como

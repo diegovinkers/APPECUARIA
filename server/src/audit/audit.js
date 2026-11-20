@@ -77,6 +77,10 @@ export const ACCION = {
   PROCESO_ETAPA: 'PROCESO_ETAPA',
   // detalle: { antes, despues } (nombre, nota)
   PROCESO_EDITADO: 'PROCESO_EDITADO',
+  // detalle: { nombre, nota? }
+  PROCESO_CERRADO: 'PROCESO_CERRADO',
+  // detalle: { nombre, anclasAnuladas }
+  PROCESO_ANULADO: 'PROCESO_ANULADO',
 };
 
 // Para auditar una edición: de las claves indicadas, solo las que cambiaron.

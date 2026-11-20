@@ -369,6 +369,9 @@ async function aItems(db, rows) {
 export async function listarEventos(campos, { desde, hasta, potreroId, loteId, categoriaId, tipoId, grupoId, soloCabezas = false } = {}) {
   const y = [];
   if (soloCabezas) y.push({ versionId: { not: null } }, { tipo: { clave: { not: 'PESADA' } } });
+  // La decisión de un proceso (qué se hizo con las vacías) no es un evento:
+  // se ve en el proceso y en sus movimientos.
+  y.push({ OR: [{ etapa: null }, { etapa: { not: 'DECISION' } }] });
   if (campos) y.push({ campo: campos });
   if (grupoId) y.push({ grupoId });
   if (tipoId) y.push({ tipoId });
@@ -474,6 +477,9 @@ async function anularDonde(where, usuarioId, siVacio) {
     async (tx) => {
       const registros = await tx.eventoRegistro.findMany({ where, include: incluirAnular, orderBy: { id: 'asc' } });
       if (!registros.length) throw siVacio();
+      // Una etapa de un proceso se anula desde el proceso (deshace también sus movimientos).
+      const deProceso = registros.find((r) => r.procesoId != null);
+      if (deProceso) throw badRequest(`Es parte del proceso "${deProceso.proceso.nombre}": anulalo desde el proceso`);
       const vigentes = registros.filter((r) => !r.anulado);
       if (!vigentes.length) throw conflict(registros.length === 1 ? 'Este evento ya está anulado' : 'Estos eventos ya están anulados');
       return anularVarios(tx, vigentes, usuarioId);

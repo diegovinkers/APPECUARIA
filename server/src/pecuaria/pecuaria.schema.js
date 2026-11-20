@@ -585,3 +585,11 @@ export const filtrosProcesosSchema = z.object({
   desde: fechaEnUrl,
   hasta: fechaEnUrl,
 });
+
+export const cerrarProcesoSchema = z.object({
+  nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+});
+
+export const asociarSchema = z.object({
+  registroIds: z.array(idPositivo('El evento no es válido'), { error: 'Elegí los eventos' }).min(1, 'Elegí los eventos').max(200, 'Demasiados eventos juntos'),
+});

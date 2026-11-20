@@ -7,6 +7,7 @@
 export const nombreProceso = (p, todas) => (todas && p.campo?.sigla ? `${p.campo.sigla} ${p.nombre}` : p.nombre);
 
 const BOTON_ETAPA = {
+  DECISION: 'Decidir qué se hace con las vacías',
   FIN_SERVICIO: 'Registrar fin del servicio',
   REPASO: 'Registrar repaso',
   DIAGNOSTICO: 'Registrar diagnóstico',
@@ -19,7 +20,7 @@ const BOTON_ETAPA = {
 export const textoBotonEtapa = (clave) => BOTON_ETAPA[clave] ?? 'Registrar';
 
 // Las etapas que ya tienen su pantalla (las demás llegan en los pasos siguientes).
-export const ETAPAS_CON_PANTALLA = new Set(['FIN_SERVICIO', 'REPASO', 'ABORTO']);
+export const ETAPAS_CON_PANTALLA = new Set(['FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE']);
 
 // La campaña de una fecha (de julio a junio), como en el servidor.
 export function campaniaDe(iso) {
@@ -77,3 +78,107 @@ export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fech
     }),
   });
 }
+
+// --- Diagnóstico y decisión (diseño de procesos §8) ---
+
+const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+export const nombreMes = (mes) => MESES[Number(mes.slice(5, 7)) - 1];
+const numero = (t) => entero(t) ?? 0;
+
+// Lo cargado de un lote ({ prenadas: { [mes | 'sin']: texto }, vacias: texto })
+// como grupos: uno por mes con preñadas (en orden) y las vacías.
+export function gruposDiagnostico(d = {}) {
+  const grupos = Object.entries(d.prenadas ?? {})
+    .filter(([, t]) => numero(t) > 0)
+    .sort(([a], [b]) => (a === 'sin' ? 1 : b === 'sin' ? -1 : a.localeCompare(b)))
+    .map(([clave, t]) => ({ clave, cabezas: numero(t), nombre: clave === 'sin' ? 'Preñadas (sin mes)' : `Preñadas ${nombreMes(clave)}` }));
+  if (numero(d.vacias) > 0) grupos.push({ clave: 'vacias', cabezas: numero(d.vacias), nombre: 'Vacías' });
+  return grupos;
+}
+
+export const totalDiagnostico = (d = {}) => Object.values(d.prenadas ?? {}).reduce((s, t) => s + numero(t), 0) + numero(d.vacias);
+
+// El destino que se propone: las preñadas se quedan, con la categoría
+// sugerida; las vacías, para decidir después.
+export function destinoPorDefecto(lote, clase) {
+  return clase === 'VACIAS'
+    ? { tipo: 'DESPUES', categoriaId: String(lote.sugeridas?.VACIA ?? lote.categoriaId ?? '') }
+    : { tipo: 'QUEDAN', categoriaId: String(lote.sugeridas?.PRENADA ?? lote.categoriaId ?? '') };
+}
+
+// Un destino de la pantalla → lo que va a la API ({ destino, categoriaId? }).
+//   tipo: QUEDAN · POTRERO · DESPUES · REENTORE · INVERNADA · VENTA
+export function destinoParaApi(d, lote) {
+  const cat = d.categoriaId ? { categoriaId: Number(d.categoriaId) } : {};
+  switch (d.tipo) {
+    case 'QUEDAN':
+      return { destino: { potreroId: lote.potrero.id }, ...cat };
+    case 'POTRERO':
+      return { destino: { potreroId: Number(d.potreroId) }, ...cat };
+    case 'INVERNADA':
+      return { destino: { invernada: true }, ...cat };
+    case 'REENTORE':
+      return { destino: { reentore: true } };
+    case 'VENTA': {
+      const precio = String(d.precio ?? '').trim() === '' ? null : Number(String(d.precio).trim().replace(',', '.'));
+      return { destino: { venta: sinIndefinidos({ guia: texto(d.guia), ...(precio != null && { precioVentaUsd: precio, precioVentaPor: 'CABEZA' }) }) } };
+    }
+    default:
+      return { destino: { despues: true } };
+  }
+}
+
+// El cuerpo del diagnóstico: lo cargado de cada lote y la decisión de cada grupo.
+//   datos: { [loteId]: { prenadas, vacias } } · destinos: { [loteId]: { [clave]: destino } }
+export function cuerpoDiagnostico({ fecha, metodo, lotes, datos = {}, destinos = {}, nota }) {
+  const lineas = lotes.map((l) => {
+    const d = datos[l.loteId] ?? {};
+    const prenadas = Object.fromEntries(Object.entries(d.prenadas ?? {}).filter(([, t]) => numero(t) > 0).map(([mes, t]) => [mes, numero(t)]));
+    return { loteId: l.loteId, prenadas, vacias: numero(d.vacias) };
+  });
+  const decision = lotes.map((l) => ({
+    loteId: l.loteId,
+    grupos: gruposDiagnostico(datos[l.loteId]).map((g) => {
+      const clase = g.clave === 'vacias' ? 'VACIAS' : 'PRENADAS';
+      return { clave: g.clave, ...destinoParaApi(destinos[l.loteId]?.[g.clave] ?? destinoPorDefecto(l, clase), l) };
+    }),
+  }));
+  return sinIndefinidos({ fecha, metodo, nota: texto(nota), lineas, decision });
+}
+
+// --- Eventos: "¿De qué proceso?" (pedido de Diego, 20/11) ---
+
+// En qué etapa del proceso cae cada evento de reproducción, según la etapa
+// en que está el proceso.
+const ETAPA_DEL_EVENTO = {
+  ENTORE: { SERVICIO: 'REPASO' },
+  FIN_SERVICIO: { SERVICIO: 'FIN_SERVICIO' },
+  ECOGRAFIA: { SERVICIO: 'DIAGNOSTICO', ESPERA_DIAGNOSTICO: 'DIAGNOSTICO', PRENEZ: 'REVISION', PARICION: 'REVISION' },
+  ABORTO: { PRENEZ: 'ABORTO', PARICION: 'ABORTO' },
+};
+export const NOMBRE_ETAPA = {
+  INICIO: 'inicio del servicio',
+  REPASO: 'repaso',
+  FIN_SERVICIO: 'fin del servicio',
+  DIAGNOSTICO: 'diagnóstico',
+  REVISION: 'revisión del diagnóstico',
+  ABORTO: 'aborto',
+};
+
+// Los procesos abiertos donde ese evento tiene sentido, con la etapa que le
+// toca: [{ proceso, etapa }]. El del lote de donde se abrió, primero.
+export function procesosParaEvento(clave, procesos = [], { loteId = null } = {}) {
+  const mapa = ETAPA_DEL_EVENTO[clave];
+  if (!mapa) return [];
+  const lista = procesos.filter((p) => mapa[p.etapa]).map((p) => ({ proceso: p, etapa: mapa[p.etapa] }));
+  if (loteId == null) return lista;
+  return [...lista.filter((x) => x.proceso.loteIds?.includes(loteId)), ...lista.filter((x) => !x.proceso.loteIds?.includes(loteId))];
+}
+
+// Los eventos que pueden ser de un proceso.
+export const EVENTOS_DE_PROCESO = new Set(Object.keys(ETAPA_DEL_EVENTO));
+
+export const ofreceNuevoServicio = (tipo) => tipo?.clave === 'ENTORE' || tipo?.clave === 'INSEMINACION';
+
+// "Anotarla suelta" / "Anotarlo suelto", según el evento.
+export const textoSuelto = (tipo) => (['ECOGRAFIA', 'INSEMINACION', 'PESADA'].includes(tipo?.clave) ? 'Anotarla suelta' : 'Anotarlo suelto');

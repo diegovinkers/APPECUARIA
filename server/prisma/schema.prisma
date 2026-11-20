@@ -707,6 +707,10 @@ model EventoRegistro {
   /// parcial evento_registro_proceso_etapa_unica, en la migración `procesos`).
   procesoId          Int?            @map("proceso_id")
   etapa              String?         @db.VarChar(20)
+  /// Procesos: cómo estaban los lotes del proceso antes de esta carga
+  /// ([{ loteId, antes: { rol, mes, destino, hasta } | null }], en el primer
+  /// ancla de la carga). Al anularla, vuelven a eso.
+  rolesAntes         Json?           @map("roles_antes")
   usuarioId          Int?            @map("usuario_id")
   creadoEn           DateTime        @default(now()) @map("creado_en") @db.Timestamptz(3)
 

@@ -28,6 +28,13 @@ import {
   getProcesosTodas,
   patchProceso,
   postEtapa,
+  postDecision,
+  postAnularCarga,
+  postCerrarProceso,
+  postAnularProceso,
+  getSueltos,
+  postAsociar,
+  postVistaPreviaDecision,
   postProceso,
   postVistaPreviaEtapa,
   postVistaPreviaProceso,
@@ -71,6 +78,8 @@ import {
   procesoSchema,
   etapaProcesoSchema,
   editarProcesoSchema,
+  cerrarProcesoSchema,
+  asociarSchema,
   entreCamposSchema,
   multipleSchema,
   loteSchema,
@@ -195,6 +204,15 @@ router.post('/procesos', registrar, validateBody(procesoSchema), alcanceProceso,
 router.patch('/procesos/:id', registrar, alcance('proceso'), validateBody(editarProcesoSchema), patchProceso);
 router.post('/procesos/:id/etapas/:etapa/vista-previa', registrar, alcance('proceso'), validateBody(etapaProcesoSchema), postVistaPreviaEtapa);
 router.post('/procesos/:id/etapas/:etapa', registrar, alcance('proceso'), validateBody(etapaProcesoSchema), postEtapa);
+// Lo que quedó para decidir después con las vacías (venta, invernada, reentore).
+router.post('/procesos/:id/decision/vista-previa', registrar, alcance('proceso'), validateBody(etapaProcesoSchema), postVistaPreviaDecision);
+router.post('/procesos/:id/decision', registrar, alcance('proceso'), validateBody(etapaProcesoSchema), postDecision);
+router.post('/procesos/:id/cargas/:grupoId/anular', revertir, alcance('proceso'), postAnularCarga);
+router.post('/procesos/:id/cerrar', registrar, alcance('proceso'), validateBody(cerrarProcesoSchema), postCerrarProceso);
+router.post('/procesos/:id/anular', revertir, alcance('proceso'), postAnularProceso);
+// Eventos de reproducción sueltos de los lotes del proceso, para sumarlos.
+router.get('/procesos/:id/sueltos', ver, alcance('proceso'), getSueltos);
+router.post('/procesos/:id/asociar', registrar, alcance('proceso'), validateBody(asociarSchema), postAsociar);
 
 // La planilla llega como el archivo tal cual en el cuerpo (sin JSON), con el
 // nombre en ?archivo=. Opcionales: ?hoja= y ?campo= (por defecto EG).

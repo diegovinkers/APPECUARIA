@@ -6,7 +6,9 @@
 // Un "ancla" es el evento de una etapa (evento_registro con etapa):
 //   { etapa, loteId, fecha, cabezas, datos, anulado }
 // Los datos de cada etapa (procesos.datos.js):
-//   INICIO        { modalidad, toros?, inicial? }       cabezas = servidas
+//   INICIO        { modalidad, toros?, reparto?, inicial? } cabezas = servidas
+//   INSEMINACION  { }                                    cabezas = inseminadas ese día (IATF)
+//   FIN_INSEMINACION { destino: REPASO | SALEN }         cabezas = las que quedaban
 //   DIAGNOSTICO   { metodo, prenadas: { [mes | 'sin']: n }, vacias, inicial? }
 //   REVISION      { aPrenadas, aVacias }                 (corrige el diagnóstico)
 //   ABORTO        cabezas = abortos
@@ -97,13 +99,17 @@ export function etapaActual(anclas, lotes = []) {
   return 'SERVICIO';
 }
 
-// Las fechas del servicio: el primer inicio y el último fin (sin fin, el inicio).
+// Los anclas que ponen animales en servicio: el inicio, cada día de IATF y
+// las sin inseminar que pasan al repaso con toro.
+const deServicio = (a) => [...de(a, 'INICIO'), ...de(a, 'INSEMINACION'), ...de(a, 'FIN_INSEMINACION').filter((x) => x.datos?.destino === 'REPASO')];
+
+// Las fechas del servicio: el primer inicio y el último fin (sin fin, el
+// último día que entraron animales).
 export function fechasServicio(anclas) {
   const a = vigentes(anclas);
-  const inicios = de(a, 'INICIO').map((x) => x.fecha).sort();
+  const inicios = deServicio(a).map((x) => x.fecha).sort();
   const fines = de(a, 'FIN_SERVICIO').map((x) => x.fecha).sort();
-  const inicio = inicios[0] ?? null;
-  return { inicio, fin: fines.at(-1) ?? inicio };
+  return { inicio: inicios[0] ?? null, fin: fines.at(-1) ?? inicios.at(-1) ?? null };
 }
 
 // Lo que sigue: { etapa, texto, desde, atrasada }.
@@ -112,6 +118,9 @@ export function proximas({ anclas, lotes = [], parametros, hoy }) {
   const etapa = etapaActual(anclas, lotes);
   const { inicio, fin } = fechasServicio(anclas);
   const g = parametros.gestacionDias;
+  if (etapa === 'SERVICIO' && lotes.some((l) => l.rol === 'SIN_SERVIR' && l.activo)) {
+    return { etapa: 'INSEMINACION', texto: 'quedan sin inseminar', desde: null, atrasada: false };
+  }
   if (etapa === 'SERVICIO') return { etapa: 'FIN_SERVICIO', texto: inicio ? `en servicio desde ${ddmm(inicio)}` : 'en servicio', desde: null, atrasada: false };
   if (etapa === 'ESPERA_DIAGNOSTICO') {
     const desde = sumarDias(fin, parametros.diagnosticoDesdeDias);
@@ -141,7 +150,7 @@ const porcentaje = (n, base) => (n == null || !base ? null : Math.round((n / bas
 export function embudo(anclas, movimientos = []) {
   const a = vigentes(anclas);
   const suma = (lista, f) => lista.reduce((s, x) => s + f(x), 0);
-  const servidas = suma(de(a, 'INICIO'), (x) => num(x.cabezas));
+  const servidas = suma(deServicio(a), (x) => num(x.cabezas));
 
   const diags = de(a, 'DIAGNOSTICO');
   const revs = de(a, 'REVISION');
@@ -229,7 +238,9 @@ export function sugerirCategoria(paso, categoria, categorias) {
 //   lote: { id, cabezas, categoriaId, potreroId }
 //   grupos: [{ clave, cabezas, destino, categoriaId?, clase? }], con destino:
 //     { potreroId } · { venta: { guia?, precioVentaUsd?, precioVentaPor?, pesoPromedioKg? } } ·
-//     { invernada: true, potreroId? } · { reentore: true } · { despues: true }
+//     { invernada: true, potreroId? } · { reentore: true, potreroId? } ·
+//     { salen: true, potreroId? } · { despues: true }
+//   (reentore: para volver a servir; salen: se mueven y dejan el proceso).
 //   clase: PRENADAS (por defecto) o VACIAS (la clave 'vacias').
 // Devuelve { pasos, queda, bloques } o { error }. Los grupos que van al mismo
 // potrero, con la misma categoría, la misma clase y el mismo destino se juntan
@@ -243,7 +254,7 @@ export function sugerirCategoria(paso, categoria, categorias) {
 //          { tipo: 'PARTE' | 'MOVER_ENTERO', grupos, cabezas, potreroId, categoriaId } ·
 //          { tipo: 'CATEGORIA', grupos, cabezas, categoriaId }
 //   bloques: [{ grupos, cabezas, potreroId, categoriaId, clase, destino, queda }]
-//     (destino: DESPUES · REENTORE · INVERNADA · null)
+//     (destino: DESPUES · REENTORE · SALEN · INVERNADA · null)
 export function planDecision({ lote, grupos }) {
   const total = grupos.reduce((s, g) => s + num(g.cabezas), 0);
   if (total > lote.cabezas) return { error: `El lote tiene ${lote.cabezas} cabezas: los grupos suman ${total}` };
@@ -264,9 +275,9 @@ export function planDecision({ lote, grupos }) {
     if (n <= 0) continue;
     const d = g.destino ?? { despues: true };
     const clase = g.clase ?? (g.clave === 'vacias' ? 'VACIAS' : 'PRENADAS');
-    const marca = d.reentore ? 'REENTORE' : d.invernada ? 'INVERNADA' : d.despues ? 'DESPUES' : null;
+    const marca = d.reentore ? 'REENTORE' : d.salen ? 'SALEN' : d.invernada ? 'INVERNADA' : d.despues ? 'DESPUES' : null;
     if (d.venta) ventas.push({ tipo: 'VENTA', grupos: [g.clave], cabezas: n, venta: d.venta });
-    else if (d.despues || d.reentore) agregar(g.clave, n, lote.potreroId, g.categoriaId ?? lote.categoriaId, clase, marca);
+    else if (d.despues) agregar(g.clave, n, lote.potreroId, g.categoriaId ?? lote.categoriaId, clase, marca);
     else agregar(g.clave, n, d.potreroId ?? lote.potreroId, g.categoriaId ?? lote.categoriaId, clase, marca);
   }
   if (total < lote.cabezas) agregar('sinDiagnostico', lote.cabezas - total, lote.potreroId, lote.categoriaId, 'SIN', null);

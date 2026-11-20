@@ -23,6 +23,8 @@ describe('plantilla del reproductivo', () => {
   it('tiene las etapas en orden, y las únicas son las del índice de la base', () => {
     expect(PLANTILLAS.REPRODUCTIVO.etapas.map((e) => e.clave)).toEqual([
       'INICIO',
+      'INSEMINACION',
+      'FIN_INSEMINACION',
       'REPASO',
       'FIN_SERVICIO',
       'DIAGNOSTICO',
@@ -299,5 +301,46 @@ describe('plan de la decisión del diagnóstico', () => {
 
   it('más cabezas que las del lote es un error', () => {
     expect(planDecision({ lote, grupos: [{ clave: 'a', cabezas: 51, destino: { potreroId: 12 }, categoriaId: 2 }] }).error).toMatch(/tiene 50 cabezas/);
+  });
+});
+
+describe('IATF por días y vacías (ajustes del 20/11)', () => {
+  const anclas = [
+    ancla('INICIO', 1, '2026-11-15', 30, { modalidad: 'IATF' }),
+    ancla('INSEMINACION', 1, '2026-11-16', 15),
+    ancla('FIN_INSEMINACION', 1, '2026-11-17', 5, { destino: 'REPASO' }),
+    ancla('FIN_INSEMINACION', 2, '2026-11-17', 9, { destino: 'SALEN' }),
+  ];
+
+  it('servidas: el inicio, cada día y las que van al repaso (no las que salen)', () => {
+    expect(embudo(anclas).servidas).toBe(50);
+  });
+
+  it('con lotes sin inseminar, lo que sigue es otro día de inseminación', () => {
+    const lotes = [{ loteId: 1, rol: 'SIN_SERVIR', activo: true }];
+    expect(proximas({ anclas: anclas.slice(0, 1), lotes, parametros: PARAMETROS, hoy: '2026-11-16' }).etapa).toBe('INSEMINACION');
+    expect(proximas({ anclas, lotes: [{ loteId: 1, rol: 'VIENTRES', activo: true }], parametros: PARAMETROS, hoy: '2026-11-18' }).etapa).toBe('FIN_SERVICIO');
+  });
+
+  it('las fechas del servicio van del primer día al último en que entraron animales', () => {
+    const f = proximas({ anclas: [...anclas, ancla('FIN_SERVICIO', 1, '2026-12-01', 50)], lotes: [], parametros: PARAMETROS, hoy: '2026-12-02' });
+    expect(f).toMatchObject({ etapa: 'DIAGNOSTICO', desde: '2027-01-15' });
+  });
+
+  it('vacías: volver a intentar y salen se mueven al potrero elegido', () => {
+    const lote = { id: 1, cabezas: 50, categoriaId: 7, potreroId: 8 };
+    const r = planDecision({
+      lote,
+      grupos: [
+        { clave: 'sin', cabezas: 30, destino: { potreroId: 8 } },
+        { clave: 'vacias', cabezas: 12, clase: 'VACIAS', destino: { reentore: true, potreroId: 12 } },
+        { clave: 'otras', cabezas: 8, clase: 'VACIAS', destino: { salen: true, potreroId: 13 } },
+      ],
+    });
+    expect(r.bloques.map((b) => [b.grupos[0], b.potreroId, b.destino])).toEqual([
+      ['sin', 8, null],
+      ['vacias', 12, 'REENTORE'],
+      ['otras', 13, 'SALEN'],
+    ]);
   });
 });

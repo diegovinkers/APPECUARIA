@@ -128,18 +128,59 @@ describe('el diagnóstico', () => {
 });
 
 describe('decidir lo de las vacías', () => {
-  it('los lotes de vacías sin destino; venta con la guía', async () => {
+  it('dos opciones: volver a intentar (a otro potrero) o solo moverlas; la venta ya no está', async () => {
     api.getProceso.mockResolvedValue({ data: ficha([{ ...LOTE_V, cabezas: 10, rol: 'VACIAS', destino: null }]) });
     await montar('DECISION');
     expect(contenedor.textContent).toContain('Lote V');
     await click(boton('Seguir'));
-    await elegir(select('Lote V · Vacías: qué se hace'), 'VENTA');
-    await escribir(input('Lote V: número de guía'), 'G-100');
+    const opciones = [...select('Lote V · Vacías: qué se hace').options].map((o) => o.value);
+    expect(opciones).toEqual(['', 'REENTORE', 'SALEN']);
+    await elegir(select('Lote V · Vacías: qué se hace'), 'REENTORE');
+    await elegir(select('Lote V · Vacías: a qué potrero'), '12');
     await click(boton('Revisar'));
     expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'DECISION', {
       fecha: expect.any(String),
-      lineas: [{ loteId: 1, destino: { venta: { guia: 'G-100' } } }],
+      lineas: [{ loteId: 1, destino: { reentore: true, potreroId: 12 } }],
     });
+  });
+
+  it('solo moverlas: al potrero y con su categoría, y salen del proceso', async () => {
+    api.getProceso.mockResolvedValue({ data: ficha([{ ...LOTE_V, cabezas: 10, rol: 'VACIAS', destino: null }]) });
+    await montar('DECISION');
+    await click(boton('Seguir'));
+    await elegir(select('Lote V · Vacías: qué se hace'), 'SALEN');
+    await elegir(select('Lote V · Vacías: categoría'), '5');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'DECISION', {
+      fecha: expect.any(String),
+      lineas: [{ loteId: 1, destino: { salen: true, potreroId: 8 }, categoriaId: 5 }],
+    });
+  });
+});
+
+describe('IATF por días', () => {
+  const SIN = { ...LOTE_V, cabezas: 20, rol: 'SIN_SERVIR' };
+
+  it('otro día: cuántas se inseminaron y a dónde van', async () => {
+    api.getProceso.mockResolvedValue({ data: ficha([SIN]) });
+    await montar('INSEMINACION');
+    await click(boton('Seguir'));
+    expect(boton('Revisar').disabled).toBe(true);
+    await escribir(input('¿Cuántas se inseminaron hoy? (Lote V)'), '15');
+    await elegir(select('Lote V: a qué potrero'), '12');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'INSEMINACION', { fecha: expect.any(String), lineas: [{ loteId: 1, cabezas: '15', potreroId: 12 }] });
+  });
+
+  it('terminar: las sin inseminar, al repaso o salen', async () => {
+    api.getProceso.mockResolvedValue({ data: ficha([SIN]) });
+    await montar('FIN_INSEMINACION');
+    await click(boton('Seguir'));
+    expect(boton('Revisar').disabled).toBe(true);
+    const [repaso] = contenedor.querySelectorAll('[aria-label="Lote V: qué pasa con las sin inseminar"] button');
+    await click(repaso);
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'FIN_INSEMINACION', { fecha: expect.any(String), lineas: [{ loteId: 1, destino: 'REPASO' }] });
   });
 });
 

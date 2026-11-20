@@ -8,7 +8,7 @@ import { ErrorList, Notice, inputClass } from '../../components/ui';
 import { formatFecha, formatNumero } from '../../components/pecuaria';
 import { ETAPAS_CON_PANTALLA, formatoPorcentaje, textoBotonEtapa } from '../../components/procesos';
 
-const NOMBRE_ROL = { VIENTRES: 'servidas', PRENADAS: 'preñadas', VACIAS: 'vacías', PARIDAS: 'paridas', CRIAS: 'crías', LIBRES: 'ya no siguen' };
+const NOMBRE_ROL = { VIENTRES: 'servidas', PRENADAS: 'preñadas', VACIAS: 'vacías', PARIDAS: 'paridas', CRIAS: 'crías', LIBRES: 'ya no siguen', SIN_SERVIR: 'sin inseminar' };
 const MARCA = { HECHA: '✔', PENDIENTE: '○', ATRASADA: '⚠' };
 const COLOR_MARCA = { HECHA: 'bg-campo-600 text-white', PENDIENTE: 'bg-suelo-200 text-suelo-500', ATRASADA: 'bg-amber-500 text-white' };
 // Las etapas que se pueden cargar además de la que sigue (menú ⋯).
@@ -317,7 +317,17 @@ export default function ProcesoPage() {
       {registra && siguiente && (
         // Fijo abajo, como la barra del camino de pasos.
         <div className="sticky bottom-0 -mx-4 mt-auto border-t border-suelo-200 bg-white px-4 py-3">
-          <div>
+          <div className="flex flex-col gap-2">
+            {/* IATF por días: otro día, o terminar (las que quedan, al repaso o afuera). */}
+            {siguiente === 'INSEMINACION' && (
+              <Link
+                data-testid="terminar-inseminacion"
+                to={`/pecuaria/procesos/${proceso.id}/etapa/FIN_INSEMINACION`}
+                className="flex min-h-11 items-center justify-center rounded-md border border-campo-600 px-4 font-semibold text-campo-700 hover:bg-campo-50"
+              >
+                {textoBotonEtapa('FIN_INSEMINACION')}
+              </Link>
+            )}
             {ETAPAS_CON_PANTALLA.has(siguiente) ? (
               <Link
                 data-testid="siguiente"

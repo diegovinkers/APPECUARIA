@@ -17,6 +17,11 @@ export const PLANTILLAS = {
     nombre: 'Servicio',
     etapas: [
       { clave: 'INICIO', nombre: 'Inicio del servicio', tipos: ['ENTORE', 'INSEMINACION'], unica: true, linea: true, toma: ['VIENTRES'] },
+      // IATF por días (ajustes del 20/11): otro día con las sin inseminar, y
+      // al terminar, qué pasa con las que quedaron (repaso o salen). El rol
+      // cambia al cargarlas, así que no se repiten para el mismo lote.
+      { clave: 'INSEMINACION', nombre: 'Día de inseminación', tipos: ['INSEMINACION'], unica: false, linea: true, toma: ['SIN_SERVIR'], mueve: true, soloIatf: true },
+      { clave: 'FIN_INSEMINACION', nombre: 'Fin de la inseminación', tipos: ['INSEMINACION'], unica: false, linea: true, toma: ['SIN_SERVIR'], mueve: true, soloIatf: true },
       { clave: 'REPASO', nombre: 'Repaso', tipos: ['ENTORE'], unica: true, linea: false, toma: ['VIENTRES'] },
       { clave: 'FIN_SERVICIO', nombre: 'Fin del servicio', tipos: ['FIN_SERVICIO'], unica: true, linea: true, toma: ['VIENTRES'] },
       { clave: 'DIAGNOSTICO', nombre: 'Diagnóstico', tipos: ['ECOGRAFIA'], unica: true, linea: true, toma: ['VIENTRES'], mueve: true },

@@ -106,14 +106,17 @@ export function lineaParicion(linea, lote) {
 const fmt = (n) => Number(n ?? 0).toLocaleString('es-UY');
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const nombreMes = (mes) => (mes === 'sin' ? 'sin mes' : MESES[Number(mes.slice(5, 7)) - 1]);
-export const MODALIDAD = { TOROS: 'Entore con toros', IA: 'Inseminación', IATF: 'IATF' };
+// IA: los procesos de antes de los ajustes del 20/11 (ahora es IATF).
+export const MODALIDAD = { TOROS: 'Entore con toros', IA: 'IATF', IATF: 'IATF' };
 
 // Lo de un ancla en una línea corta (la ficha y la lista de eventos).
 export function textoAncla(etapa, datos = {}, cabezas = 0) {
   const d = datos ?? {};
   switch (etapa) {
     case 'INICIO':
-      return `${MODALIDAD[d.modalidad] ?? 'Servicio'} · ${fmt(cabezas)} cab.`;
+      return `${MODALIDAD[d.modalidad] ?? 'Servicio'} · ${fmt(cabezas)} cab.${
+        d.reparto?.length ? ` · repartidas: ${d.reparto.map((r) => `${r.potrero} ${fmt(r.cabezas)}${r.toros ? ` (${fmt(r.toros)} ${r.toros === 1 ? 'toro' : 'toros'})` : ''}`).join(', ')}` : ''
+      }`;
     case 'DIAGNOSTICO': {
       const p = d.prenadas;
       const total = typeof p === 'object' && p ? Object.values(p).reduce((s, n) => s + Number(n || 0), 0) : Number(p || 0);
@@ -131,7 +134,11 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
     case 'ABORTO':
       return `${fmt(cabezas)} abortos`;
     case 'DECISION':
-      return { VENTA: 'venta', INVERNADA: 'a invernada', REENTORE: 'para el próximo servicio (reentore)', MOVER: 'a otro potrero' }[d.destino] ?? 'decisión';
+      return { VENTA: 'venta', INVERNADA: 'a invernada', REENTORE: 'para volver a servir', SALEN: 'salen del proceso', MOVER: 'a otro potrero' }[d.destino] ?? 'decisión';
+    case 'INSEMINACION':
+      return `${fmt(cabezas)} inseminadas`;
+    case 'FIN_INSEMINACION':
+      return `${fmt(cabezas)} sin inseminar: ${d.destino === 'REPASO' ? 'al repaso con toro' : 'salen del proceso'}`;
     case 'PARICION':
       return `${fmt(d.madres)} paridas · ${fmt(d.machos)} machos y ${fmt(d.hembras)} hembras${d.muertos ? ` · ${fmt(d.muertos)} nacidos muertos` : ''}`;
     case 'FIN_PARICION':

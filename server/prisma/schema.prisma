@@ -935,6 +935,8 @@ enum RolProceso {
   PARIDAS
   CRIAS
   LIBRES
+  /// IATF por días: las que todavía no se inseminaron (apartadas en la manga).
+  SIN_SERVIR
 }
 
 enum DestinoVacias {

@@ -7,6 +7,8 @@
 export const nombreProceso = (p, todas) => (todas && p.campo?.sigla ? `${p.campo.sigla} ${p.nombre}` : p.nombre);
 
 const BOTON_ETAPA = {
+  INSEMINACION: 'Anotar otro día de inseminación',
+  FIN_INSEMINACION: 'Terminar la inseminación',
   DECISION: 'Decidir qué se hace con las vacías',
   FIN_SERVICIO: 'Registrar fin del servicio',
   REPASO: 'Registrar repaso',
@@ -20,7 +22,7 @@ const BOTON_ETAPA = {
 export const textoBotonEtapa = (clave) => BOTON_ETAPA[clave] ?? 'Registrar';
 
 // Las etapas que ya tienen su pantalla (las demás llegan en los pasos siguientes).
-export const ETAPAS_CON_PANTALLA = new Set(['FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE']);
+export const ETAPAS_CON_PANTALLA = new Set(['INSEMINACION', 'FIN_INSEMINACION', 'FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE']);
 
 // La campaña de una fecha (de julio a junio), como en el servidor.
 export function campaniaDe(iso) {
@@ -51,8 +53,10 @@ const sinIndefinidos = (o) => Object.fromEntries(Object.entries(o).filter(([, v]
 
 // El cuerpo para crear un proceso.
 //   Un servicio: los lotes elegidos (con menos cabezas, una parte), la fecha y los toros.
+//     reparto: { [loteId]: [{ potreroId, cabezas, toros }] } (repartirlas en potreros).
+//     destinos: { [loteId]: potreroId } (IATF: a dónde van las inseminadas).
 //   Uno en curso: los números de antes (enCurso) y el rol de cada lote (roles).
-export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {} }) {
+export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {} }) {
   const base = sinIndefinidos({ campoId, modalidad, nombre: texto(nombre), nota: texto(nota) });
   if (enCurso) {
     return {
@@ -74,7 +78,15 @@ export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fech
     toros: modalidad === 'TOROS' ? entero(toros) : undefined,
     lineas: elegidos.map((l) => {
       const n = entero(cabezas[l.loteId]);
-      return n != null && n !== l.cabezas ? { loteId: l.loteId, cabezas: n } : { loteId: l.loteId };
+      const filas = (reparto[l.loteId] ?? [])
+        .filter((r) => r.potreroId && entero(r.cabezas))
+        .map((r) => sinIndefinidos({ potreroId: Number(r.potreroId), cabezas: entero(r.cabezas), toros: modalidad === 'TOROS' ? entero(r.toros) : undefined }));
+      return sinIndefinidos({
+        loteId: l.loteId,
+        cabezas: n != null && n !== l.cabezas ? n : undefined,
+        potreroId: modalidad === 'IATF' && destinos[l.loteId] ? Number(destinos[l.loteId]) : undefined,
+        reparto: filas.length ? filas : undefined,
+      });
     }),
   });
 }
@@ -107,7 +119,9 @@ export function destinoPorDefecto(lote, clase) {
 }
 
 // Un destino de la pantalla → lo que va a la API ({ destino, categoriaId? }).
-//   tipo: QUEDAN · POTRERO · DESPUES · REENTORE · INVERNADA · VENTA
+//   tipo: QUEDAN · POTRERO · DESPUES · REENTORE · SALEN (y, de antes, INVERNADA · VENTA)
+//   REENTORE: volver a intentar (a otro potrero, para el próximo servicio).
+//   SALEN: solo moverlas (al potrero elegido; salen del proceso).
 export function destinoParaApi(d, lote) {
   const cat = d.categoriaId ? { categoriaId: Number(d.categoriaId) } : {};
   switch (d.tipo) {
@@ -118,7 +132,9 @@ export function destinoParaApi(d, lote) {
     case 'INVERNADA':
       return { destino: { invernada: true }, ...cat };
     case 'REENTORE':
-      return { destino: { reentore: true } };
+      return { destino: { reentore: true, ...(d.potreroId && { potreroId: Number(d.potreroId) }) } };
+    case 'SALEN':
+      return { destino: { salen: true, potreroId: Number(d.potreroId || lote.potrero.id) }, ...cat };
     case 'VENTA': {
       const precio = String(d.precio ?? '').trim() === '' ? null : Number(String(d.precio).trim().replace(',', '.'));
       return { destino: { venta: sinIndefinidos({ guia: texto(d.guia), ...(precio != null && { precioVentaUsd: precio, precioVentaPor: 'CABEZA' }) }) } };
@@ -158,6 +174,8 @@ const ETAPA_DEL_EVENTO = {
 };
 export const NOMBRE_ETAPA = {
   INICIO: 'inicio del servicio',
+  INSEMINACION: 'día de inseminación',
+  FIN_INSEMINACION: 'fin de la inseminación',
   REPASO: 'repaso',
   FIN_SERVICIO: 'fin del servicio',
   DIAGNOSTICO: 'diagnóstico',

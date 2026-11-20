@@ -104,6 +104,15 @@ describe('la ficha del proceso', () => {
     expect(boton.getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/FIN_SERVICIO');
   });
 
+  it('IATF con sin inseminar: otro día, o terminar la inseminación', async () => {
+    api.getProceso.mockResolvedValue({ data: { ...FICHA, proxima: { etapa: 'INSEMINACION', texto: 'quedan sin inseminar', atrasada: false } } });
+    await montar();
+    expect(contenedor.querySelector('[data-testid="siguiente"]').getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/INSEMINACION');
+    const terminar = contenedor.querySelector('[data-testid="terminar-inseminacion"]');
+    expect(terminar.textContent).toBe('Terminar la inseminación');
+    expect(terminar.getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/FIN_INSEMINACION');
+  });
+
   it('renombrar', async () => {
     api.editarProceso.mockResolvedValue({ data: { id: 7, nombre: 'Vaquillonas EG' } });
     await montar();

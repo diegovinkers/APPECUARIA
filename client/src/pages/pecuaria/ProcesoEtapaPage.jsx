@@ -25,6 +25,9 @@ const texto = (t) => String(t ?? '').trim();
 // Cada etapa: sus pasos, qué lotes toma (como la plantilla del servidor), si
 // va una sola vez por lote y si pide cabezas.
 const ETAPAS = {
+  // IATF por días (ajustes del 20/11).
+  INSEMINACION: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['SIN_SERVIR'] },
+  FIN_INSEMINACION: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['SIN_SERVIR'] },
   FIN_SERVICIO: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VIENTRES'], unica: true },
   REPASO: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VIENTRES'], unica: true, pideCabezas: true },
   ABORTO: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['PRENADAS', 'VIENTRES'], pideCabezas: true },
@@ -67,6 +70,8 @@ export default function ProcesoEtapaPage() {
   const [paricion, setParicion] = useState({}); // { [loteId]: { madres, machos, ..., categoriaId } }
   const [aVacias, setAVacias] = useState(false);
   const [destete, setDestete] = useState({}); // { [loteId]: { potreroId, categoriaId, peso } }
+  const [iatf, setIatf] = useState({}); // { [loteId]: { cabezas, potreroId, destino } }
+  const ponerIatf = (l, cambios) => setIatf((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...cambios } }));
   const [previa, setPrevia] = useState(null);
   const [errors, setErrors] = useState([]);
   const [ocupado, setOcupado] = useState(false);
@@ -113,6 +118,19 @@ export default function ProcesoEtapaPage() {
       };
     }
     if (etapa === 'FIN_PARICION') return { ...base, lineas: lotes.map((l) => ({ loteId: l.loteId })) };
+    if (etapa === 'INSEMINACION' || etapa === 'FIN_INSEMINACION') {
+      return {
+        ...base,
+        lineas: lotes.map((l) => {
+          const d = iatf[l.loteId] ?? {};
+          return {
+            loteId: l.loteId,
+            ...(etapa === 'INSEMINACION' ? { cabezas: texto(d.cabezas) } : { destino: d.destino }),
+            ...(d.potreroId && { potreroId: Number(d.potreroId) }),
+          };
+        }),
+      };
+    }
     if (etapa === 'DESTETE') {
       return {
         ...base,
@@ -173,7 +191,10 @@ export default function ProcesoEtapaPage() {
   }
 
   const desteteOk = etapa !== 'DESTETE' || lotes.every((l) => destete[l.loteId]?.potreroId);
-  const datosOk = desteteOk && (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
+  const iatfOk =
+    (etapa !== 'INSEMINACION' || lotes.every((l) => Number.parseInt(texto(iatf[l.loteId]?.cabezas), 10) > 0)) &&
+    (etapa !== 'FIN_INSEMINACION' || lotes.every((l) => iatf[l.loteId]?.destino));
+  const datosOk = desteteOk && iatfOk && (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
   const destinoOk = etapa !== 'DECISION' || lotes.every((l) => destinoDe(l, 'vacias').tipo);
   const puedeSeguir = lotes.length > 0 && (nombrePaso !== 'Datos' || datosOk) && (nombrePaso !== 'Destino' || destinoOk);
   const otrosPotreros = (l) => (potreros ?? []).filter((p) => p.id !== l.potrero?.id);
@@ -409,6 +430,54 @@ export default function ProcesoEtapaPage() {
             })}
           {etapa === 'DESTETE' && <p className="text-xs text-suelo-500">Cuando a las madres ya no les quedan crías al pie, vuelven a ser vacas de cría.</p>}
 
+          {(etapa === 'INSEMINACION' || etapa === 'FIN_INSEMINACION') &&
+            lotes.map((l) => {
+              const d = iatf[l.loteId] ?? {};
+              return (
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+                  <legend className="px-1 text-sm font-semibold">
+                    {l.nombre} ({l.potrero?.nombre}) · {formatNumero(l.cabezas)} sin inseminar
+                  </legend>
+                  {etapa === 'INSEMINACION' ? (
+                    <label className={etiqueta}>
+                      ¿Cuántas se inseminaron hoy? ({l.nombre})
+                      <input aria-label={`¿Cuántas se inseminaron hoy? (${l.nombre})`} inputMode="numeric" value={d.cabezas ?? ''} onChange={(e) => ponerIatf(l, { cabezas: e.target.value })} className={`${inputChico} mt-1`} />
+                    </label>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={`${l.nombre}: qué pasa con las sin inseminar`}>
+                      {[
+                        ['REPASO', 'Repaso con toro', 'Siguen en el proceso y cuentan como servidas.'],
+                        ['SALEN', 'Salen del proceso', 'Vuelven a ser vacas libres.'],
+                      ].map(([valor, titulo, detalle]) => (
+                        <button
+                          key={valor}
+                          type="button"
+                          onClick={() => ponerIatf(l, { destino: valor })}
+                          aria-pressed={d.destino === valor}
+                          className={`flex min-h-11 flex-col rounded-lg border px-3 py-2 text-left text-sm ${d.destino === valor ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-white'}`}
+                        >
+                          <span className="font-semibold">{titulo}</span>
+                          <span className="text-xs text-suelo-500">{detalle}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <label className={etiqueta}>
+                    {etapa === 'INSEMINACION' ? '¿A dónde van las inseminadas?' : '¿A dónde van?'}
+                    <select aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => ponerIatf(l, { potreroId: e.target.value })} className={`${inputChico} mt-1`}>
+                      <option value="">Se quedan en {l.potrero?.nombre}</option>
+                      {otrosPotreros(l).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          A {p.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </fieldset>
+              );
+            })}
+          {etapa === 'INSEMINACION' && <p className="text-xs text-suelo-500">Las inseminadas pasan a un lote aparte ("· IATF" con la fecha); las demás siguen sin inseminar, para otro día.</p>}
+
           {etapa === 'FIN_PARICION' && (
             <p className="text-sm text-suelo-600">Las que quedan sin parir en los lotes elegidos pasan a vacías (falladas): después decidís qué se hace con ellas.</p>
           )}
@@ -496,11 +565,12 @@ function Grupo({ lote, grupo, destino, onCambiar, potreros, categorias, conDespu
   const valor = destino.tipo === 'POTRERO' ? `POTRERO:${destino.potreroId}` : destino.tipo;
   const cambiar = (v) => {
     const [tipo, potreroId] = v.split(':');
-    // En las vacías, la categoría solo cambia si van a invernada.
-    const categoria = vacias ? { categoriaId: tipo === 'INVERNADA' ? String(lote.sugeridas?.VACIA ?? '') : '' } : {};
+    // En las vacías, la categoría solo se elige si salen del proceso.
+    const categoria = vacias ? { categoriaId: tipo === 'SALEN' ? String(lote.categoriaId ?? '') : '' } : {};
     onCambiar({ tipo, potreroId: potreroId ?? null, ...categoria });
   };
-  const conCategoria = !vacias || destino.tipo === 'INVERNADA';
+  const conCategoria = !vacias || destino.tipo === 'SALEN';
+  const conPotrero = vacias && (destino.tipo === 'REENTORE' || destino.tipo === 'SALEN');
   return (
     <div data-grupo={grupo.clave} className="rounded-md border border-suelo-100 bg-suelo-50 p-2">
       <p className="text-sm font-medium">
@@ -511,15 +581,25 @@ function Grupo({ lote, grupo, destino, onCambiar, potreros, categorias, conDespu
           {!conDespues && <option value="">Elegí…</option>}
           {vacias && conDespues && <option value="DESPUES">Decidir después (se quedan)</option>}
           {!vacias && <option value="QUEDAN">Se quedan en {lote.potrero?.nombre}</option>}
-          {potreros.map((p) => (
-            <option key={p.id} value={`POTRERO:${p.id}`}>
-              A {p.nombre}
-            </option>
-          ))}
-          {vacias && <option value="VENTA">Venta</option>}
-          {vacias && <option value="INVERNADA">Invernada</option>}
-          {vacias && <option value="REENTORE">Reentore (próximo servicio)</option>}
+          {!vacias &&
+            potreros.map((p) => (
+              <option key={p.id} value={`POTRERO:${p.id}`}>
+                A {p.nombre}
+              </option>
+            ))}
+          {vacias && <option value="REENTORE">Volver a intentar (próximo servicio)</option>}
+          {vacias && <option value="SALEN">Solo moverlas (salen del proceso)</option>}
         </select>
+        {conPotrero && (
+          <select aria-label={`${titulo}: a qué potrero`} value={destino.potreroId ?? ''} onChange={(e) => onCambiar({ potreroId: e.target.value || null })} className={inputChico}>
+            <option value="">Se quedan en {lote.potrero?.nombre}</option>
+            {potreros.map((p) => (
+              <option key={p.id} value={p.id}>
+                A {p.nombre}
+              </option>
+            ))}
+          </select>
+        )}
         {conCategoria && (
           <select aria-label={`${titulo}: categoría`} value={destino.categoriaId ?? ''} onChange={(e) => onCambiar({ categoriaId: e.target.value })} className={inputChico}>
             {categorias.map((c) => (

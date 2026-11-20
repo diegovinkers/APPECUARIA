@@ -528,13 +528,31 @@ export const procesoSchema = z
     campoId: idPositivo('La estancia no es válida').optional(),
     nombre: textoOpcional(120, 'El nombre del proceso no puede superar los 120 caracteres').optional(),
     fecha: fechaDato.optional(),
-    modalidad: z.enum(['TOROS', 'IA', 'IATF'], { error: 'Elegí cómo es el servicio: con toros, inseminación o IATF' }),
+    // La inseminación "común" se sacó (ajustes del 20/11): entore o IATF.
+    modalidad: z.enum(['TOROS', 'IATF'], { error: 'Elegí cómo es el servicio: entore con toros o IATF' }),
     toros: enteroCero('Los toros tienen que ser un número entero').optional(),
     nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
     lineas: z
-      .array(z.object({ loteId: idPositivo('El lote no es válido'), cabezas: enteroPositivo('Las cabezas tienen que ser un número entero mayor que cero').optional() }), {
-        error: 'Los lotes tienen que ser una lista',
-      })
+      .array(
+        z.object({
+          loteId: idPositivo('El lote no es válido'),
+          cabezas: enteroPositivo('Las cabezas tienen que ser un número entero mayor que cero').optional(),
+          // IATF: el potrero al que van las inseminadas (si no, se quedan).
+          potreroId: idPositivo('El potrero no es válido').optional(),
+          // Repartirlas en potreros: cada fila, una parte del mismo lote.
+          reparto: z
+            .array(
+              z.object({
+                potreroId: idPositivo('El potrero del reparto no es válido'),
+                cabezas: enteroPositivo('Las cabezas del reparto tienen que ser un número entero mayor que cero'),
+                toros: enteroCero('Los toros tienen que ser un número entero').optional(),
+              }),
+            )
+            .max(50, 'Demasiados potreros en el reparto')
+            .optional(),
+        }),
+        { error: 'Los lotes tienen que ser una lista' },
+      )
       .max(200, 'Demasiados lotes juntos')
       .optional(),
     enCurso: z

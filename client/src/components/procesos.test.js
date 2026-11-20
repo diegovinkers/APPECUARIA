@@ -57,6 +57,21 @@ describe('procesos (puro)', () => {
     expect(
       cuerpoProceso({ modalidad: 'TOROS', campoId: 4, elegidos, cabezas: { 2: '20' }, fecha: '2026-11-15', nombre: ' ', toros: '2', nota: '' }),
     ).toEqual({ campoId: 4, modalidad: 'TOROS', fecha: '2026-11-15', toros: 2, lineas: [{ loteId: 1 }, { loteId: 2, cabezas: 20 }] });
+    // Repartidas en potreros (las filas sin potrero o sin cabezas no van) y, en
+    // una IATF, a dónde van las inseminadas.
+    expect(
+      cuerpoProceso({
+        modalidad: 'TOROS',
+        campoId: 4,
+        elegidos,
+        fecha: '2026-11-15',
+        reparto: { 1: [{ potreroId: '12', cabezas: '20', toros: '1' }, { potreroId: '', cabezas: '5' }, { potreroId: '13', cabezas: '' }] },
+      }).lineas,
+    ).toEqual([{ loteId: 1, reparto: [{ potreroId: 12, cabezas: 20, toros: 1 }] }, { loteId: 2 }]);
+    expect(cuerpoProceso({ modalidad: 'IATF', campoId: 4, elegidos, fecha: '2026-11-15', cabezas: { 1: '30' }, destinos: { 1: '12' } }).lineas).toEqual([
+      { loteId: 1, cabezas: 30, potreroId: 12 },
+      { loteId: 2 },
+    ]);
     expect(
       cuerpoProceso({
         modalidad: 'TOROS',
@@ -129,6 +144,9 @@ describe('diagnóstico (puro)', () => {
   it('las otras decisiones de las vacías', () => {
     expect(destinoParaApi({ tipo: 'DESPUES' }, lote)).toEqual({ destino: { despues: true } });
     expect(destinoParaApi({ tipo: 'REENTORE' }, lote)).toEqual({ destino: { reentore: true } });
+    expect(destinoParaApi({ tipo: 'REENTORE', potreroId: '12' }, lote)).toEqual({ destino: { reentore: true, potreroId: 12 } });
+    expect(destinoParaApi({ tipo: 'SALEN', potreroId: '13', categoriaId: '5' }, lote)).toEqual({ destino: { salen: true, potreroId: 13 }, categoriaId: 5 });
+    expect(destinoParaApi({ tipo: 'SALEN' }, lote)).toEqual({ destino: { salen: true, potreroId: lote.potrero.id } });
     expect(destinoParaApi({ tipo: 'INVERNADA', categoriaId: '5' }, lote)).toEqual({ destino: { invernada: true }, categoriaId: 5 });
     expect(destinoParaApi({ tipo: 'POTRERO', potreroId: '12' }, lote)).toEqual({ destino: { potreroId: 12 } });
   });

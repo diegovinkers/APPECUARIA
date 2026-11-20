@@ -14,11 +14,12 @@ import { ElegirEstancia } from './comun';
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
 const inputChico = `${inputClass} min-h-11 px-3`;
-const PASOS = ['Qué', 'A quién', 'Datos', 'Revisar'];
+const PASOS = ['Qué', 'A quién', 'Datos', 'Dónde', 'Revisar'];
+const PASOS_EN_CURSO = ['Qué', 'A quién', 'Datos', 'Revisar'];
+// Solo entore e IATF (ajustes del 20/11: la inseminación "común" es lo mismo para ellos).
 const MODALIDADES = [
   ['TOROS', 'Entore con toros', 'Se echan los toros con las hembras'],
-  ['IA', 'Inseminación', 'Inseminación artificial'],
-  ['IATF', 'IATF', 'Inseminación a tiempo fijo (un solo día)'],
+  ['IATF', 'IATF', 'Inseminación a tiempo fijo. Si se hace en varios días, cada día se anota aparte.'],
 ];
 const ROLES = [
   ['PRENADAS', 'Preñadas (sin parir)'],
@@ -30,10 +31,14 @@ const ROLES = [
 // Empezar un proceso (diseño de procesos §12 y §14). Por ahora hay un tipo, el
 // ciclo reproductivo: un servicio nuevo, o uno
 // que ya está en curso (diagnosticado o pariendo) con sus números de antes.
-//   1. Qué: con toros, inseminación o IATF, o "ya está en curso".
-//   2. A quién: los lotes de hembras de la estancia que no están en otro proceso.
-//   3. Datos: la fecha (o las fechas y los números de antes), los toros, el nombre.
-//   4. Revisar y confirmar. Después, a la ficha del proceso.
+//   1. Qué: entore con toros o IATF, o "ya está en curso".
+//   2. A quién: los lotes de hembras de la estancia que no están en otro
+//      proceso (las vacías para volver a servir, primero).
+//   3. Datos: la fecha (o las fechas y los números de antes), cuántas entran
+//      (en la IATF, cuántas se inseminaron hoy), los toros, el nombre.
+//   4. Dónde (ajustes del 20/11): se quedan donde están, o repartirlas en
+//      potreros (cada fila: potrero, cabezas y toros). No va si ya está en curso.
+//   5. Revisar (con los movimientos que se harían) y confirmar.
 export default function NuevoProcesoPage() {
   const navigate = useNavigate();
   const { campoId, todas } = useEstancia();
@@ -43,6 +48,9 @@ export default function NuevoProcesoPage() {
   const [conCurso, setConCurso] = useState(false);
   const [elegidos, setElegidos] = useState([]);
   const [enProceso, setEnProceso] = useState(() => new Set());
+  const [paraServir, setParaServir] = useState(() => new Set());
+  const [repartir, setRepartir] = useState(false);
+  const [reparto, setReparto] = useState({}); // { [loteId]: [{ potreroId, cabezas, toros }] }
   const [datos, setDatos] = useState({ fecha: hoy(), toros: '', nombre: '', nota: '' });
   const [cabezas, setCabezas] = useState({});
   const [curso, setCurso] = useState({ etapa: 'PARIENDO', inicio: '', fin: '', servidas: '', prenadas: '', vacias: '' });
@@ -54,24 +62,45 @@ export default function NuevoProcesoPage() {
   useEffect(() => {
     if (!campoId) return;
     getProcesos(campoId, { estado: 'ABIERTO' })
-      .then(({ data }) => setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? []))))
+      .then(({ data }) => {
+        setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? [])));
+        setParaServir(new Set(data.flatMap((p) => p.reentoreIds ?? [])));
+      })
       .catch(() => setEnProceso(new Set()));
   }, [campoId]);
 
-  const hembras = useMemo(() => indexarLotes(potreros ?? []).filter((l) => l.sexo !== 'MACHO' && !enProceso.has(l.loteId)), [potreros, enProceso]);
+  // Las vacías que quedaron para volver a servir, primero.
+  const hembras = useMemo(
+    () =>
+      indexarLotes(potreros ?? [])
+        .filter((l) => l.sexo !== 'MACHO' && !enProceso.has(l.loteId))
+        .sort((a, b) => Number(paraServir.has(b.loteId)) - Number(paraServir.has(a.loteId))),
+    [potreros, enProceso, paraServir],
+  );
   const lotes = hembras.filter((l) => elegidos.includes(l.loteId));
-  const cuerpo = () => cuerpoProceso({ modalidad, campoId, elegidos: lotes, cabezas, ...datos, ...(conCurso && { enCurso: curso, roles }) });
+  const pasos = conCurso ? PASOS_EN_CURSO : PASOS;
+  const nombrePaso = pasos[paso];
+  const cuerpo = () =>
+    cuerpoProceso({ modalidad, campoId, elegidos: lotes, cabezas, ...datos, ...(repartir && { reparto }), ...(conCurso && { enCurso: curso, roles }) });
   const poner = (set) => (campo) => (e) => set((d) => ({ ...d, [campo]: e.target.value }));
+  const filasDe = (loteId) => reparto[loteId] ?? [{ potreroId: '', cabezas: '', toros: '' }];
+  const ponerFila = (loteId, i, cambios) => setReparto((r) => ({ ...r, [loteId]: filasDe(loteId).map((f, k) => (k === i ? { ...f, ...cambios } : f)) }));
+  const agregarFila = (loteId) => setReparto((r) => ({ ...r, [loteId]: [...filasDe(loteId), { potreroId: '', cabezas: '', toros: '' }] }));
+  const sacarFila = (loteId, i) => setReparto((r) => ({ ...r, [loteId]: filasDe(loteId).filter((_, k) => k !== i) }));
+  const entran = (l) => {
+    const n = Number.parseInt(String(cabezas[l.loteId] ?? '').trim(), 10);
+    return Number.isInteger(n) && n > 0 ? n : l.cabezas;
+  };
 
   async function seguir() {
     setErrors([]);
-    if (paso < 2) return setPaso(paso + 1);
+    if (nombrePaso !== 'Revisar' && pasos[paso + 1] !== 'Revisar') return setPaso(paso + 1);
     setOcupado(true);
     try {
-      if (paso === 2) {
+      if (nombrePaso !== 'Revisar') {
         const { data } = await vistaPreviaProceso(cuerpo());
         setPrevia(data);
-        setPaso(3);
+        setPaso(paso + 1);
       } else {
         const { data } = await crearProceso(cuerpo());
         navigate(`/pecuaria/procesos/${data.proceso.id}`, { state: { aviso: `${data.oracion}.` } });
@@ -96,15 +125,15 @@ export default function NuevoProcesoPage() {
   return (
     <Camino
       titulo="Nuevo proceso"
-      pasos={PASOS}
+      pasos={pasos}
       actual={paso}
       onIr={(i) => {
         setErrors([]);
         setPaso(i);
       }}
       onSeguir={seguir}
-      textoSeguir={paso === 3 ? 'Confirmar' : paso === 2 ? 'Revisar' : 'Seguir'}
-      puedeSeguir={paso === 0 || lotes.length > 0}
+      textoSeguir={nombrePaso === 'Revisar' ? 'Confirmar' : pasos[paso + 1] === 'Revisar' ? 'Revisar' : 'Seguir'}
+      puedeSeguir={nombrePaso === 'Qué' || lotes.length > 0}
       ocupado={ocupado}
       ayuda={lotes.length ? `${lotes.length} ${lotes.length === 1 ? 'lote' : 'lotes'} · ${formatNumero(lotes.reduce((s, l) => s + l.cabezas, 0))} cab` : null}
     >
@@ -112,7 +141,7 @@ export default function NuevoProcesoPage() {
         <ErrorList errors={errors} />
       </div>
 
-      {paso === 0 && (
+      {nombrePaso === 'Qué' && (
         <section aria-label="Qué" className="space-y-2">
           <p className="text-sm text-suelo-600">Tipo de proceso</p>
           <div className={opcion(true)} aria-current="true">
@@ -136,7 +165,7 @@ export default function NuevoProcesoPage() {
         </section>
       )}
 
-      {paso === 1 && (
+      {nombrePaso === 'A quién' && (
         <section aria-label="A quién" className="space-y-2">
           {!potreros && <p className="text-suelo-600">Cargando…</p>}
           {potreros && hembras.length === 0 && <p className="text-suelo-600">No hay lotes de hembras libres (sin otro proceso abierto) en esta estancia.</p>}
@@ -154,6 +183,7 @@ export default function NuevoProcesoPage() {
                     <span className="block truncate font-medium">{l.lote}</span>
                     <span className="block text-xs text-suelo-500">
                       {l.potrero} · {l.categoria}
+                      {paraServir.has(l.loteId) && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-800">para volver a servir</span>}
                     </span>
                   </span>
                   <span className="shrink-0 text-suelo-600">{formatNumero(l.cabezas)} cab</span>
@@ -164,11 +194,12 @@ export default function NuevoProcesoPage() {
         </section>
       )}
 
-      {paso === 2 && !conCurso && (
+      {nombrePaso === 'Datos' && !conCurso && (
         <section aria-label="Datos" className="space-y-4">
           <label className={etiqueta}>
-            Fecha de inicio
+            {modalidad === 'IATF' ? 'Fecha de la inseminación' : 'Fecha de inicio'}
             <input type="date" value={datos.fecha} max={hoy()} onChange={poner(setDatos)('fecha')} className={`${inputChico} mt-1`} />
+            <span className="mt-1 block text-xs text-suelo-500">Con esta fecha se calcula cuándo toca el diagnóstico y la parición.</span>
           </label>
           {modalidad === 'TOROS' && (
             <label className={etiqueta}>
@@ -178,15 +209,20 @@ export default function NuevoProcesoPage() {
           )}
           {lotes.map((l) => (
             <label key={l.loteId} className={etiqueta}>
-              Cabezas que se sirven ({l.lote}, por defecto {formatNumero(l.cabezas)})
+              {modalidad === 'IATF' ? '¿Cuántas se inseminaron hoy?' : '¿Cuántas entran al servicio?'} ({l.lote}, tiene {formatNumero(l.cabezas)})
               <input inputMode="numeric" value={cabezas[l.loteId] ?? ''} onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`} />
+              <span className="mt-1 block text-xs text-suelo-500">
+                {modalidad === 'IATF'
+                  ? 'Dejalo vacío si se inseminaron todas. Las que no, quedan aparte como "sin inseminar", para otro día.'
+                  : 'Dejalo vacío si entran todas.'}
+              </span>
             </label>
           ))}
           <Nombre datos={datos} onCambiar={poner(setDatos)} />
         </section>
       )}
 
-      {paso === 2 && conCurso && (
+      {nombrePaso === 'Datos' && conCurso && (
         <section aria-label="Datos" className="space-y-4">
           <div className="grid grid-cols-2 gap-2" role="group" aria-label="En qué etapa está">
             {[
@@ -236,11 +272,82 @@ export default function NuevoProcesoPage() {
         </section>
       )}
 
-      {paso === 3 && previa && (
-        <section aria-label="Revisar">
+      {nombrePaso === 'Dónde' && (
+        <section aria-label="Dónde" className="space-y-3">
+          <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Dónde quedan">
+            <button type="button" onClick={() => setRepartir(false)} aria-pressed={!repartir} className={opcion(!repartir)}>
+              <span className="font-semibold">Se quedan donde están</span>
+              <span className="text-xs text-suelo-500">Ya están en su potrero: no se mueve nada.</span>
+            </button>
+            <button type="button" onClick={() => setRepartir(true)} aria-pressed={repartir} className={opcion(repartir)}>
+              <span className="font-semibold">Repartirlas en potreros</span>
+              <span className="text-xs text-suelo-500">{modalidad === 'TOROS' ? 'Por ejemplo, 25 por potrero con un toro.' : 'Llevarlas a otros potreros.'}</span>
+            </button>
+          </div>
+          {repartir &&
+            lotes.map((l) => {
+              const filas = filasDe(l.loteId);
+              const repartidas = filas.reduce((s, f) => s + (Number.parseInt(f.cabezas, 10) || 0), 0);
+              const otros = (potreros ?? []).filter((p) => p.id !== l.potreroId);
+              return (
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3" data-reparto={l.loteId}>
+                  <legend className="px-1 text-sm font-semibold">
+                    {l.lote} ({l.potrero}) · entran {formatNumero(entran(l))}
+                  </legend>
+                  {filas.map((f, i) => (
+                    <div key={i} className={`grid ${modalidad === 'TOROS' ? 'grid-cols-[1fr_5rem_4.5rem_auto]' : 'grid-cols-[1fr_5rem_auto]'} items-end gap-2`}>
+                      <label className="block text-xs text-suelo-600">
+                        Potrero
+                        <select aria-label={`${l.lote}: potrero ${i + 1}`} value={f.potreroId} onChange={(e) => ponerFila(l.loteId, i, { potreroId: e.target.value })} className={`${inputChico} mt-1 w-full`}>
+                          <option value="">Elegí…</option>
+                          {otros.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block text-xs text-suelo-600">
+                        Cabezas
+                        <input aria-label={`${l.lote}: cabezas ${i + 1}`} inputMode="numeric" value={f.cabezas} onChange={(e) => ponerFila(l.loteId, i, { cabezas: e.target.value })} className={`${inputChico} mt-1 w-full`} />
+                      </label>
+                      {modalidad === 'TOROS' && (
+                        <label className="block text-xs text-suelo-600">
+                          Toros
+                          <input aria-label={`${l.lote}: toros ${i + 1}`} inputMode="numeric" value={f.toros} onChange={(e) => ponerFila(l.loteId, i, { toros: e.target.value })} className={`${inputChico} mt-1 w-full`} />
+                        </label>
+                      )}
+                      <button type="button" aria-label={`Sacar la fila ${i + 1}`} onClick={() => sacarFila(l.loteId, i)} className="min-h-11 min-w-11 rounded-md text-suelo-500 hover:bg-suelo-100">
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => agregarFila(l.loteId)} className="min-h-11 text-sm font-medium text-campo-700 hover:underline">
+                    + Agregar potrero
+                  </button>
+                  <p className={`text-xs ${repartidas > entran(l) ? 'font-medium text-red-700' : 'text-suelo-500'}`} data-testid="quedan">
+                    {repartidas > entran(l)
+                      ? `Repartís ${formatNumero(repartidas)}, pero entran ${formatNumero(entran(l))}.`
+                      : `Quedan en ${l.potrero}: ${formatNumero(l.cabezas - repartidas)}.`}
+                  </p>
+                </fieldset>
+              );
+            })}
+        </section>
+      )}
+
+      {nombrePaso === 'Revisar' && previa && (
+        <section aria-label="Revisar" className="space-y-3">
           <p className="rounded-lg border border-campo-200 bg-campo-50 px-4 py-3 text-base font-medium text-campo-900" data-testid="oracion">
             {previa.oracion}.
           </p>
+          {previa.pasos?.length > 0 && (
+            <ol className="list-decimal space-y-1 rounded-lg border border-suelo-200 bg-white py-2 pl-8 pr-3 text-sm">
+              {previa.pasos.map((p) => (
+                <li key={p.texto}>{p.texto}</li>
+              ))}
+            </ol>
+          )}
         </section>
       )}
     </Camino>

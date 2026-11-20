@@ -56,10 +56,10 @@ describe('crear un servicio', () => {
     expect(await prisma.proceso.count()).toBe(0);
   });
 
-  it('con inseminación, el ancla es de inseminación; el nombre se puede elegir', async () => {
+  it('con IATF, el ancla es de inseminación; el nombre se puede elegir', async () => {
     const { agent, V, W } = await preparar();
-    const { proceso } = await crear(agent, servicio(V, { modalidad: 'IA', nombre: 'Vaquillonas IA', lineas: [{ loteId: V.id }, { loteId: W.id, cabezas: 20 }] }));
-    expect(proceso.nombre).toBe('Vaquillonas IA');
+    const { proceso } = await crear(agent, servicio(V, { modalidad: 'IATF', nombre: 'Vaquillonas IATF', lineas: [{ loteId: V.id }, { loteId: W.id, cabezas: 20 }] }));
+    expect(proceso.nombre).toBe('Vaquillonas IATF');
     const anclas = await prisma.eventoRegistro.findMany({ where: { procesoId: proceso.id }, include: { tipo: true }, orderBy: { id: 'asc' } });
     expect(anclas.map((a) => [a.tipo.clave, a.cabezas, a.nivel])).toEqual([
       ['INSEMINACION', 50, 'LOTE'],

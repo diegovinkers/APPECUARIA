@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   getLote: vi.fn(),
   vistaPreviaEventoRegistro: vi.fn(),
   registrarEventoRegistro: vi.fn(),
+  getProcesos: vi.fn(),
 }));
 const estado = vi.hoisted(() => ({ todas: false }));
 vi.mock('../../api/pecuaria', () => api);
@@ -53,6 +54,7 @@ TIPOS.push(
   tipo(16, 'ECOGRAFIA', 'Ecografía', { sexo: 'HEMBRA', niveles: ['CATEGORIA', 'LOTE', 'PARTE_LOTE'] }),
   tipo(24, 'VACUNA_AFTOSA', 'Vacuna aftosa'),
   tipo(27, 'RECUENTO', 'Recuento', { niveles: ['CAMPO', 'POTRERO', 'LOTE'] }),
+  tipo(18, 'ENTORE', 'Entore o servicio', { niveles: ['POTRERO', 'CATEGORIA', 'LOTE', 'PARTE_LOTE'] }),
 );
 
 let contenedor;
@@ -102,6 +104,7 @@ beforeEach(() => {
   vi.spyOn(Storage.prototype, 'setItem').mockImplementation((k, v) => almacen.set(k, v));
   for (const f of Object.values(api)) f.mockReset();
   api.getTiposMovimiento.mockResolvedValue({ data: TIPOS });
+  api.getProcesos.mockResolvedValue({ data: [] });
   api.getPotrero.mockResolvedValue({ data: { id: 10, campoId: 1 } });
   api.getLote.mockResolvedValue({ data: { lote: { id: 121, campoId: 1 } } });
   api.vistaPreviaEventoRegistro.mockResolvedValue({
@@ -289,5 +292,48 @@ describe('los datos de cada tipo', () => {
     expect(texto()).not.toContain('Motivo de la diferencia');
     await escribir(contadas, '48');
     expect(texto()).toContain('Motivo de la diferencia');
+  });
+});
+
+describe('procesos: un entore que empieza un servicio', () => {
+  it('con lotes de hembras sueltos, la tarjeta viene prendida y manda empezarServicio; apagada, no', async () => {
+    api.vistaPreviaEventoRegistro.mockResolvedValue({
+      data: { empezarServicio: { nombre: 'Servicio 2026-27 · Vacas', oracion: 'Vas a empezar "Servicio 2026-27 · Vacas": Entore con toros de 1 lote (40 cabezas) el 20/11/2026', lotes: 1, cabezas: 40, avisos: [] } },
+    });
+    await montar('/pecuaria/eventos/nuevo?tipo=18');
+    await click(casilla('10.3 · Vacas'));
+    await click(seguir());
+    const tarjeta = contenedor.querySelector('[data-testid="empezar-servicio"] input[type="checkbox"]');
+    expect(tarjeta.checked).toBe(true);
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEventoRegistro).toHaveBeenLastCalledWith(expect.objectContaining({ tipoId: 18, empezarServicio: {} }));
+    expect(contenedor.querySelector('[data-testid="oracion"]').textContent).toContain('Vas a empezar');
+
+    await click(boton('Atrás'));
+    await click(contenedor.querySelector('[data-testid="empezar-servicio"] input[type="checkbox"]'));
+    api.vistaPreviaEventoRegistro.mockResolvedValue({
+      data: { tipo: { id: 18, clave: 'ENTORE', nombre: 'Entore o servicio' }, oracion: 'Vas a anotar Entore', cambiaStock: false, avisos: [], lineas: [] },
+    });
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEventoRegistro.mock.calls.at(-1)[0].empezarServicio).toBeUndefined();
+  });
+
+  it('si el lote ya está en un proceso, no se ofrece; en Revisar dice a qué proceso va', async () => {
+    api.getProcesos.mockResolvedValue({ data: [{ id: 7, nombre: 'Servicio 2026-27 · Vacas', loteIds: [102] }] });
+    api.vistaPreviaEventoRegistro.mockResolvedValue({
+      data: {
+        tipo: { id: 18, clave: 'ENTORE', nombre: 'Entore o servicio' },
+        oracion: 'Vas a anotar Entore o servicio en 1 lote, 40 cabezas, el 20/11/2026',
+        cambiaStock: false,
+        avisos: [],
+        lineas: [{ loteId: 102, lote: '10.3 · Vacas', potrero: '10.3', cabezas: 40, texto: '', proceso: { id: 7, nombre: 'Servicio 2026-27 · Vacas', etapa: 'REPASO' } }],
+      },
+    });
+    await montar('/pecuaria/eventos/nuevo?tipo=18');
+    await click(casilla('10.3 · Vacas'));
+    await click(seguir());
+    expect(contenedor.querySelector('[data-testid="empezar-servicio"]')).toBeNull();
+    await click(boton('Revisar'));
+    expect(texto()).toContain('Va al proceso Servicio 2026-27 · Vacas (repaso)');
   });
 });

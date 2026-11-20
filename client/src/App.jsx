@@ -20,6 +20,9 @@ import RegistroPage from './pages/pecuaria/RegistroPage';
 import MoverEntreCamposPage from './pages/pecuaria/MoverEntreCamposPage';
 import MovimientoMultiplePage from './pages/pecuaria/MovimientoMultiplePage';
 import EventoPage from './pages/pecuaria/EventoPage';
+import ProcesoPage from './pages/pecuaria/ProcesoPage';
+import ProcesoEtapaPage from './pages/pecuaria/ProcesoEtapaPage';
+import NuevoProcesoPage from './pages/pecuaria/NuevoProcesoPage';
 import PotrerosPage from './pages/pecuaria/PotrerosPage';
 import ResumenPage from './pages/pecuaria/ResumenPage';
 import { RedirigirA, RedirigirPecuaria } from './pages/pecuaria/comun';
@@ -53,6 +56,7 @@ export default function App() {
                 <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
                 <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
                 <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
+                <Route path="/pecuaria/procesos/:id" element={<ProcesoPage />} />
               </Route>
               <Route element={<ProtectedRoute permiso="pecuaria:CREAR" />}>
                 <Route path="/pecuaria/mover" element={<MoverPage />} />
@@ -61,6 +65,8 @@ export default function App() {
                 <Route path="/pecuaria/movimiento-multiple" element={<MovimientoMultiplePage />} />
                 {/* Eventos (pesada, vacuna...): el camino de 4 pasos. */}
                 <Route path="/pecuaria/eventos/nuevo" element={<EventoPage />} />
+                <Route path="/pecuaria/procesos/nuevo" element={<NuevoProcesoPage />} />
+                <Route path="/pecuaria/procesos/:id/etapa/:etapa" element={<ProcesoEtapaPage />} />
               </Route>
               <Route element={<ProtectedRoute permiso="pecuaria:EDITAR" />}>
                 <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />

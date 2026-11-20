@@ -13,7 +13,7 @@ import {
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
-import { Dato, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
+import { Dato, EnProceso, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
 import usePuede from '../hooks/usePuede';
 import { EventoItem } from '../components/movimientos';
 
@@ -94,6 +94,7 @@ export default function PotreroPage() {
         {potrero.tipo === 'CORRAL' && <span className="ml-2 align-middle text-sm font-medium text-amber-800">corral</span>}
       </h1>
       <p className="text-sm text-suelo-600">{potrero.campo.nombre}</p>
+      <EnProceso procesos={potrero.procesos} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {!esCorral && <UsoBadge uso={potrero.usoActual} />}
         {!esCorral && potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}

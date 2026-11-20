@@ -23,6 +23,14 @@ import {
   postAnularGrupoEventos,
   postEvento,
   postVistaPreviaEvento,
+  getProceso,
+  getProcesos,
+  getProcesosTodas,
+  patchProceso,
+  postEtapa,
+  postProceso,
+  postVistaPreviaEtapa,
+  postVistaPreviaProceso,
   postMultiple,
   postRevertirEvento,
   postVistaPreviaEntreCampos,
@@ -60,6 +68,9 @@ import {
   editarUsoSchema,
   entradaSalidaSchema,
   eventoSchema,
+  procesoSchema,
+  etapaProcesoSchema,
+  editarProcesoSchema,
   entreCamposSchema,
   multipleSchema,
   loteSchema,
@@ -75,6 +86,7 @@ import { validateBody } from '../middlewares/validate.js';
 import {
   alcance,
   alcanceAnularEvento,
+  alcanceProceso,
   alcanceEntradaSalida,
   alcanceRegistroEvento,
   alcanceEntreCampos,
@@ -172,6 +184,17 @@ router.post('/eventos-registro/vista-previa', registrar, validateBody(eventoSche
 router.post('/eventos-registro', registrar, validateBody(eventoSchema), alcanceRegistroEvento, postEvento);
 router.post('/eventos-registro/grupo/:grupoId/anular', revertir, alcanceAnularEvento, postAnularGrupoEventos);
 router.post('/eventos-registro/:id/anular', revertir, alcanceAnularEvento, postAnularEvento);
+
+// Procesos (ciclo reproductivo): un servicio con sus etapas. Las cargas se
+// anulan como los eventos (/eventos-registro/grupo/:grupoId/anular).
+router.get('/procesos', ver, getProcesosTodas);
+router.get('/campos/:campoId/procesos', ver, alcance('campo', 'campoId'), getProcesos);
+router.get('/procesos/:id', ver, alcance('proceso'), getProceso);
+router.post('/procesos/vista-previa', registrar, validateBody(procesoSchema), alcanceProceso, postVistaPreviaProceso);
+router.post('/procesos', registrar, validateBody(procesoSchema), alcanceProceso, postProceso);
+router.patch('/procesos/:id', registrar, alcance('proceso'), validateBody(editarProcesoSchema), patchProceso);
+router.post('/procesos/:id/etapas/:etapa/vista-previa', registrar, alcance('proceso'), validateBody(etapaProcesoSchema), postVistaPreviaEtapa);
+router.post('/procesos/:id/etapas/:etapa', registrar, alcance('proceso'), validateBody(etapaProcesoSchema), postEtapa);
 
 // La planilla llega como el archivo tal cual en el cuerpo (sin JSON), con el
 // nombre en ?archivo=. Opcionales: ?hoja= y ?campo= (por defecto EG).

@@ -81,3 +81,13 @@ export const vistaPreviaEventoRegistro = (datos) => api.post('/pecuaria/eventos-
 export const registrarEventoRegistro = (datos) => api.post('/pecuaria/eventos-registro', datos);
 export const anularEventoRegistro = (id) => api.post(`/pecuaria/eventos-registro/${id}/anular`);
 export const anularGrupoEventos = (grupoId) => api.post(`/pecuaria/eventos-registro/grupo/${grupoId}/anular`);
+
+// Procesos (ciclo reproductivo): docs/superpowers/specs/2026-11-20-procesos-design.md.
+export const getProcesos = (campoId, filtros = {}) => api.get(`/pecuaria/campos/${campoId}/procesos`, { params: filtros });
+export const getProcesosTodas = (filtros = {}, grupo = 'estancias') => api.get('/pecuaria/procesos', { params: { ...filtros, grupo } });
+export const getProceso = (id) => api.get(`/pecuaria/procesos/${id}`);
+export const vistaPreviaProceso = (datos) => api.post('/pecuaria/procesos/vista-previa', datos);
+export const crearProceso = (datos) => api.post('/pecuaria/procesos', datos);
+export const editarProceso = (id, datos) => api.patch(`/pecuaria/procesos/${id}`, datos);
+export const vistaPreviaEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}/vista-previa`, datos);
+export const registrarEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}`, datos);

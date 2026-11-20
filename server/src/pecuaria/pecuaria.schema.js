@@ -475,6 +475,10 @@ export const eventoSchema = z.object({
     .array(z.looseObject({ loteId: idPositivo('El lote no es válido') }), { error: 'Las líneas tienen que ser una lista' })
     .max(500, 'Demasiados lotes juntos: anotalo por partes')
     .optional(),
+  // Procesos: un entore o una inseminación que empieza un servicio.
+  empezarServicio: z
+    .object({ nombre: textoOpcional(120, 'El nombre del proceso no puede superar los 120 caracteres').optional() }, { error: 'empezarServicio tiene que ser un objeto' })
+    .optional(),
 });
 
 // Filtros de la lista de movimientos (vienen en la URL, como texto).
@@ -508,4 +512,76 @@ export const grupoSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined))
     .transform((v) => v ?? 'estancias'),
+});
+
+// --- Procesos (diseño docs/superpowers/specs/2026-11-20-procesos-design.md) ---
+
+const enteroPositivo = (mensaje) => z.int({ error: mensaje }).positive(mensaje).max(1_000_000, mensaje);
+const enteroCero = (mensaje) => z.int({ error: mensaje }).min(0, mensaje).max(1_000_000, mensaje);
+const mesProceso = z.string().regex(/^\d{4}-\d{2}$/, 'El mes tiene que tener el formato AAAA-MM');
+const rolProceso = z.enum(['VIENTRES', 'PRENADAS', 'VACIAS', 'PARIDAS', 'CRIAS'], { error: 'El rol del lote no es válido' });
+
+// Empezar un proceso: un servicio (con sus lotes) o uno que ya está en curso
+// (con sus números de antes y los lotes como están hoy).
+export const procesoSchema = z
+  .object({
+    campoId: idPositivo('La estancia no es válida').optional(),
+    nombre: textoOpcional(120, 'El nombre del proceso no puede superar los 120 caracteres').optional(),
+    fecha: fechaDato.optional(),
+    modalidad: z.enum(['TOROS', 'IA', 'IATF'], { error: 'Elegí cómo es el servicio: con toros, inseminación o IATF' }),
+    toros: enteroCero('Los toros tienen que ser un número entero').optional(),
+    nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+    lineas: z
+      .array(z.object({ loteId: idPositivo('El lote no es válido'), cabezas: enteroPositivo('Las cabezas tienen que ser un número entero mayor que cero').optional() }), {
+        error: 'Los lotes tienen que ser una lista',
+      })
+      .max(200, 'Demasiados lotes juntos')
+      .optional(),
+    enCurso: z
+      .object({
+        etapa: z.enum(['DIAGNOSTICADO', 'PARIENDO'], { error: 'La etapa tiene que ser DIAGNOSTICADO o PARIENDO' }),
+        inicio: fechaDato,
+        fin: fechaDato,
+        fechaDiagnostico: fechaDato.optional(),
+        servidas: enteroPositivo('Las servidas tienen que ser un número entero mayor que cero'),
+        prenadas: enteroCero('Las preñadas tienen que ser un número entero').optional(),
+        vacias: enteroCero('Las vacías tienen que ser un número entero').optional(),
+        lotes: z
+          .array(z.object({ loteId: idPositivo('El lote no es válido'), rol: rolProceso, mes: mesProceso.optional() }))
+          .min(1, 'Elegí los lotes del proceso')
+          .max(200, 'Demasiados lotes juntos'),
+      })
+      .optional(),
+  })
+  .refine((b) => b.enCurso || b.lineas?.length, 'Elegí los lotes que se sirven');
+
+// Una carga de una etapa: lo común y una línea por lote (lo propio de cada
+// etapa se valida en procesos.datos.js).
+export const etapaProcesoSchema = z.looseObject({
+  fecha: fechaDato.optional(),
+  nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+  lineas: z
+    .array(z.looseObject({ loteId: idPositivo('El lote no es válido') }), { error: 'Las líneas tienen que ser una lista' })
+    .max(500, 'Demasiados lotes juntos')
+    .optional(),
+});
+
+export const editarProcesoSchema = z
+  .object({
+    nombre: nombre(120, 'del proceso').optional(),
+    nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+  })
+  .refine((b) => b.nombre !== undefined || b.nota !== undefined, 'No hay nada para cambiar');
+
+const textoEnUrl = (max) => z.string().max(max).optional().or(z.literal('').transform(() => undefined));
+
+export const filtrosProcesosSchema = z.object({
+  estado: z
+    .enum(['ABIERTO', 'CERRADO', 'ANULADO', 'TODOS'], { error: 'El estado tiene que ser ABIERTO, CERRADO, ANULADO o TODOS' })
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+  campania: textoEnUrl(7),
+  etapa: textoEnUrl(30),
+  desde: fechaEnUrl,
+  hasta: fechaEnUrl,
 });

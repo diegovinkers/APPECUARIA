@@ -32,6 +32,7 @@ import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearVersion, fotoActual } from './lotes.js';
 import { fechaUY } from './stock.service.js';
 import { lineaDelLote, textoDatos, validarComunes } from './eventos.datos.js';
+import { colgarDeProceso } from './procesos.service.js';
 
 const NOMBRE_NIVEL = {
   CAMPO: 'a la estancia entera',
@@ -48,8 +49,12 @@ async function tipoDeEvento(db, tipoId) {
   if (!tipo) throw badRequest('El tipo de evento no existe');
   if (!tipo.activo) throw badRequest(`El tipo ${tipo.nombre} está desactivado`);
   if (tipo.efecto !== 'REGISTRO') throw badRequest(`${tipo.nombre} no es un evento: se registra con el botón +`);
+  // La parición mueve animales (las madres, los terneros que entran): se carga desde su proceso.
+  if (tipo.clave === 'PARICION') throw badRequest('La parición se carga desde su proceso (Registro → Procesos)');
   return tipo;
 }
+
+export const tipoDeEventoPorId = (tipoId) => tipoDeEvento(prisma, tipoId);
 
 // ¿Este tipo se le puede aplicar a una categoría de ese sexo? (null = mixta o sin definir: sí)
 const sexoCorresponde = (tipo, sexo) => tipo.sexo === 'CUALQUIERA' || !sexo || sexo === tipo.sexo;
@@ -185,6 +190,12 @@ async function planificar(db, body) {
       despues,
     });
   }
+  // Procesos: un evento de reproducción de un lote que está en un proceso
+  // abierto se cuelga solo, con la etapa que le toca.
+  const deProceso = await colgarDeProceso(db, tipo, registros);
+  registros.forEach((r, i) => {
+    r.proceso = deProceso[i];
+  });
   return { tipo, dia, nivel, campoId, referencia, omitidos, registros, cambios, nota: body.nota ?? null };
 }
 
@@ -219,6 +230,7 @@ const lineaVista = (r, clave) => ({
   texto: textoDatos(clave, r.datos),
   antes: r.antes,
   despues: r.despues,
+  proceso: r.proceso ? { id: r.proceso.procesoId, nombre: r.proceso.nombre, etapa: r.proceso.etapa } : null,
 });
 
 export async function vistaPrevia(body) {
@@ -264,6 +276,8 @@ export async function registrar(body, usuarioId) {
           nota: plan.nota,
           grupoId,
           versionId: r.despues ? versiones.get(r.potrero.id) : null,
+          procesoId: r.proceso?.procesoId ?? null,
+          etapa: r.proceso?.etapa ?? null,
           usuarioId,
         })),
       });
@@ -301,6 +315,7 @@ const incluir = {
   categoria: { select: { id: true, nombre: true } },
   usuario: { select: { nombre: true } },
   anuladoPor: { select: { nombre: true } },
+  proceso: { select: { id: true, nombre: true } },
 };
 
 // La última versión de cada potrero (para saber qué se puede anular).
@@ -339,6 +354,9 @@ async function aItems(db, rows) {
     anulado: r.anulado,
     anuladoEn: r.anuladoEn,
     anuladoPor: r.anuladoPor?.nombre ?? null,
+    // Procesos: si es una etapa de un proceso.
+    proceso: r.proceso ?? null,
+    etapa: r.etapa ?? null,
     // Lo que cambió el stock solo si después no hubo otros cambios en el potrero.
     puedeAnular: !r.anulado && (r.versionId == null || ultimas.get(r.potreroId) === r.versionId),
   }));

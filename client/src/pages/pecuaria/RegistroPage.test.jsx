@@ -11,6 +11,7 @@ vi.mock('../../context/EstanciaContext', () => ({
 vi.mock('../../hooks/usePotreros', () => ({ default: () => ({ errors: [], potreros: [] }) }));
 // La lista se prueba aparte: acá solo importa qué pestaña recibe.
 vi.mock('../../components/MovimientosLista', () => ({ default: ({ ver }) => <p data-testid="lista">{ver}</p> }));
+vi.mock('../../components/ProcesosLista', () => ({ default: () => <p data-testid="lista">procesos</p> }));
 
 const { default: RegistroPage } = await import('./RegistroPage.jsx');
 const { RedirigirA } = await import('./comun.jsx');
@@ -78,5 +79,15 @@ describe('Registro: pestañas Movimientos y Eventos (20/11)', () => {
     montar('/pecuaria/movimientos?ver=eventos&periodo=mes');
     expect(donde()).toBe('/pecuaria/registro?ver=eventos&periodo=mes');
     expect(lista()).toBe('eventos');
+  });
+
+  it('con ?ver=procesos, la pestaña Procesos; al cambiar de pestaña conserva el período', () => {
+    montar('/pecuaria/registro?ver=procesos&periodo=7');
+    expect(pestania('Procesos').getAttribute('aria-current')).toBe('page');
+    expect(lista()).toBe('procesos');
+    act(() => pestania('Eventos').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
+    expect(donde()).toBe('/pecuaria/registro?ver=eventos&periodo=7');
+    act(() => pestania('Procesos').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
+    expect(donde()).toBe('/pecuaria/registro?ver=procesos&periodo=7');
   });
 });

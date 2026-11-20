@@ -277,6 +277,21 @@ En `client/`: `npm run dev`.
       - Eventos: todos los eventos, con sus columnas (Evento, Dónde; sin Peso ni Destino). El filtro Tipo muestra los de cada pestaña (`tiposDe`).
       - Lo siguiente que pidió Diego: "Parición" en un solo paso (mover las madres + nacimiento vinculado + "con cría al pie", que cierra el Destete).
       - Tests: 398 en el servidor y 177 en el front.
+    - **Procesos (ciclo reproductivo), fase 1 (diseño) hecha (20/11), esperando el OK:**
+      - Encargo: `docs/superpowers/prompts/2026-11-20-procesos.md`. Diseño: `docs/superpowers/specs/2026-11-20-procesos-design.md`. Sin código todavía.
+      - Enfoque: `Proceso` + `ProcesoLote` (rol y mes de cada lote). Cada etapa deja un evento "ancla" en `evento_registro` (`proceso_id`, `etapa`; índice único parcial para las etapas puntuales) y sus movimientos cuelgan de él (`movimiento.proceso_id`, `registro_id`).
+      - Etapas: inicio, repaso, fin del servicio, diagnóstico + decisión (todo o nada), revisión, parición por mes (absorbe la "Parición en un solo paso"), aborto, fin de la parición y destete. Embudo calculado; % sobre las servidas.
+      - Se arranca desde Eventos (Entore/Inseminación) o con "+ Nuevo servicio"; también a mitad de camino, con datos iniciales.
+      - Plan de 7 pasos en el §18 del diseño.
+    - **Procesos, fase 2, pasos 1 a 3 hechos (20/11), sin commitear, esperando el OK:**
+      - Plan: `docs/superpowers/plans/2026-11-20-procesos.md`. Registro de avance y decisiones: `.superpowers/sdd/2026-11-20-procesos/progress.md` (fuera de git).
+      - Migración `procesos`: `Proceso`, `ProcesoLote` (rol VIENTRES/PRENADAS/VACIAS/PARIDAS/CRIAS/LIBRES, mes, destino de las vacías), `evento_registro.proceso_id/etapa` con el índice único parcial `evento_registro_proceso_etapa_unica`, `movimiento.proceso_id/registro_id`, `evento_movimiento.proceso_id/grupo_id` y `TipoEvento.PROCESO`.
+      - Seed: tipos FIN_SERVICIO y PARICION (29 tipos), causa PA-001 "Parto" (las causas que faltan se crean por código), parámetros GESTACION_DIAS 283, DIAGNOSTICO_DESDE_DIAS 45 y DESTETE_EDAD_DIAS 180. Corrido en la base local.
+      - Servidor: `procesos.plantillas.js` (etapas en código, `etapaDe`), `procesos.calculos.js` (puro: campaña, meses esperados, etapa actual, próximas fechas, embudo, `sugerirCategoria`, `planDecision`), `procesos.datos.js`, `procesos.service.js` (crear un servicio o uno en curso con datos iniciales; repaso, fin del servicio y aborto; ficha; lista con filtros; renombrar). Bloqueo `FOR UPDATE` del proceso en cada carga. Eventos: entore/IA con `empezarServicio` crea el proceso; los eventos de reproducción de un lote en proceso se cuelgan solos; la parición no se anota suelta.
+      - Rutas: `GET /procesos`, `GET /campos/:campoId/procesos`, `GET/PATCH /procesos/:id`, `POST /procesos(/vista-previa)`, `POST /procesos/:id/etapas/:etapa(/vista-previa)`. `GET /lotes/:id` y `/potreros/:id` traen `procesos`. Auditoría PROCESO_CREADO, PROCESO_ETAPA y PROCESO_EDITADO.
+      - Front: pestaña **Procesos** en Registro (`ProcesosLista.jsx`, filtros estado/campaña/etapa), ficha `/pecuaria/procesos/:id` (`ProcesoPage.jsx`: embudo, línea de tiempo, lotes, botón de la etapa que sigue, renombrar, anular carga), `/pecuaria/procesos/nuevo` (`NuevoProcesoPage.jsx`, también "ya está en curso"), `/pecuaria/procesos/:id/etapa/:etapa` (`ProcesoEtapaPage.jsx`: por ahora fin del servicio, repaso y abortos), tarjeta "Empieza un servicio" en Eventos → Entore/Inseminación, "En proceso: …" en las fichas de lote y potrero, Configuración → Procesos.
+      - Tests: `pecuaria-procesos-calculos.test.js` (20) y `pecuaria-procesos.test.js` (16) en el servidor; `procesos.test.js`, `ProcesosLista.test.jsx`, `ProcesoPage.test.jsx` y tests sumados a Registro, Eventos y Lote en el front.
+      - Falta (pasos 4 a 7): diagnóstico con decisión, parición, destete y cierre, anular cargas con movimientos, sumar eventos sueltos.
     - Para levantar la app desde la app de escritorio: `.claude/launch.json` (configuraciones `api` y `web`).
     - `exceljs` trae un `uuid` viejo: está forzado a `^11.1.1` con `overrides` en `server/package.json`.
   - **Módulo Parcelas:** en diseño (`docs/DECISIONES.md` §9).

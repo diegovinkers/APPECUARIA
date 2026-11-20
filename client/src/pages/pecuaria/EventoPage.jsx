@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { getLote, getPotrero, getTiposMovimiento, registrarEventoRegistro, vistaPreviaEventoRegistro } from '../../api/pecuaria';
+import { getLote, getPotrero, getProcesos, getTiposMovimiento, registrarEventoRegistro, vistaPreviaEventoRegistro } from '../../api/pecuaria';
+import { aplicaServicio } from '../../components/procesos';
 import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
@@ -68,6 +69,10 @@ export default function EventoPage() {
   const [ocupado, setOcupado] = useState(false);
   const [hecho, setHecho] = useState(null);
   const [recientes, setRecientes] = useState(leerRecientes);
+  // Procesos: los lotes que ya están en un proceso abierto, y si este entore
+  // (o inseminación) empieza un servicio.
+  const [enProceso, setEnProceso] = useState(() => new Set());
+  const [empezar, setEmpezar] = useState(true);
 
   useEffect(() => {
     getTiposMovimiento()
@@ -89,6 +94,14 @@ export default function EventoPage() {
   const { lotes, omitidos } = useMemo(() => lotesDelTipo(todos, tipo), [todos, tipo]);
   const elegidos = useMemo(() => lotesElegidos(sel, lotes), [sel, lotes]);
   const formulario = formularioDe(tipo);
+  const ofreceServicio = aplicaServicio({ tipo, sel, elegidos, enProceso });
+
+  useEffect(() => {
+    if (!campoId) return;
+    getProcesos(campoId, { estado: 'ABIERTO' })
+      .then(({ data }) => setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? []))))
+      .catch(() => setEnProceso(new Set()));
+  }, [campoId]);
 
   // Arranca donde estás: la primera vez, lo de la ficha de donde se abrió.
   useEffect(() => {
@@ -119,7 +132,10 @@ export default function EventoPage() {
     setPaso(1);
   }
 
-  const cuerpo = () => cuerpoEvento({ tipo, sel, campoId, lotes, datosLote, comunes, fecha, nota });
+  const cuerpo = () => ({
+    ...cuerpoEvento({ tipo, sel, campoId, lotes, datosLote, comunes, fecha, nota }),
+    ...(ofreceServicio && empezar && { empezarServicio: {} }),
+  });
 
   async function seguir() {
     setErrors([]);
@@ -166,7 +182,8 @@ export default function EventoPage() {
 
   function listo() {
     const aviso = hecho?.oracion;
-    if (contexto.potrero) navigate(`/pecuaria/potreros/${contexto.potrero}`, { state: { aviso } });
+    if (hecho?.proceso) navigate(`/pecuaria/procesos/${hecho.proceso.id}`, { state: { aviso } });
+    else if (contexto.potrero) navigate(`/pecuaria/potreros/${contexto.potrero}`, { state: { aviso } });
     else if (contexto.lote) navigate(`/pecuaria/lotes/${contexto.lote}`, { state: { aviso } });
     else navigate('/pecuaria/registro?ver=eventos', { state: { aviso } });
   }
@@ -260,6 +277,15 @@ export default function EventoPage() {
           nota={nota}
           onNota={setNota}
         />
+      )}
+      {paso === 2 && ofreceServicio && (
+        <label data-testid="empezar-servicio" className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-campo-200 bg-campo-50 px-3 py-3 text-sm">
+          <input type="checkbox" checked={empezar} onChange={(e) => setEmpezar(e.target.checked)} className="mt-0.5 h-5 w-5 accent-campo-600" />
+          <span>
+            <span className="block font-semibold text-campo-900">Empieza un servicio</span>
+            <span className="block text-xs text-suelo-600">Queda como un proceso, para seguir el diagnóstico, la parición y el destete (Registro → Procesos).</span>
+          </span>
+        </label>
       )}
 
       {paso === 3 && previa && <PasoRevisar previa={previa} />}
@@ -512,7 +538,21 @@ function DatosLote({ formulario, lote: l, datos, onDato }) {
 
 const pesoTexto = (p) => (p == null ? '—' : `${formatNumero(p, 1)} kg`);
 
+const NOMBRE_ETAPA = { INICIO: 'inicio del servicio', REPASO: 'repaso', FIN_SERVICIO: 'fin del servicio', DIAGNOSTICO: 'diagnóstico', ABORTO: 'aborto' };
+
 export function PasoRevisar({ previa }) {
+  // Un entore o una inseminación que empieza un servicio: la vista previa del proceso.
+  if (previa.empezarServicio) {
+    return (
+      <section aria-label="Revisar" className="space-y-3">
+        <p className="rounded-lg border border-campo-200 bg-campo-50 px-4 py-3 text-base font-medium text-campo-900" data-testid="oracion">
+          {previa.empezarServicio.oracion}.
+        </p>
+        <p className="text-sm text-suelo-600">Después lo ves y lo seguís en Registro → Procesos.</p>
+      </section>
+    );
+  }
+  const procesos = [...new Map(previa.lineas.filter((l) => l.proceso).map((l) => [`${l.proceso.id}-${l.proceso.etapa}`, l.proceso])).values()];
   return (
     <section aria-label="Revisar" className="space-y-3">
       <p className="rounded-lg border border-campo-200 bg-campo-50 px-4 py-3 text-base font-medium text-campo-900" data-testid="oracion">
@@ -520,6 +560,11 @@ export function PasoRevisar({ previa }) {
       </p>
       {previa.avisos.map((a) => (
         <Notice key={a}>{a}</Notice>
+      ))}
+      {procesos.map((p) => (
+        <p key={`${p.id}-${p.etapa}`} className="rounded-md bg-sky-500/10 px-3 py-2 text-sm text-sky-900">
+          Va al proceso {p.nombre} ({NOMBRE_ETAPA[p.etapa] ?? p.etapa.toLowerCase()})
+        </p>
       ))}
       {previa.cambiaStock ? (
         <div className="overflow-hidden rounded-lg border border-suelo-200 bg-white">

@@ -51,6 +51,10 @@ export const PARAMETROS = [
   // Adaptación < engorde < ciclo.
   { clave: 'FEEDLOT_ADAPTACION_DIAS', valor: 20, descripcion: 'Feedlot: días de adaptación (de 0 a este número)' },
   { clave: 'FEEDLOT_ENGORDE_DIAS', valor: 90, descripcion: 'Feedlot: días hasta el final del engorde (después viene la terminación)' },
+  // Procesos (ciclo reproductivo): las fechas esperadas de cada etapa.
+  { clave: 'GESTACION_DIAS', valor: 283, descripcion: 'Procesos: días de gestación (del servicio al parto)' },
+  { clave: 'DIAGNOSTICO_DESDE_DIAS', valor: 45, descripcion: 'Procesos: días desde el fin del servicio hasta el diagnóstico (ecografía o tacto)' },
+  { clave: 'DESTETE_EDAD_DIAS', valor: 180, descripcion: 'Procesos: días desde el primer parto hasta el destete' },
 ];
 
 // Niveles a los que se aplica un movimiento (PROPUESTA_MOVIMIENTOS §5). Las
@@ -96,6 +100,9 @@ export const TIPOS_MOVIMIENTO = [
   { clave: 'TRATAMIENTO', nombre: 'Otros tratamientos sanitarios', efecto: 'REGISTRO', niveles: TODOS },
   { clave: 'ALIMENTACION', nombre: 'Alimentación', efecto: 'REGISTRO', niveles: ['POTRERO', 'CATEGORIA', 'LOTE'], cigam: '13' },
   { clave: 'RECUENTO', nombre: 'Recuento', efecto: 'REGISTRO', niveles: ['CAMPO', 'POTRERO', 'LOTE'] },
+  // Procesos (ciclo reproductivo): las etapas que no tenían su tipo.
+  { clave: 'FIN_SERVICIO', nombre: 'Fin del servicio', efecto: 'REGISTRO', sexo: 'HEMBRA', niveles: ['LOTE', 'PARTE_LOTE'] },
+  { clave: 'PARICION', nombre: 'Parición', efecto: 'REGISTRO', sexo: 'HEMBRA', niveles: ['LOTE', 'PARTE_LOTE'] },
 ].map((t, i) => ({
   clave: t.clave,
   nombre: t.nombre,
@@ -120,10 +127,12 @@ export const MODO_A_TIPO = {
 
 // Causas que hay hoy en CIGAM (TEA4CAUSAMOTIVOCONSTACAO). A qué tipo va cada
 // una es un supuesto por el prefijo del código: hay que confirmarlo con el
-// encargado y completar la lista (enfermedad, accidente, parto...).
+// encargado y completar la lista (enfermedad, accidente...). "Parto" es de la
+// app (procesos: las madres que mueren al parir).
 export const CAUSAS = [
   { codigo: 'CA-001', nombre: 'Cobra', tipos: ['MUERTE'] },
   { codigo: 'MO-001', nombre: 'Mordida', tipos: ['MUERTE'] },
   { codigo: 'CO-001', nombre: 'Después de 3 días', tipos: ['CONSUMO'] },
   { codigo: 'CO-002', nombre: 'Después de 7 días', tipos: ['CONSUMO'] },
+  { codigo: 'PA-001', nombre: 'Parto', tipos: ['MUERTE'] },
 ];

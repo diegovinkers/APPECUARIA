@@ -14,6 +14,7 @@ export const GRUPO_EVENTO = {
   INSEMINACION: 'Reproducción',
   ENTORE: 'Reproducción',
   ABORTO: 'Reproducción',
+  FIN_SERVICIO: 'Reproducción',
   CASTRACION: 'Manejo',
   IDENTIFICACION: 'Manejo',
   // En el boceto aprobado, la alimentación va con el manejo.
@@ -37,6 +38,7 @@ const CORTO = {
   TRATAMIENTO: 'Otro tratamiento',
   IDENTIFICACION: 'Caravaneo',
   ENTORE: 'Entore',
+  FIN_SERVICIO: 'Fin del servicio',
 };
 
 export const ICONO_EVENTO = { PESADA: 'pesada', RECUENTO: 'recuento' };
@@ -44,8 +46,9 @@ export const ICONO_EVENTO = { PESADA: 'pesada', RECUENTO: 'recuento' };
 export const grupoDe = (tipo) => GRUPO_EVENTO[tipo.clave] ?? 'Otros';
 export const nombreCorto = (tipo) => CORTO[tipo.clave] ?? tipo.nombre;
 
-// Los eventos que se pueden anotar: efecto REGISTRO y activos.
-export const tiposDeEvento = (tipos = []) => tipos.filter((t) => t.efecto === 'REGISTRO' && t.activo !== false);
+// Los eventos que se pueden anotar: efecto REGISTRO y activos. La parición no:
+// mueve animales y se carga desde su proceso (Registro → Procesos).
+export const tiposDeEvento = (tipos = []) => tipos.filter((t) => t.efecto === 'REGISTRO' && t.activo !== false && t.clave !== 'PARICION');
 
 // { destacados: [tipos], grupos: [{ grupo, titulo, tipos }] } (los vacíos no van).
 export function agruparEventos(tipos = []) {

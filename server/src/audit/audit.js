@@ -70,6 +70,13 @@ export const ACCION = {
   EVENTO_REGISTRADO: 'EVENTO_REGISTRADO',
   // detalle: { tipo, fecha, grupoId, registros: [ids], lotes: [{ lote, potrero, cabezas }], cambiaStock }
   EVENTO_ANULADO: 'EVENTO_ANULADO',
+  // Procesos. entidad = proceso, entidad_id = el proceso.
+  // detalle: { nombre, campania, modalidad, fecha, lotes, cabezas | enCurso }
+  PROCESO_CREADO: 'PROCESO_CREADO',
+  // Una carga de una etapa. detalle: { proceso, etapa, fecha, grupoId, lineas: [{ lote, cabezas, ...datos }], ... }
+  PROCESO_ETAPA: 'PROCESO_ETAPA',
+  // detalle: { antes, despues } (nombre, nota)
+  PROCESO_EDITADO: 'PROCESO_EDITADO',
 };
 
 // Para auditar una edición: de las claves indicadas, solo las que cambiaron.

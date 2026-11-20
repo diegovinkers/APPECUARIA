@@ -62,8 +62,9 @@ model Usuario {
   importaciones     Importacion[]
   movimientos       Movimiento[]
   eventosMovimiento EventoMovimiento[]
-  eventosRegistro   EventoRegistro[]  @relation("EventoRegistroUsuario")
-  eventosAnulados   EventoRegistro[]  @relation("EventoRegistroAnulador")
+  eventosRegistro   EventoRegistro[]   @relation("EventoRegistroUsuario")
+  eventosAnulados   EventoRegistro[]   @relation("EventoRegistroAnulador")
+  procesos          Proceso[]
 
   @@map("usuario")
 }
@@ -312,6 +313,7 @@ model Campo {
   trasladosOtro  Movimiento[]       @relation("MovimientoCampoOtro")
   eventos        EventoMovimiento[]
   registros      EventoRegistro[]
+  procesos       Proceso[]
 
   @@map("campo")
 }
@@ -338,13 +340,13 @@ model Potrero {
   creadoEn            DateTime    @default(now()) @map("creado_en") @db.Timestamptz(3)
   actualizadoEn       DateTime    @updatedAt @map("actualizado_en") @db.Timestamptz(3)
 
-  campo              Campo          @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  campo              Campo            @relation(fields: [campoId], references: [id], onDelete: Restrict)
   subdivisiones      Subdivision[]
   usos               PotreroUso[]
   versionesStock     VersionStock[]
   lotes              Lote[]
-  movimientosOrigen  Movimiento[]   @relation("MovimientoPotreroOrigen")
-  movimientosDestino Movimiento[]   @relation("MovimientoPotreroDestino")
+  movimientosOrigen  Movimiento[]     @relation("MovimientoPotreroOrigen")
+  movimientosDestino Movimiento[]     @relation("MovimientoPotreroDestino")
   sesionesBaston     SesionBaston[]
   registros          EventoRegistro[]
 
@@ -393,9 +395,9 @@ model UsoSueloAlias {
 
 /// Catálogo editable de categorías de animales. En CIGAM: TEA4CATANIMAIS.
 model Categoria {
-  id               Int     @id @default(autoincrement())
-  nombre           String  @unique @db.VarChar(60)
-  especie          Especie @default(VACUNO)
+  id               Int       @id @default(autoincrement())
+  nombre           String    @unique @db.VarChar(60)
+  especie          Especie   @default(VACUNO)
   /// En CIGAM está vacío: al crearla se deduce del nombre, y se puede editar.
   sexo             Sexo?
   /// Peso típico de un animal de la categoría: se usa para los kilos (y las
@@ -405,9 +407,9 @@ model Categoria {
   /// ganado. Opcional.
   precioUsd        Decimal?  @map("precio_usd") @db.Decimal(12, 2)
   precioPor        PrecioPor @default(KG) @map("precio_por")
-  idCategoriaCigam String? @unique @map("id_categoria_cigam") @db.VarChar(30)
-  activo           Boolean @default(true)
-  orden            Int     @default(0)
+  idCategoriaCigam String?   @unique @map("id_categoria_cigam") @db.VarChar(30)
+  activo           Boolean   @default(true)
+  orden            Int       @default(0)
 
   alias          CategoriaAlias[]
   lineasStock    VersionStockLinea[]
@@ -510,25 +512,25 @@ model VersionStockLinea {
 /// activo = false: se vació (se movió todo o se juntó con otro).
 /// En CIGAM equivale a un lote de manejo.
 model Lote {
-  id            Int      @id @default(autoincrement())
-  campoId       Int      @map("campo_id")
+  id            Int       @id @default(autoincrement())
+  campoId       Int       @map("campo_id")
   /// Dónde está ahora (o dónde estuvo por última vez, si está cerrado).
-  potreroId     Int      @map("potrero_id")
-  categoriaId   Int      @map("categoria_id")
-  nombre        String   @db.VarChar(80)
-  activo        Boolean  @default(true)
-  idLoteCigam   String?  @map("id_lote_cigam") @db.VarChar(30)
+  potreroId     Int       @map("potrero_id")
+  categoriaId   Int       @map("categoria_id")
+  nombre        String    @db.VarChar(80)
+  activo        Boolean   @default(true)
+  idLoteCigam   String?   @map("id_lote_cigam") @db.VarChar(30)
   /// Familia de lotes (docs/LOGISTICA_MOVIMIENTOS.md §2): si este lote es una
   /// parte que se apartó de otro ("sigue siendo el mismo lote"), el lote
   /// original. Las partes de una familia comparten la raíz; la raíz no tiene.
-  raizId        Int?     @map("raiz_id")
+  raizId        Int?      @map("raiz_id")
   /// Feedlot: cuándo entró al corral ("fecha inicio" de la hoja de corrales)
   /// y con cuánto peso promedio ("kg inicio"). Sirven para los días de
   /// encierre, el peso estimado y la salida probable (feedlot.service.js).
   fechaEntrada  DateTime? @map("fecha_entrada") @db.Date
   pesoEntradaKg Decimal?  @map("peso_entrada_kg") @db.Decimal(7, 2)
-  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
-  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+  creadoEn      DateTime  @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn DateTime  @updatedAt @map("actualizado_en") @db.Timestamptz(3)
 
   raiz               Lote?               @relation("LoteFamilia", fields: [raizId], references: [id], onDelete: Restrict)
   partes             Lote[]              @relation("LoteFamilia")
@@ -540,6 +542,7 @@ model Lote {
   movimientosDestino Movimiento[]        @relation("MovimientoLoteDestino")
   nacimientos        Movimiento[]        @relation("MovimientoLoteMadres")
   registros          EventoRegistro[]
+  procesos           ProcesoLote[]
 
   @@unique([campoId, nombre])
   @@index([potreroId])
@@ -564,6 +567,10 @@ model EventoMovimiento {
   nota        String?    @db.VarChar(255)
   /// Si es una reversión: el evento que deshace.
   revierteAId Int?       @unique @map("revierte_a_id")
+  /// Procesos: la carga de una etapa que hizo estos movimientos (los anclas de
+  /// esa carga comparten este grupoId). Se revierten juntos al anularla.
+  procesoId   Int?       @map("proceso_id")
+  grupoId     String?    @map("grupo_id") @db.VarChar(36)
   usuarioId   Int?       @map("usuario_id")
   creadoEn    DateTime   @default(now()) @map("creado_en") @db.Timestamptz(3)
 
@@ -572,8 +579,10 @@ model EventoMovimiento {
   revierteA    EventoMovimiento? @relation("ReversionEvento", fields: [revierteAId], references: [id], onDelete: Restrict)
   revertidoPor EventoMovimiento? @relation("ReversionEvento")
   movimientos  Movimiento[]
+  proceso      Proceso?          @relation(fields: [procesoId], references: [id], onDelete: Restrict)
 
   @@index([campoId, fecha])
+  @@index([grupoId])
   @@map("evento_movimiento")
 }
 
@@ -581,49 +590,55 @@ enum TipoEvento {
   MULTIPLE
   ENTRE_CAMPOS
   REVERSION
+  /// Los movimientos de una carga de un proceso (diagnóstico, parición, destete).
+  PROCESO
 }
 
 model Movimiento {
-  id                 Int      @id @default(autoincrement())
-  campoId            Int      @map("campo_id")
-  fecha              DateTime @db.Date
-  loteOrigenId       Int?     @map("lote_origen_id")
-  loteDestinoId      Int?     @map("lote_destino_id")
-  potreroOrigenId    Int?     @map("potrero_origen_id")
-  potreroDestinoId   Int?     @map("potrero_destino_id")
+  id                 Int        @id @default(autoincrement())
+  campoId            Int        @map("campo_id")
+  fecha              DateTime   @db.Date
+  loteOrigenId       Int?       @map("lote_origen_id")
+  loteDestinoId      Int?       @map("lote_destino_id")
+  potreroOrigenId    Int?       @map("potrero_origen_id")
+  potreroDestinoId   Int?       @map("potrero_destino_id")
   cabezas            Int
   /// Peso promedio de los que se mueven (si se cargó).
-  pesoPromedioKg     Decimal? @map("peso_promedio_kg") @db.Decimal(7, 2)
+  pesoPromedioKg     Decimal?   @map("peso_promedio_kg") @db.Decimal(7, 2)
   /// Ventas: el precio real (opcional), en dólares por kilo o por cabeza. El
   /// valor de la venta se calcula (cabezas × peso × precio, o cabezas × precio).
   precioVentaUsd     Decimal?   @map("precio_venta_usd") @db.Decimal(12, 2)
   precioVentaPor     PrecioPor? @map("precio_venta_por")
-  categoriaOrigenId  Int?     @map("categoria_origen_id")
-  categoriaDestinoId Int?     @map("categoria_destino_id")
+  categoriaOrigenId  Int?       @map("categoria_origen_id")
+  categoriaDestinoId Int?       @map("categoria_destino_id")
   /// SUMAR (a un lote que ya estaba), NUEVO (lote nuevo), ENTERO (el lote
   /// cambia de potrero), CATEGORIA (el lote cambia de categoría, en el mismo
   /// potrero), ENTRADA, SALIDA o REVERSION (deshace el movimiento `revierteAId`).
-  modo               String   @db.VarChar(10)
+  modo               String     @db.VarChar(10)
   /// El tipo del catálogo ("libro del rodeo"). Cada modo tiene el suyo; las
   /// entradas y salidas, el que se eligió (muerte, compra...).
-  tipoId             Int      @map("tipo_movimiento_id")
+  tipoId             Int        @map("tipo_movimiento_id")
   /// Si el tipo pide causa (muerte, consumo).
-  causaId            Int?     @map("causa_id")
+  causaId            Int?       @map("causa_id")
   /// Número de guía (compras, ventas y traslados).
-  guia               String?  @db.VarChar(30)
+  guia               String?    @db.VarChar(30)
   /// Traslados: el campo del que vienen o al que van.
-  campoOtroId        Int?     @map("campo_otro_id")
+  campoOtroId        Int?       @map("campo_otro_id")
   /// Nacimientos: el lote de las madres.
-  loteMadresId       Int?     @map("lote_madres_id")
+  loteMadresId       Int?       @map("lote_madres_id")
   /// Si es una reversión: el movimiento que deshace (uno solo por movimiento).
-  revierteAId        Int?     @unique @map("revierte_a_id")
+  revierteAId        Int?       @unique @map("revierte_a_id")
   /// Si es un paso de un movimiento múltiple o de un movimiento entre campos.
-  eventoId           Int?     @map("evento_id")
-  nota               String?  @db.VarChar(255)
-  versionOrigenId    Int?     @map("version_origen_id")
-  versionDestinoId   Int?     @map("version_destino_id")
-  usuarioId          Int?     @map("usuario_id")
-  creadoEn           DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+  eventoId           Int?       @map("evento_id")
+  /// Procesos: el proceso del que cuelga y su ancla (el evento de la etapa
+  /// de ese lote que lo provocó).
+  procesoId          Int?       @map("proceso_id")
+  registroId         Int?       @map("registro_id")
+  nota               String?    @db.VarChar(255)
+  versionOrigenId    Int?       @map("version_origen_id")
+  versionDestinoId   Int?       @map("version_destino_id")
+  usuarioId          Int?       @map("usuario_id")
+  creadoEn           DateTime   @default(now()) @map("creado_en") @db.Timestamptz(3)
 
   campo          Campo             @relation("MovimientoCampo", fields: [campoId], references: [id], onDelete: Restrict)
   loteOrigen     Lote?             @relation("MovimientoLoteOrigen", fields: [loteOrigenId], references: [id], onDelete: Restrict)
@@ -640,9 +655,12 @@ model Movimiento {
   revierteA      Movimiento?       @relation("Reversion", fields: [revierteAId], references: [id], onDelete: Restrict)
   revertidoPor   Movimiento?       @relation("Reversion")
   evento         EventoMovimiento? @relation(fields: [eventoId], references: [id], onDelete: Restrict)
+  proceso        Proceso?          @relation(fields: [procesoId], references: [id], onDelete: Restrict)
+  registro       EventoRegistro?   @relation("MovimientoRegistro", fields: [registroId], references: [id], onDelete: Restrict)
 
   @@index([campoId, fecha])
   @@index([eventoId])
+  @@index([procesoId])
   @@index([loteOrigenId])
   @@index([loteDestinoId])
   @@index([potreroOrigenId, fecha])
@@ -660,32 +678,37 @@ model Movimiento {
 /// (`versionId`, origen EVENTO): el peso nuevo o las cabezas contadas.
 /// Nada se borra: se anula (y si cambió el stock, otra versión lo deja como estaba).
 model EventoRegistro {
-  id                  Int             @id @default(autoincrement())
-  tipoId              Int             @map("tipo_movimiento_id")
-  fecha               DateTime        @db.Date
-  campoId             Int             @map("campo_id")
-  potreroId           Int?            @map("potrero_id")
-  loteId              Int?            @map("lote_id")
-  categoriaId         Int?            @map("categoria_id")
+  id                 Int             @id @default(autoincrement())
+  tipoId             Int             @map("tipo_movimiento_id")
+  fecha              DateTime        @db.Date
+  campoId            Int             @map("campo_id")
+  potreroId          Int?            @map("potrero_id")
+  loteId             Int?            @map("lote_id")
+  categoriaId        Int?            @map("categoria_id")
   /// A qué se le aplicó: CAMPO (la estancia entera), POTRERO, CATEGORIA, LOTE
   /// o PARTE_LOTE (algunas cabezas del lote).
-  nivel               NivelMovimiento @default(LOTE)
-  cabezas             Int
+  nivel              NivelMovimiento @default(LOTE)
+  cabezas            Int
   /// Los datos propios del tipo (validados con zod según la clave): el peso
   /// de la pesada, las cabezas contadas, las preñadas y vacías, el producto...
-  datos               Json            @default("{}")
-  nota                String?         @db.VarChar(255)
+  datos              Json            @default("{}")
+  nota               String?         @db.VarChar(255)
   /// Lo que se registró junto, en una sola carga.
-  grupoId             String          @map("grupo_id") @db.VarChar(36)
+  grupoId            String          @map("grupo_id") @db.VarChar(36)
   /// Pesada o recuento con diferencia: la versión de stock que dejó.
-  versionId           Int?            @map("version_id")
-  anulado             Boolean         @default(false)
-  anuladoEn           DateTime?       @map("anulado_en") @db.Timestamptz(3)
-  anuladoPorId        Int?            @map("anulado_por_id")
+  versionId          Int?            @map("version_id")
+  anulado            Boolean         @default(false)
+  anuladoEn          DateTime?       @map("anulado_en") @db.Timestamptz(3)
+  anuladoPorId       Int?            @map("anulado_por_id")
   /// Si cambió el stock: la versión que lo dejó como estaba al anular.
-  versionAnulacionId  Int?            @map("version_anulacion_id")
-  usuarioId           Int?            @map("usuario_id")
-  creadoEn            DateTime        @default(now()) @map("creado_en") @db.Timestamptz(3)
+  versionAnulacionId Int?            @map("version_anulacion_id")
+  /// Procesos: si es el ancla de una etapa (INICIO, DIAGNOSTICO, PARICION...).
+  /// Las etapas puntuales van una sola vez por proceso y lote (índice único
+  /// parcial evento_registro_proceso_etapa_unica, en la migración `procesos`).
+  procesoId          Int?            @map("proceso_id")
+  etapa              String?         @db.VarChar(20)
+  usuarioId          Int?            @map("usuario_id")
+  creadoEn           DateTime        @default(now()) @map("creado_en") @db.Timestamptz(3)
 
   tipo             TipoMovimiento @relation(fields: [tipoId], references: [id], onDelete: Restrict)
   campo            Campo          @relation(fields: [campoId], references: [id], onDelete: Restrict)
@@ -696,6 +719,9 @@ model EventoRegistro {
   versionAnulacion VersionStock?  @relation("EventoRegistroVersionAnulacion", fields: [versionAnulacionId], references: [id], onDelete: Restrict)
   usuario          Usuario?       @relation("EventoRegistroUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
   anuladoPor       Usuario?       @relation("EventoRegistroAnulador", fields: [anuladoPorId], references: [id], onDelete: Restrict)
+  proceso          Proceso?       @relation(fields: [procesoId], references: [id], onDelete: Restrict)
+  movimientos      Movimiento[]   @relation("MovimientoRegistro")
+  lotesProceso     ProcesoLote[]
 
   @@index([campoId, fecha])
   @@index([potreroId, fecha])
@@ -703,6 +729,7 @@ model EventoRegistro {
   @@index([grupoId])
   @@index([tipoId])
   @@index([versionId])
+  @@index([procesoId])
   @@map("evento_registro")
 }
 
@@ -819,4 +846,95 @@ model LecturaBaston {
   @@unique([sesionId, eid])
   @@index([eid])
   @@map("lectura_baston")
+}
+
+/// Un proceso (docs/superpowers/specs/2026-11-20-procesos-design.md): una
+/// cadena de etapas que lleva meses. En la v1, el ciclo reproductivo de un
+/// grupo de servicio (servicio → diagnóstico → parición → destete). La etapa
+/// actual no se guarda: se calcula de sus anclas (procesos.calculos.js).
+model Proceso {
+  id                Int           @id @default(autoincrement())
+  tipo              TipoProceso   @default(REPRODUCTIVO)
+  nombre            String        @db.VarChar(120)
+  campoId           Int           @map("campo_id")
+  /// De julio a junio: "2026-27".
+  campania          String        @db.VarChar(7)
+  fechaInicio       DateTime      @map("fecha_inicio") @db.Date
+  estado            EstadoProceso @default(ABIERTO)
+  cerradoEn         DateTime?     @map("cerrado_en") @db.Timestamptz(3)
+  /// Reentore: el proceso del que vienen las vacías.
+  procesoAnteriorId Int?          @map("proceso_anterior_id")
+  /// Lo propio del tipo: la modalidad del servicio, los toros...
+  datos             Json          @default("{}")
+  nota              String?       @db.VarChar(255)
+  usuarioId         Int?          @map("usuario_id")
+  creadoEn          DateTime      @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn     DateTime      @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  campo           Campo              @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  usuario         Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  procesoAnterior Proceso?           @relation("Reentore", fields: [procesoAnteriorId], references: [id], onDelete: Restrict)
+  siguientes      Proceso[]          @relation("Reentore")
+  lotes           ProcesoLote[]
+  registros       EventoRegistro[]
+  movimientos     Movimiento[]
+  eventos         EventoMovimiento[]
+
+  @@unique([campoId, nombre])
+  @@index([campoId, estado])
+  @@index([campania])
+  @@map("proceso")
+}
+
+/// Un lote que es parte de un proceso, y como qué (rol). Las preñadas, las
+/// paridas y las crías llevan el mes ("2027-10"). Un lote está en un solo
+/// proceso abierto a la vez (lo controla procesos.service.js).
+model ProcesoLote {
+  id         Int            @id @default(autoincrement())
+  procesoId  Int            @map("proceso_id")
+  loteId     Int            @map("lote_id")
+  rol        RolProceso
+  mes        String?        @db.VarChar(7)
+  /// Las vacías: qué se decidió. Sin destino = falta decidir.
+  destino    DestinoVacias?
+  desde      DateTime       @db.Date
+  /// Si salió del proceso (invernada, otra estancia, madres destetadas...).
+  hasta      DateTime?      @db.Date
+  /// El ancla de la carga que lo sumó.
+  registroId Int?           @map("registro_id")
+
+  proceso  Proceso         @relation(fields: [procesoId], references: [id], onDelete: Restrict)
+  lote     Lote            @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  registro EventoRegistro? @relation(fields: [registroId], references: [id], onDelete: Restrict)
+
+  @@unique([procesoId, loteId])
+  @@index([loteId])
+  @@map("proceso_lote")
+}
+
+enum TipoProceso {
+  REPRODUCTIVO
+}
+
+enum EstadoProceso {
+  ABIERTO
+  CERRADO
+  ANULADO
+}
+
+/// VIENTRES: servidas, sin diagnóstico. LIBRES: ya no siguen en el proceso
+/// (madres destetadas, vacías a invernada).
+enum RolProceso {
+  VIENTRES
+  PRENADAS
+  VACIAS
+  PARIDAS
+  CRIAS
+  LIBRES
+}
+
+enum DestinoVacias {
+  REENTORE
+  INVERNADA
+  VENTA
 }

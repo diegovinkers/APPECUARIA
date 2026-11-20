@@ -3,7 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { editarLote, getLote } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, inputClass } from '../components/ui';
-import { formatFecha, formatNumero } from '../components/pecuaria';
+import { formatFecha, formatNumero, EnProceso } from '../components/pecuaria';
 import { EventoItem, MovimientoItem } from '../components/movimientos';
 import usePuede from '../hooks/usePuede';
 
@@ -153,7 +153,7 @@ export default function LotePage() {
       </main>
     );
   }
-  const { lote, actual, familia, movimientos, eventos = [] } = datos;
+  const { lote, actual, familia, movimientos, eventos = [], procesos = [] } = datos;
   // La entrada al corral se ve en un corral, o si ya tiene datos (un lote que salió del feedlot).
   const conEntrada = lote.potrero.tipo === 'CORRAL' || lote.fechaEntrada || lote.pesoEntradaKg != null;
   return (
@@ -171,6 +171,7 @@ export default function LotePage() {
           {lote.potrero.nombre}
         </Link>
       </p>
+      <EnProceso procesos={procesos} />
 
       {actual ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-suelo-200 bg-white px-4 py-3">

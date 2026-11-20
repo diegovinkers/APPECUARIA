@@ -9,9 +9,10 @@ import * as tipos from './tipos.repository.js';
 import * as entradasSalidas from './entradas-salidas.service.js';
 import { ACCION, cambios, registrar } from '../audit/audit.js';
 import { badRequest, notFound, parseId } from '../errors.js';
-import { filtrosMovimientosSchema, grupoSchema } from './pecuaria.schema.js';
+import { filtrosMovimientosSchema, filtrosProcesosSchema, grupoSchema } from './pecuaria.schema.js';
 import * as feedlot from './feedlot.service.js';
 import * as eventos from './eventos.service.js';
+import * as procesos from './procesos.service.js';
 
 // Las claves que vinieron en el body: son las que se comparan para auditar.
 const clavesEnviadas = (body) => Object.keys(body).filter((k) => body[k] !== undefined);
@@ -224,8 +225,15 @@ export async function descartarImportacion(req, res) {
 
 // --- Detalle, stock y uso de un potrero ---
 
+// Los procesos abiertos de unos lotes, sin repetir: [{ id, nombre, rol, etapa, textoEtapa }].
+async function procesosDe(loteIds) {
+  const porLote = await procesos.procesosDeLotes(loteIds);
+  return [...new Map([...porLote.values()].map((p) => [p.id, p])).values()];
+}
+
 export async function getPotrero(req, res) {
-  res.json(await stock.detallePotrero(req.params.id));
+  const detalle = await stock.detallePotrero(req.params.id);
+  res.json({ ...detalle, procesos: await procesosDe((detalle.stock?.lineas ?? []).map((l) => l.loteId)) });
 }
 
 export async function getHistorial(req, res) {
@@ -361,17 +369,29 @@ export async function postRevertirMovimiento(req, res) {
 }
 
 export async function getLote(req, res) {
-  res.json(await movimientos.historialLote(req.params.id, { puede: (campoId) => puedeCampo(req.user, campoId) }));
+  const lote = await movimientos.historialLote(req.params.id, { puede: (campoId) => puedeCampo(req.user, campoId) });
+  res.json({ ...lote, procesos: await procesosDe([lote.lote.id]) });
 }
 
 // --- Eventos (pesada, recuento, vacuna...) ---
 
 export async function postVistaPreviaEvento(req, res) {
+  // Un entore o una inseminación que empieza un servicio: la vista previa del proceso.
+  if (req.body.empezarServicio) {
+    const tipo = await eventos.tipoDeEventoPorId(req.body.tipoId);
+    return res.json({ empezarServicio: await procesos.vistaPreviaCrear(procesos.cuerpoDesdeEvento(tipo, req.body)) });
+  }
   res.json(await eventos.vistaPrevia(req.body));
 }
 
 // Una fila de auditoría por carga (todos los lotes juntos).
 export async function postEvento(req, res) {
+  if (req.body.empezarServicio) {
+    const tipo = await eventos.tipoDeEventoPorId(req.body.tipoId);
+    const { auditoria, ...creado } = await procesos.crear(procesos.cuerpoDesdeEvento(tipo, req.body), req.user.id);
+    await registrar(req, { accion: ACCION.PROCESO_CREADO, entidad: 'proceso', entidadId: creado.proceso.id, detalle: auditoria });
+    return res.status(201).json({ ...creado, eventos: await eventos.listarEventos(undefined, { grupoId: creado.grupoId }) });
+  }
   const { auditoria, ...resultado } = await eventos.registrar(req.body, req.user.id);
   await registrar(req, { accion: ACCION.EVENTO_REGISTRADO, entidad: 'evento_registro', entidadId: resultado.grupoId, detalle: auditoria });
   res.status(201).json(resultado);
@@ -387,4 +407,54 @@ export async function postAnularGrupoEventos(req, res) {
   const { auditoria, ...resultado } = await eventos.anularGrupo(req.params.grupoId, req.user.id);
   await registrar(req, { accion: ACCION.EVENTO_ANULADO, entidad: 'evento_registro', entidadId: auditoria.grupoId, detalle: auditoria });
   res.json(resultado);
+}
+
+// --- Procesos (diseño docs/superpowers/specs/2026-11-20-procesos-design.md) ---
+
+const filtrosProcesos = (req) => {
+  const filtros = filtrosProcesosSchema.safeParse(req.query);
+  if (!filtros.success) throw badRequest(filtros.error.issues[0].message);
+  return filtros.data;
+};
+
+// Los de todas las estancias del usuario (o del grupo de arriba).
+export async function getProcesosTodas(req, res) {
+  res.json(await procesos.listar(filtroDelGrupo(req), filtrosProcesos(req)));
+}
+
+export async function getProcesos(req, res) {
+  const campoId = parseId(req.params.campoId);
+  if (!campoId) throw notFound('Campo no encontrado');
+  res.json(await procesos.listar({ id: campoId }, filtrosProcesos(req)));
+}
+
+export async function getProceso(req, res) {
+  res.json(await procesos.ficha(req.params.id));
+}
+
+export async function postVistaPreviaProceso(req, res) {
+  res.json(await procesos.vistaPreviaCrear(req.body));
+}
+
+export async function postProceso(req, res) {
+  const { auditoria, ...resultado } = await procesos.crear(req.body, req.user.id);
+  await registrar(req, { accion: ACCION.PROCESO_CREADO, entidad: 'proceso', entidadId: resultado.proceso.id, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+export async function postVistaPreviaEtapa(req, res) {
+  res.json(await procesos.vistaPreviaEtapa(req.params.id, req.params.etapa, req.body));
+}
+
+export async function postEtapa(req, res) {
+  const { auditoria, ...resultado } = await procesos.registrarEtapa(req.params.id, req.params.etapa, req.body, req.user.id);
+  await registrar(req, { accion: ACCION.PROCESO_ETAPA, entidad: 'proceso', entidadId: resultado.ficha.proceso.id, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+export async function patchProceso(req, res) {
+  const { antes, despues } = await procesos.editar(req.params.id, req.body);
+  const detalle = cambios(antes, despues, clavesEnviadas(req.body));
+  if (detalle) await registrar(req, { accion: ACCION.PROCESO_EDITADO, entidad: 'proceso', entidadId: despues.id, detalle });
+  res.json(despues);
 }

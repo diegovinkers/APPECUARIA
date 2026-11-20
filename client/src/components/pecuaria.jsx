@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 // Piezas visuales de Pecuaria, pensadas primero para el celular.
 
 export const formatNumero = (n, decimales = 0) =>
@@ -118,4 +119,22 @@ export function textoVenta(m) {
   if (m?.precioVentaUsd == null) return null;
   const precio = textoPrecio(m.precioVentaUsd, m.precioVentaPor);
   return m.valorVentaUsd == null ? precio : `${formatUsd(m.valorVentaUsd)} · ${precio}`;
+}
+
+// "En proceso: Servicio 2026-27 · Vaquillonas (En servicio) ›", en la ficha de
+// un lote o de un potrero (diseño de procesos §12). Uno por proceso abierto.
+export function EnProceso({ procesos }) {
+  if (!procesos?.length) return null;
+  return (
+    <div data-testid="en-proceso" className="mt-2 space-y-1">
+      {procesos.map((p) => (
+        <p key={p.id} className="text-sm text-suelo-700">
+          En proceso:{' '}
+          <Link to={`/pecuaria/procesos/${p.id}`} className="font-medium text-campo-700 hover:underline">
+            {p.nombre} ({p.textoEtapa}) ›
+          </Link>
+        </p>
+      ))}
+    </div>
+  );
 }

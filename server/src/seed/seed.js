@@ -61,16 +61,20 @@ export async function seedPecuaria(prisma, log = console.log) {
   }
   const tiposCreados = (await prisma.tipoMovimiento.count()) - tiposAntes;
   if (tiposCreados) log(`Tipos de movimiento creados: ${tiposCreados}`);
-  if ((await prisma.causaMovimiento.count()) === 0) {
-    const tipoId = new Map((await prisma.tipoMovimiento.findMany({ select: { id: true, clave: true } })).map((t) => [t.clave, t.id]));
-    for (const [i, causa] of CAUSAS.entries()) {
-      const ids = causa.tipos.map((clave) => tipoId.get(clave)).filter(Boolean);
-      await prisma.causaMovimiento.create({
-        data: { codigo: causa.codigo, nombre: causa.nombre, orden: (i + 1) * 10, tipos: { create: ids.map((id) => ({ tipoId: id })) } },
-      });
-    }
-    log(`Causas creadas: ${CAUSAS.length}`);
+  // Causas: las que faltan, por código (como los tipos). Las que ya existen
+  // no se tocan: se editan desde la app.
+  const tipoId = new Map((await prisma.tipoMovimiento.findMany({ select: { id: true, clave: true } })).map((t) => [t.clave, t.id]));
+  const causasAntes = await prisma.causaMovimiento.count();
+  for (const [i, causa] of CAUSAS.entries()) {
+    const ids = causa.tipos.map((clave) => tipoId.get(clave)).filter(Boolean);
+    await prisma.causaMovimiento.upsert({
+      where: { codigo: causa.codigo },
+      update: {},
+      create: { codigo: causa.codigo, nombre: causa.nombre, orden: (i + 1) * 10, tipos: { create: ids.map((id) => ({ tipoId: id })) } },
+    });
   }
+  const causasCreadas = (await prisma.causaMovimiento.count()) - causasAntes;
+  if (causasCreadas) log(`Causas creadas: ${causasCreadas}`);
 
   const [usosSuelo, categorias, parametros, tiposMovimiento, causas] = await Promise.all([
     prisma.usoSuelo.count(),

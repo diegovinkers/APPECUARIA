@@ -94,6 +94,15 @@ describe('la ficha del lote', () => {
     await montar();
     expect(contenedor.querySelector('[aria-label="Entrada al corral"]')).toBeNull();
   });
+
+  it('dice en qué proceso está, con link', async () => {
+    api.getLote.mockResolvedValue({ data: { ...datos(null), procesos: [{ id: 7, nombre: 'Servicio 2026-27 · Terneras', textoEtapa: 'En servicio' }] } });
+    await montar();
+    const enlace = contenedor.querySelector('[data-testid="en-proceso"] a');
+    expect(enlace.textContent).toContain('Servicio 2026-27 · Terneras');
+    expect(enlace.textContent).toContain('En servicio');
+    expect(enlace.getAttribute('href')).toBe('/pecuaria/procesos/7');
+  });
 });
 
 describe('los eventos del lote', () => {
@@ -150,4 +159,5 @@ describe('los eventos del lote', () => {
     await act(async () => {});
     expect(contenedor.textContent).toContain('Todavía no tiene eventos');
   });
+
 });

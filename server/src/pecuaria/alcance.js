@@ -11,6 +11,7 @@ import { prisma } from '../db.js';
 import { notFound, parseId } from '../errors.js';
 import { campoDeEvento } from './movimientos.service.js';
 import { campoDeGrupo, campoDeRegistro } from './eventos.service.js';
+import { campoDeProceso } from './procesos.service.js';
 
 const NO_ENCONTRADO = 'No encontrado';
 
@@ -44,6 +45,7 @@ const campoDe = {
   potrero: async (id) => (await prisma.potrero.findUnique({ where: { id }, select: { campoId: true } }))?.campoId,
   lote: async (id) => (await prisma.lote.findUnique({ where: { id }, select: { campoId: true } }))?.campoId,
   movimiento: async (id) => (await prisma.movimiento.findUnique({ where: { id }, select: { campoId: true } }))?.campoId,
+  proceso: (id) => campoDeProceso(id),
 };
 
 // Una id que no es un número o no existe sigue de largo: el controlador ya
@@ -119,6 +121,17 @@ export async function alcanceRegistroEvento(req, res, next) {
     await controlar(req.user, 'campo', b.campoId);
     for (const id of b.potreroIds ?? []) await controlar(req.user, 'potrero', id);
     for (const linea of b.lineas ?? []) await controlar(req.user, 'lote', linea.loteId);
+  }
+  next();
+}
+
+// Empezar un proceso: la estancia y los lotes (del servicio o, si está en curso, los de enCurso).
+export async function alcanceProceso(req, res, next) {
+  if (!veTodas(req.user)) {
+    const b = req.body;
+    await controlar(req.user, 'campo', b.campoId);
+    for (const linea of b.lineas ?? []) await controlar(req.user, 'lote', linea.loteId);
+    for (const l of b.enCurso?.lotes ?? []) await controlar(req.user, 'lote', l.loteId);
   }
   next();
 }

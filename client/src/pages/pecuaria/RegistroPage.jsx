@@ -3,23 +3,26 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, Notice } from '../../components/ui';
 import MovimientosLista from '../../components/MovimientosLista';
+import ProcesosLista from '../../components/ProcesosLista';
 import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 import { nombreGrupo } from '../../navegacion/grupos';
 import { PantallaTabla, SinEstancia } from './comun';
 
-// Las dos pestañas (pedido de Diego, 20/11). `?ver=eventos` abre Eventos; sin
-// nada, Movimientos.
+// Las pestañas (pedido de Diego, 20/11). `?ver=eventos` abre Eventos y
+// `?ver=procesos`, Procesos (diseño de procesos §12); sin nada, Movimientos.
 export const PESTANIAS = [
   ['movimientos', 'Movimientos'],
   ['eventos', 'Eventos'],
+  ['procesos', 'Procesos'],
 ];
-export const pestaniaDe = (params) => (params.get('ver') === 'eventos' ? 'eventos' : 'movimientos');
+export const pestaniaDe = (params) => (['eventos', 'procesos'].includes(params.get('ver')) ? params.get('ver') : 'movimientos');
 
-// Registro: todo lo que pasó en la estancia, en dos pestañas.
+// Registro: todo lo que pasó en la estancia, en tres pestañas.
 // - Movimientos: lo que cambió las cabezas o el lugar (mover, entre campos,
 //   múltiples, cambio de categoría, entradas, salidas, destete) y los eventos
 //   que cambiaron las cabezas (un recuento con diferencia).
 // - Eventos: todo lo que se anotó (pesada, vacuna, ecografía...).
+// - Procesos: los ciclos reproductivos, con su etapa y su embudo.
 // Con "Todas las estancias", lo de todas (cada potrero con su sigla). Se
 // registra desde el "+" y desde Eventos. La pantalla no scrollea: solo la tabla.
 export default function RegistroPage() {
@@ -34,8 +37,8 @@ export default function RegistroPage() {
   const enlace = (valor) => {
     const nuevo = new URLSearchParams(params);
     nuevo.delete('mtipo');
-    if (valor === 'eventos') nuevo.set('ver', 'eventos');
-    else nuevo.delete('ver');
+    if (valor === 'movimientos') nuevo.delete('ver');
+    else nuevo.set('ver', valor);
     const texto = nuevo.toString();
     return `${location.pathname}${texto ? `?${texto}` : ''}`;
   };
@@ -68,8 +71,9 @@ export default function RegistroPage() {
       <Notice tone="ok">{location.state?.aviso}</Notice>
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
-      {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
-      {potreros && <MovimientosLista key={ver} ver={ver} campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
+      {ver === 'procesos' && (campoId || todas) && <ProcesosLista campoId={campoId} todas={todas} grupo={grupo} />}
+      {ver !== 'procesos' && (campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {ver !== 'procesos' && potreros && <MovimientosLista key={ver} ver={ver} campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
     </PantallaTabla>
   );
 }

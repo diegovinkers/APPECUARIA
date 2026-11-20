@@ -57,6 +57,10 @@ export default function ConfiguracionPecuariaPage() {
   const [ciclo, setCiclo] = useState('');
   const [adaptacion, setAdaptacion] = useState('');
   const [engorde, setEngorde] = useState('');
+  // Procesos (ciclo reproductivo): las fechas esperadas de cada etapa.
+  const [gestacion, setGestacion] = useState('');
+  const [diagnostico, setDiagnostico] = useState('');
+  const [destete, setDestete] = useState('');
   const [usos, setUsos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -72,6 +76,9 @@ export default function ConfiguracionPecuariaPage() {
     setCiclo(valor('CICLO_FEEDLOT_DIAS'));
     setAdaptacion(valor('FEEDLOT_ADAPTACION_DIAS'));
     setEngorde(valor('FEEDLOT_ENGORDE_DIAS'));
+    setGestacion(valor('GESTACION_DIAS'));
+    setDiagnostico(valor('DIAGNOSTICO_DESDE_DIAS'));
+    setDestete(valor('DESTETE_EDAD_DIAS'));
     setUsos(u.data);
     setCategorias(c.data);
     setTipos(t.data);
@@ -127,6 +134,39 @@ export default function ConfiguracionPecuariaPage() {
           />
           <span className="text-sm">kg de peso vivo</span>
           <button type="submit" className={boton} disabled={!(Number(kgPorUg.replace(',', '.')) > 0)}>
+            Guardar
+          </button>
+        </form>
+      </section>
+
+      <section className="mb-8 rounded-lg border border-suelo-200 p-4" aria-label="Procesos">
+        <h2 className="mb-1 text-lg font-semibold">Procesos (ciclo reproductivo)</h2>
+        <p className="mb-3 text-sm text-suelo-600">
+          Para las fechas esperadas de cada servicio: cuándo se espera la parición (servicio + días de gestación), desde cuándo el diagnóstico (fin
+          del servicio + días) y desde cuándo el destete (primer parto + días).
+        </p>
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            guardar(
+              () => setParametros({ GESTACION_DIAS: aNumero(gestacion), DIAGNOSTICO_DESDE_DIAS: aNumero(diagnostico), DESTETE_EDAD_DIAS: aNumero(destete) }),
+              `Listo: ${gestacion} días de gestación; diagnóstico desde ${diagnostico} días después del servicio; destete desde ${destete} días del primer parto.`,
+            );
+          }}
+        >
+          {[
+            ['Gestación', gestacion, setGestacion, 'Días de gestación'],
+            ['Diagnóstico desde', diagnostico, setDiagnostico, 'Días del fin del servicio al diagnóstico'],
+            ['Destete desde', destete, setDestete, 'Días del primer parto al destete'],
+          ].map(([texto, valor, poner, aria]) => (
+            <label key={aria} className="flex items-center gap-2 text-sm">
+              {texto}
+              <input inputMode="numeric" value={valor} onChange={(e) => poner(e.target.value)} aria-label={aria} className={`${inputClass.replace('w-full', '')} w-20`} />
+              días
+            </label>
+          ))}
+          <button type="submit" className={boton} disabled={![gestacion, diagnostico, destete].every((v) => aNumero(v) > 0)}>
             Guardar
           </button>
         </form>

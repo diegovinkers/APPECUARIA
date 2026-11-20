@@ -34,7 +34,7 @@ describe('catálogo inicial (seed)', () => {
     const { agent } = await agente();
     const t = await porClave(agent);
 
-    expect(Object.keys(t)).toHaveLength(27);
+    expect(Object.keys(t)).toHaveLength(29);
     const cigam = Object.fromEntries(Object.values(t).filter((x) => x.idTipoEventoCigam).map((x) => [x.nombre, x.idTipoEventoCigam]));
     expect(cigam).toEqual({
       'Caravaneo o señalada': '1',
@@ -85,6 +85,8 @@ describe('catálogo inicial (seed)', () => {
       ['MO-001', 'Mordida'],
       ['CO-001', 'Después de 3 días'],
       ['CO-002', 'Después de 7 días'],
+      // De la app (procesos): las madres que mueren al parir.
+      ['PA-001', 'Parto'],
     ]);
     const cobra = causas.find((c) => c.codigo === 'CA-001');
     expect(cobra.tipos.map((x) => x.id)).toEqual([t.MUERTE.id]);
@@ -107,12 +109,22 @@ describe('catálogo inicial (seed)', () => {
     expect((await prisma.causaMovimiento.findUnique({ where: { codigo: 'CA-001' } })).nombre).toBe('Víbora');
   });
 
+  it('si la base ya tiene causas, agrega las que faltan por código (la de Parto, de los procesos)', async () => {
+    await seedPecuaria(prisma, quiet);
+    await prisma.causaTipoMovimiento.deleteMany({ where: { causa: { codigo: 'PA-001' } } });
+    await prisma.causaMovimiento.delete({ where: { codigo: 'PA-001' } });
+    await seedPecuaria(prisma, quiet);
+    const parto = await prisma.causaMovimiento.findUnique({ where: { codigo: 'PA-001' }, include: { tipos: { include: { tipo: true } } } });
+    expect(parto).toMatchObject({ nombre: 'Parto' });
+    expect(parto.tipos.map((t) => t.tipo.clave)).toEqual(['MUERTE']);
+  });
+
   it('si la base ya tiene los tipos que usa la app (los crea la migración), agrega los que faltan', async () => {
     await prisma.tipoMovimiento.create({
       data: { clave: 'SUMAR_LOTE', nombre: 'Sumar a otro lote', efecto: 'MUEVE', niveles: ['LOTE'] },
     });
     await seedPecuaria(prisma, quiet);
-    expect(await prisma.tipoMovimiento.count()).toBe(27);
+    expect(await prisma.tipoMovimiento.count()).toBe(29);
     // El que ya estaba no se toca.
     expect((await prisma.tipoMovimiento.findUnique({ where: { clave: 'SUMAR_LOTE' } })).niveles).toEqual(['LOTE']);
   });
@@ -257,7 +269,7 @@ describe('causas', () => {
   it('cada tipo muestra sus causas', async () => {
     const { agent } = await agente();
     const { MUERTE, PESADA } = await porClave(agent);
-    expect(MUERTE.causas.map((c) => c.codigo)).toEqual(['CA-001', 'MO-001']);
+    expect(MUERTE.causas.map((c) => c.codigo)).toEqual(['CA-001', 'MO-001', 'PA-001']);
     expect(PESADA.causas).toEqual([]);
   });
 

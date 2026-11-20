@@ -40,13 +40,41 @@ export const PANEL = [
   },
 ];
 
-// Botón "+": todo lo que se registra, y solo desde acá (DECISIONES §11).
+// Botón "+" = mover: lo que cambia dónde están o cuántos son (DECISIONES §11;
+// orden del boceto de los eventos, 20/11). Lo que no los mueve (pesada,
+// vacuna...) va en el botón "Eventos" (EVENTOS, abajo).
 // `pide` dice qué hay que elegir antes de ir a la pantalla: el potrero, o el
 // potrero y el lote. Sin `pide`, va directo (la pantalla pregunta lo suyo).
+// `seccion`: 'mover' (arriba; el primero, grande), 'entra' y 'sale' (en dos
+// columnas) y 'otro' (abajo, chico).
+const entrada = (clave, texto, tipo) => ({
+  clave,
+  texto,
+  seccion: 'entra',
+  icono: 'entrada',
+  pide: 'potrero',
+  pregunta: '¿A qué potrero entran?',
+  destino: (potreroId) => `/pecuaria/registrar?efecto=ENTRA&potrero=${potreroId}&tipo=${tipo}`,
+  requiere: 'pecuaria:CREAR',
+});
+const salida = (clave, texto, tipo) => ({
+  clave,
+  texto,
+  seccion: 'sale',
+  icono: 'salir',
+  tono: 'salida',
+  pide: 'lote',
+  pregunta: '¿De qué potrero salen?',
+  destino: (potreroId, loteId) => `/pecuaria/registrar?efecto=SALE&potrero=${potreroId}&lote=${loteId}&tipo=${tipo}`,
+  requiere: 'pecuaria:CREAR',
+});
+
 export const REGISTRAR = [
   {
     clave: 'mover',
-    texto: 'Mover entre potreros',
+    texto: 'Mover de potrero',
+    seccion: 'mover',
+    grande: true,
     icono: 'movimientos',
     pide: 'lote',
     pregunta: '¿De qué potrero salen?',
@@ -54,9 +82,34 @@ export const REGISTRAR = [
     requiere: 'pecuaria:CREAR',
   },
   {
+    clave: 'categoria',
+    texto: 'Cambio de categoría',
+    seccion: 'mover',
+    icono: 'categoria',
+    pide: 'lote',
+    pregunta: '¿En qué potrero está el lote?',
+    destino: (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}&cambio=categoria`,
+    requiere: 'pecuaria:CREAR',
+  },
+  {
+    clave: 'destete',
+    texto: 'Destete',
+    detalle: 'los terneros se van de al lado de las madres',
+    seccion: 'mover',
+    icono: 'destete',
+    pide: 'lote',
+    pregunta: '¿En qué potrero están los terneros?',
+    pideLote: '¿Cuál es el lote de los terneros?',
+    // Con las madres al lado: el potrero tiene que tener al menos dos lotes.
+    minLotes: 2,
+    destino: (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}&destete=1`,
+    requiere: 'pecuaria:CREAR',
+  },
+  {
     clave: 'entreCampos',
     texto: 'Mover entre campos',
     detalle: 'a otra estancia, con su guía',
+    seccion: 'mover',
     icono: 'traslado',
     destino: () => '/pecuaria/mover-entre-campos',
     requiere: 'pecuaria:CREAR',
@@ -65,44 +118,24 @@ export const REGISTRAR = [
     clave: 'multiple',
     texto: 'Movimiento múltiple',
     detalle: 'A → B, B → C… todo junto',
+    seccion: 'mover',
     icono: 'multiple',
     destino: () => '/pecuaria/movimiento-multiple',
     requiere: 'pecuaria:CREAR',
   },
-  {
-    clave: 'categoria',
-    texto: 'Cambio de categoría',
-    icono: 'categoria',
-    pide: 'lote',
-    pregunta: '¿En qué potrero está el lote?',
-    destino: (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}&cambio=categoria`,
-    requiere: 'pecuaria:CREAR',
-  },
-  {
-    clave: 'entrada',
-    texto: 'Entrada',
-    detalle: 'nacimiento, compra, traslado…',
-    icono: 'entrada',
-    pide: 'potrero',
-    pregunta: '¿A qué potrero entran?',
-    destino: (potreroId) => `/pecuaria/registrar?efecto=ENTRA&potrero=${potreroId}`,
-    requiere: 'pecuaria:CREAR',
-  },
-  {
-    clave: 'salida',
-    texto: 'Salida',
-    detalle: 'venta, muerte, consumo…',
-    icono: 'salir',
-    tono: 'salida',
-    pide: 'lote',
-    pregunta: '¿De qué potrero salen?',
-    destino: (potreroId, loteId) => `/pecuaria/registrar?efecto=SALE&potrero=${potreroId}&lote=${loteId}`,
-    requiere: 'pecuaria:CREAR',
-  },
+  entrada('nacimiento', 'Nacimiento', 'NACIMIENTO'),
+  entrada('compra', 'Compra', 'COMPRA'),
+  entrada('trasladoEntrada', 'Traslado', 'TRASLADO_ENTRADA'),
+  salida('venta', 'Venta', 'VENTA'),
+  salida('muerte', 'Muerte', 'MUERTE'),
+  salida('trasladoSalida', 'Traslado', 'TRASLADO_SALIDA'),
+  salida('consumo', 'Consumo', 'CONSUMO'),
+  salida('perdida', 'Pérdida', 'PERDIDA'),
   {
     clave: 'correccion',
     texto: 'Corrección de stock',
-    detalle: 'cuando el conteo no coincide',
+    detalle: 'cuando el conteo no coincide (mejor: Eventos → Recuento)',
+    seccion: 'otro',
     icono: 'correccion',
     tono: 'correccion',
     pide: 'potrero',
@@ -111,6 +144,20 @@ export const REGISTRAR = [
     requiere: 'pecuaria:CREAR',
   },
 ];
+
+// Botón "Eventos" = anotar: les hiciste algo y siguen donde estaban (pesada,
+// recuento, vacuna...). En el celular reemplaza a "Menú" en la barra de abajo
+// (el menú sigue en el ☰ de arriba); en la compu va al lado del "+".
+export const EVENTOS = { clave: 'eventos', texto: 'Eventos', icono: 'eventos', requiere: 'pecuaria:CREAR' };
+
+// La pantalla de un evento (el camino de 4 pasos). contexto: { potrero, lote }
+// (de dónde se abrió, para que arranque ya elegido).
+export function rutaEvento(tipoId, { potrero, lote } = {}) {
+  const params = new URLSearchParams({ tipo: String(tipoId) });
+  if (potrero) params.set('potrero', String(potrero));
+  if (lote) params.set('lote', String(lote));
+  return `/pecuaria/eventos/nuevo?${params}`;
+}
 
 // ¿Puede este usuario usar algo que pide `requiere` ('modulo:ACCION')?
 // El superadmin puede todo; los demás, lo que den sus roles.
@@ -127,6 +174,7 @@ export function menuPara(user) {
     principal: PRINCIPAL.filter(visible),
     panel: PANEL.map((g) => ({ ...g, items: g.items.filter(visible) })).filter((g) => g.items.some((i) => !i.pronto)),
     registrar: REGISTRAR.filter(visible),
+    eventos: puede(user, EVENTOS.requiere) ? EVENTOS : null,
   };
 }
 

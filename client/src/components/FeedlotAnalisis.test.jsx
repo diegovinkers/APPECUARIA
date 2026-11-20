@@ -74,7 +74,7 @@ const ANALISIS = {
     }),
   ],
   vacios: [{ corralId: 4, corral: 'Corral 4', campo: FX }],
-  totales: { cabezas: 160, corrales: 3, diasPromedio: 64.3, valorUsd: 212000, valorCompleto: true, salenEn30: 1 },
+  totales: { cabezas: 160, corrales: 3, diasPromedio: 64.3, valorUsd: 212000, valorCompleto: true, atrasados: 0, proximos: 1 },
 };
 
 beforeEach(() => {
@@ -105,8 +105,8 @@ describe('la vista del feedlot', () => {
     expect(texto).toMatch(/1salen en 30 días/);
     expect(filas()).toHaveLength(3);
     const [primera] = filas();
-    // En la compu: corral, categoría, cabezas, días, entrada, peso de hoy, salida, m/cab y valor.
-    expect(textoCompu(primera)).toBe('Corral 1Novillos10040300≈36029/01/2027en 80 d0,4 m≈108 mil');
+    // En la compu: corral, categoría, cabezas, días, entrada, peso de hoy, salida, GMD real, m/cab y valor.
+    expect(textoCompu(primera)).toBe('Corral 1Novillos10040300≈36029/01/2027en 80 d—0,4 m≈108 mil');
     expect(primera.querySelector('a').getAttribute('href')).toBe('/pecuaria/potreros/1');
   });
 
@@ -125,7 +125,7 @@ describe('la vista del feedlot', () => {
     expect(salida(segunda).className).toMatch(/amber/);
     expect(salida(segunda).textContent).toContain('en 5 d');
     // Toros sin fecha ni peso: días, entrada, peso de hoy, salida y m/cab con "—"; el valor (por cabeza) sí.
-    expect(textoCompu(tercera)).toBe('Corral 3Toros10—————50 mil');
+    expect(textoCompu(tercera)).toBe('Corral 3Toros10——————50 mil');
     expect(contenedor.querySelector('[data-testid="corrales-vacios"]').textContent).toBe('Vacíos: Corral 4');
     expect(contenedor.textContent).toContain('1,5 kg por día');
     expect(contenedor.textContent).toContain('entrada + 120 días');
@@ -144,5 +144,26 @@ describe('la vista del feedlot', () => {
   it('sin animales lo dice', () => {
     montar({}, { ...ANALISIS, filas: [], totales: { ...ANALISIS.totales, cabezas: 0, corrales: 0, diasPromedio: null, valorUsd: 0 } });
     expect(contenedor.textContent).toContain('Todavía no hay animales en los corrales.');
+  });
+});
+
+describe('el feedlot con pesada (eventos, 20/11)', () => {
+  it('el peso de hoy dice de qué pesada sale, y se ve la ganancia diaria real', () => {
+    const conPesada = fila({ pesoEstimadoKg: 362, ultimaPesada: { fecha: '2026-11-05', pesoKg: 354 }, gmdRealKg: 1.53 });
+    montar({}, { ...ANALISIS, filas: [conPesada], totales: { ...ANALISIS.totales, gmdRealPromedio: 1.53 } });
+    const [primera] = filas();
+    expect(primera.querySelector('[data-testid="ultima-pesada"]').textContent).toBe('pesada 05/11 · 1,53/d');
+    expect(textoCompu(primera)).toContain('1,53 kg');
+    // Sin pesada no se muestra el peso de entrada debajo: se muestra la pesada.
+    expect(primera.textContent).not.toContain('de 300');
+    expect(contenedor.querySelector('[data-testid="gmd-real"]').textContent).toBe(
+      'Ganancia diaria real de los lotes pesados: 1,53 kg por día (la esperada es 1,5).',
+    );
+  });
+
+  it('sin pesadas no aparece la ganancia real', () => {
+    montar();
+    expect(contenedor.querySelector('[data-testid="gmd-real"]')).toBeNull();
+    expect(contenedor.querySelector('[data-testid="ultima-pesada"]')).toBeNull();
   });
 });

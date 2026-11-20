@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   getTiposMovimiento: vi.fn(),
   revertirEvento: vi.fn(),
   revertirMovimiento: vi.fn(),
+  anularEventoRegistro: vi.fn(),
+  anularGrupoEventos: vi.fn(),
 }));
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: estado.user }) }));
 vi.mock('../api/pecuaria', () => api);
@@ -258,5 +260,129 @@ describe('la tabla', () => {
     estado.user = { esSuperadmin: false, permisos: ['pecuaria:VER'] };
     await montar();
     expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent === 'Revertir')).toBe(false);
+  });
+});
+
+// Eventos (20/11): una vacuna a dos lotes (una carga) y una pesada suelta.
+const ev = (id, extra) => ({
+  id,
+  grupoId: 'g1',
+  fecha: '2026-11-16',
+  creadoEn: '2026-11-16T10:00:00Z',
+  tipo: { id: 24, clave: 'VACUNA_AFTOSA', nombre: 'Vacuna aftosa' },
+  nivel: 'LOTE',
+  cabezas: 80,
+  datos: { producto: 'Bivalente' },
+  texto: 'Producto: Bivalente',
+  nota: null,
+  campo: EG,
+  potrero: p(1, '10.3'),
+  lote: lote(5, 'A'),
+  categoria: 'Terneros',
+  usuario: 'Capataz',
+  cambiaStock: false,
+  anulado: false,
+  puedeAnular: true,
+  ...extra,
+});
+const EVENTOS = [
+  ev(41, {}),
+  ev(42, { potrero: p(2, '2'), lote: lote(6, 'B'), categoria: 'Vacas', cabezas: 40 }),
+  ev(43, {
+    grupoId: 'g2',
+    fecha: '2026-11-13',
+    tipo: { id: 15, clave: 'PESADA', nombre: 'Pesada' },
+    datos: { pesoPromedioKg: 262 },
+    texto: '262 kg (antes 250)',
+    cambiaStock: true,
+  }),
+];
+
+describe('eventos en la lista (20/11)', () => {
+  it('una carga de eventos es una fila (que se despliega con sus lotes), ordenada con los movimientos por fecha', () => {
+    const filas = armarFilas(MOVIMIENTOS, EG.id, EVENTOS);
+    expect(filas.map((f) => [f.clave, f.tipo, f.cabezas, f.fecha])).toEqual([
+      ['gg1', 'Vacuna aftosa · 2 lotes', 120, '2026-11-16'],
+      ['e8', 'Entre campos', 100, '2026-11-15'],
+      ['e7', 'Múltiple · 2 pasos', 130, '2026-11-14'],
+      ['gg2', 'Pesada', 80, '2026-11-13'],
+      ['m10', 'Muerte', 3, '2026-11-12'],
+    ]);
+    const vacuna = filas.find((f) => f.clave === 'gg1');
+    expect(vacuna).toMatchObject({ origen: '10.3 · A, 2 · B', destino: '—', categoria: 'Terneros, Vacas', detalle: 'Producto: Bivalente', puedeRevertir: true });
+    expect(filas.find((f) => f.clave === 'gg2')).toMatchObject({ peso: 262, detalle: '262 kg (antes 250)' });
+  });
+
+  it('una carga entera anulada queda como anulada y ya no se anula', () => {
+    const [fila] = armarFilas([], EG.id, [ev(41, { anulado: true, puedeAnular: false })]);
+    expect(fila).toMatchObject({ revertido: true, puedeRevertir: false });
+  });
+
+  describe('en la tabla', () => {
+    let contenedor;
+    let root;
+    beforeEach(() => {
+      estado.user = { esSuperadmin: true, permisos: [] };
+      for (const f of Object.values(api)) f.mockReset();
+      api.getMovimientos.mockResolvedValue({
+        data: { movimientos: [], eventos: EVENTOS, resumen: { movimientos: 0, cabezas: 0, entradas: 0, salidas: 0, eventos: 3 } },
+      });
+      api.getTiposMovimiento.mockResolvedValue({ data: [] });
+      api.anularGrupoEventos.mockResolvedValue({ data: {} });
+      api.anularEventoRegistro.mockResolvedValue({ data: {} });
+      contenedor = document.createElement('div');
+      document.body.appendChild(contenedor);
+      root = createRoot(contenedor);
+    });
+    afterEach(() => {
+      act(() => root.unmount());
+      contenedor.remove();
+      vi.restoreAllMocks();
+    });
+    async function montar(ruta = '/pecuaria/movimientos?ver=eventos') {
+      act(() =>
+        root.render(
+          <MemoryRouter initialEntries={[ruta]}>
+            <ConPanel>
+              <MovimientosLista campoId={EG.id} potreros={[]} />
+            </ConPanel>
+          </MemoryRouter>,
+        ),
+      );
+      await act(async () => {});
+    }
+    const botonVer = (texto) => [...contenedor.querySelectorAll('[aria-label="Qué se ve"] button')].find((b) => b.textContent === texto);
+
+    it('por defecto pide solo los movimientos; "Eventos" y "Todo" cambian lo que se pide', async () => {
+      await montar('/pecuaria/movimientos');
+      expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'movimientos' }));
+      expect(botonVer('Movimientos').getAttribute('aria-pressed')).toBe('true');
+      await act(async () => botonVer('Eventos').click());
+      expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'eventos' }));
+      await act(async () => botonVer('Todo').click());
+      expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'todo' }));
+    });
+
+    it('con ?ver=eventos: las cargas como filas, el total de eventos, y se despliegan los lotes', async () => {
+      await montar();
+      const filas = [...contenedor.querySelectorAll('tbody tr')].map(textoCompu);
+      expect(filas).toHaveLength(2);
+      expect(filas[0]).toMatch(/evento.*Vacuna aftosa · 2 lotes.*Producto: Bivalente/);
+      expect(contenedor.querySelector('tfoot').textContent).toMatch(/3 eventos \(uno por lote\)/);
+      expect(contenedor.querySelector('tfoot').textContent).not.toMatch(/movimientos/);
+      act(() => contenedor.querySelector('button[aria-label="Ver los pasos"]').click());
+      expect([...contenedor.querySelectorAll('tbody tr')]).toHaveLength(4);
+    });
+
+    it('"Anular" en la fila anula la carga entera; en un lote desplegado, solo ese', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      await montar();
+      const anular = () => [...contenedor.querySelectorAll('button')].filter((b) => b.textContent === 'Anular');
+      await act(async () => anular()[0].click());
+      expect(api.anularGrupoEventos).toHaveBeenCalledWith('g1');
+      act(() => contenedor.querySelector('button[aria-label="Ver los pasos"]').click());
+      await act(async () => anular()[1].click());
+      expect(api.anularEventoRegistro).toHaveBeenCalledWith(41);
+    });
   });
 });

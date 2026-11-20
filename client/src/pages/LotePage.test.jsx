@@ -95,3 +95,59 @@ describe('la ficha del lote', () => {
     expect(contenedor.querySelector('[aria-label="Entrada al corral"]')).toBeNull();
   });
 });
+
+describe('los eventos del lote', () => {
+  let contenedor;
+  let root;
+  beforeEach(() => {
+    contenedor = document.createElement('div');
+    document.body.appendChild(contenedor);
+    root = createRoot(contenedor);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    contenedor.remove();
+  });
+
+  it('se listan con su texto; el anulado, tachado', async () => {
+    const conEventos = {
+      ...datos(null),
+      eventos: [
+        { id: 2, fecha: '2026-11-20', tipo: { clave: 'PESADA', nombre: 'Pesada' }, cabezas: 72, categoria: 'Terneras', texto: '262 kg (antes 250)', usuario: 'Capataz', anulado: false },
+        { id: 1, fecha: '2026-11-18', tipo: { clave: 'VACUNA_AFTOSA', nombre: 'Vacuna aftosa' }, cabezas: 72, categoria: 'Terneras', texto: 'Producto: Bivalente', anulado: true },
+      ],
+    };
+    api.getLote.mockResolvedValue({ data: conEventos });
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/pecuaria/lotes/5']}>
+          <Routes>
+            <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
+          </Routes>
+        </MemoryRouter>,
+      ),
+    );
+    await act(async () => {});
+    const items = [...contenedor.querySelectorAll('[data-testid="eventos-lote"] li')];
+    expect(items.map((li) => li.textContent)).toEqual([
+      '20/11/2026PesadaCapataz72 Terneras · 262 kg (antes 250)',
+      '18/11/2026Vacuna aftosaanulado72 Terneras · Producto: Bivalente',
+    ]);
+    expect(items[1].querySelector('p').className).toContain('line-through');
+  });
+
+  it('sin eventos, dice cómo se anotan', async () => {
+    api.getLote.mockResolvedValue({ data: datos(null) });
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/pecuaria/lotes/5']}>
+          <Routes>
+            <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
+          </Routes>
+        </MemoryRouter>,
+      ),
+    );
+    await act(async () => {});
+    expect(contenedor.textContent).toContain('Todavía no tiene eventos');
+  });
+});

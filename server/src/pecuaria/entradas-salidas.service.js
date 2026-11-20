@@ -6,9 +6,11 @@
 //          lote (una parte o todo; si sale todo, el lote queda cerrado).
 // Cada línea es un movimiento con su propia versión de stock, así se puede
 // revertir de a uno. Las entradas no tienen origen y las salidas no tienen destino.
+// Una venta puede llevar el precio real (USD por kilo o por cabeza): con él y
+// el peso de salida se calcula el valor de la venta (calculos.js: valorVenta).
 import { prisma } from '../db.js';
 import { badRequest } from '../errors.js';
-import { calcularPotrero } from './calculos.js';
+import { calcularPotrero, valorVenta } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, fotoActual, nombreOcupado } from './lotes.js';
 import { aItems, incluir } from './movimientos.service.js';
@@ -74,6 +76,16 @@ async function datosDelTipo(db, tipo, body, campoId) {
   return { causa, guia, campoOtro };
 }
 
+// El precio de venta (opcional): solo en una venta. Por kilo, pide el peso de
+// salida. Devuelve { precioVentaUsd, precioVentaPor } (null si no hay precio).
+export function precioDeVenta(tipo, { precioVentaUsd = null, precioVentaPor = null, pesoPromedioKg = null }) {
+  if (precioVentaUsd == null) return { precioVentaUsd: null, precioVentaPor: null };
+  if (tipo.clave !== 'VENTA') throw badRequest(`${tipo.nombre} no lleva precio de venta`);
+  if (!precioVentaPor) throw badRequest('Elegí si el precio de venta es por kilo o por cabeza');
+  if (precioVentaPor === 'KG' && pesoPromedioKg == null) throw badRequest('Para el precio por kilo, escribí el peso de salida');
+  return { precioVentaUsd, precioVentaPor };
+}
+
 // --- Salidas ---
 
 async function planSalida(db, tipo, body) {
@@ -93,6 +105,7 @@ async function planSalida(db, tipo, body) {
   if (m > n) throw badRequest(`El lote ${lote.nombre} solo tiene ${n} cabezas`);
   const dia = fechaValida(body.fecha, potrero, foto);
   const extra = await datosDelTipo(db, tipo, body, lote.campoId);
+  const precio = precioDeVenta(tipo, body);
 
   // El peso de los que quedan, si se cargó el de los que salen.
   const p = linea.pesoPromedioKg;
@@ -122,6 +135,7 @@ async function planSalida(db, tipo, body) {
       {
         cabezas: m,
         pesoPromedioKg: pm,
+        ...precio,
         lote: { id: lote.id, nombre: lote.nombre },
         categoria: { id: lote.categoriaId, nombre: lote.categoria.nombre },
         lineas: lineas.filter((l) => l.cabezas > 0),
@@ -229,6 +243,8 @@ export async function vistaPrevia(body) {
     antes: calc(plan.potrero, plan.foto.lineas, kg),
     despues: calc(plan.potrero, final, kg),
     lineas: sinMarcas(final),
+    // Una venta con precio: lo que vale (null si no hay precio).
+    valorVentaUsd: plan.tipo.efecto === 'SALE' ? valorVenta(plan.pasos[0]) : null,
   };
 }
 
@@ -267,7 +283,8 @@ export async function registrar(body, usuarioId) {
         const lado = sale
           ? { loteOrigenId: paso.lote.id, potreroOrigenId: plan.potrero.id, categoriaOrigenId: paso.categoria.id, versionOrigenId: v.id }
           : { loteDestinoId: paso.lote.id, potreroDestinoId: plan.potrero.id, categoriaDestinoId: paso.categoria.id, versionDestinoId: v.id };
-        const m = await tx.movimiento.create({ data: { ...comun, ...lado, cabezas: paso.cabezas, pesoPromedioKg: paso.pesoPromedioKg } });
+        const venta = paso.precioVentaUsd != null ? { precioVentaUsd: paso.precioVentaUsd, precioVentaPor: paso.precioVentaPor } : {};
+        const m = await tx.movimiento.create({ data: { ...comun, ...lado, cabezas: paso.cabezas, pesoPromedioKg: paso.pesoPromedioKg, ...venta } });
         ids.push(m.id);
       }
       if (sale && plan.cierraLote) await tx.lote.update({ where: { id: plan.pasos[0].lote.id }, data: { activo: false } });
@@ -290,6 +307,7 @@ export async function registrar(body, usuarioId) {
       categoria: sale ? m.categoriaOrigen : m.categoriaDestino,
       ...(plan.causa && { causa: textoCausa(plan.causa) }),
       ...(plan.guia && { guia: plan.guia }),
+      ...(m.precioVentaUsd != null && { precioVentaUsd: m.precioVentaUsd, precioVentaPor: m.precioVentaPor, valorVentaUsd: m.valorVentaUsd }),
       ...(plan.campoOtro && { campoOtro: plan.campoOtro.sigla }),
       ...(plan.madres && { loteMadres: plan.madres.nombre }),
       ...(plan.nota && { nota: plan.nota }),

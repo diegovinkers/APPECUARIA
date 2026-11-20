@@ -14,11 +14,12 @@
 // registro (dentro de la transacción), así lo que se ve es lo que se guarda.
 import { prisma } from '../db.js';
 import { HttpError, badRequest, conflict, notFound, parseId } from '../errors.js';
-import { calcularPotrero } from './calculos.js';
+import { calcularPotrero, valorVenta } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, fotoActual, nombreLibre, nombreOcupado } from './lotes.js';
 import { detallePotrero, fechaUY, parametrosCarga } from './stock.service.js';
 import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
+import { listarEventos } from './eventos.service.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const potreroSelect = { id: true, nombre: true, campoId: true, tipo: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
@@ -61,6 +62,7 @@ async function planificar(db, body, { entreCampos = false } = {}) {
   }
   const mismoPotrero = destino.id === origen.id;
   const fotoDestino = mismoPotrero ? fotoOrigen : await fotoActual(db, destino.id);
+  const madres = body.destete ? await controlarDestete(db, body, { lote, origen, mismoPotrero, entreCampos }) : null;
 
   const dia = body.fecha ?? hoyISO();
   for (const [p, foto] of [[origen, fotoOrigen], [destino, fotoDestino]]) {
@@ -156,6 +158,7 @@ async function planificar(db, body, { entreCampos = false } = {}) {
     dia,
     modo,
     entreCampos,
+    madres,
     pesoMovidos: pm ?? null,
     guia: entreCampos ? (body.guia ?? null) : null,
     cabezas: m,
@@ -173,6 +176,26 @@ async function planificar(db, body, { entreCampos = false } = {}) {
     lineasOrigen: lineasOrigen.filter((l) => l.cabezas > 0),
     lineasDestino: lineasDestino.filter((l) => l.cabezas > 0),
   };
+}
+
+// Destete (eventos, paso 5): el lote de terneros (o una parte) se va del
+// potrero de las madres a otro potrero, a un lote que ya está, a uno nuevo o
+// entero (la categoría al llegar es opcional). El lote de las madres tiene que
+// estar en el mismo potrero y no ser de machos. Devuelve { id, nombre } de las madres.
+async function controlarDestete(db, body, { lote, origen, mismoPotrero, entreCampos }) {
+  const tipo = await tipoPorClave(db, 'DESTETE');
+  const activo = (await db.tipoMovimiento.findUnique({ where: { id: tipo.id }, select: { activo: true } }))?.activo;
+  if (!activo) throw badRequest('El tipo Destete está desactivado');
+  if (entreCampos) throw badRequest('El destete se hace dentro de la estancia');
+  if (body.modo === 'CATEGORIA') throw badRequest('En un destete los terneros se van a otro potrero');
+  if (mismoPotrero) throw badRequest('En un destete los terneros se van a otro potrero, lejos de las madres');
+  if (body.mismoLote) throw badRequest('En un destete los terneros forman su propio lote (o se suman a uno)');
+  if (!body.loteMadresId) throw badRequest('Elegí el lote de las madres');
+  if (body.loteMadresId === lote.id) throw badRequest('El lote de las madres no puede ser el mismo de los terneros');
+  const madres = await db.lote.findUnique({ where: { id: body.loteMadresId }, include: { categoria: true } });
+  if (!madres || !madres.activo || madres.potreroId !== origen.id) throw badRequest(`El lote de las madres tiene que estar en ${origen.nombre}`);
+  if (madres.categoria.sexo === 'MACHO') throw badRequest(`El lote de las madres tiene que ser de hembras: ${madres.nombre} es de ${madres.categoria.nombre}`);
+  return { id: madres.id, nombre: madres.nombre };
 }
 
 const ha = (p) => (p.hectareas == null ? null : Number(p.hectareas));
@@ -195,6 +218,8 @@ export async function vistaPrevia(body) {
     mismoPotrero: plan.mismoPotrero,
     loteDestino: plan.loteDestino.nombre,
     categoriaDestino: plan.categoriaDestino.nombre,
+    // Destete: el lote de las madres (null si no es un destete).
+    loteMadres: plan.madres?.nombre ?? null,
     origen: lado(plan.origen, plan.fotoOrigen, plan.lineasOrigen),
     destino: plan.mismoPotrero ? null : lado(plan.destino, plan.fotoDestino, plan.lineasDestino),
   };
@@ -231,7 +256,7 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
   const vOrigen = await crearVersion(tx, { ...comun, potreroId: origen.id, lineas: plan.lineasOrigen });
   const vDestino = plan.mismoPotrero ? vOrigen : await crearVersion(tx, { ...comun, potreroId: destino.id, lineas: plan.lineasDestino });
 
-  const tipo = entreCampos ? await tipoPorClave(tx, 'ENTRE_CAMPOS') : await tipoDeModo(tx, plan.modo);
+  const tipo = entreCampos ? await tipoPorClave(tx, 'ENTRE_CAMPOS') : plan.madres ? await tipoPorClave(tx, 'DESTETE') : await tipoDeModo(tx, plan.modo);
   plan.movimiento = await tx.movimiento.create({
     data: {
       campoId: lote.campoId,
@@ -249,6 +274,8 @@ async function aplicar(tx, body, usuarioId, { entreCampos = false, eventoId = nu
       nota: plan.nota,
       // Entre campos: la otra estancia (así aparece también en su lista) y la guía.
       ...(entreCampos && { campoOtroId: destino.campoId, guia: plan.guia }),
+      // Destete: el lote de las madres.
+      ...(plan.madres && { loteMadresId: plan.madres.id }),
       eventoId,
       versionOrigenId: vOrigen.id,
       versionDestinoId: vDestino.id,
@@ -286,6 +313,7 @@ const auditoriaPaso = (plan) => ({
   destino: { lote: plan.loteDestino.nombre, potrero: plan.destino.nombre },
   categoriaOrigen: plan.categoriaOrigen.nombre,
   categoriaDestino: plan.categoriaDestino.nombre,
+  ...(plan.madres && { tipo: 'Destete', loteMadres: plan.madres.nombre }),
   ...(plan.nota && { nota: plan.nota }),
 });
 
@@ -303,6 +331,8 @@ export async function registrar(body, usuarioId) {
     potreroDestino: plan.destino.nombre,
     categoriaOrigen: plan.categoriaOrigen.nombre,
     categoriaDestino: plan.categoriaDestino.nombre,
+    tipo: plan.madres ? 'DESTETE' : null,
+    loteMadres: plan.madres?.nombre ?? null,
   };
   return {
     movimiento,
@@ -588,6 +618,10 @@ export async function aItems(db, movimientos) {
     tipo: m.tipo,
     cabezas: m.cabezas,
     pesoPromedioKg: m.pesoPromedioKg == null ? null : Number(m.pesoPromedioKg),
+    // Ventas: el precio real y el valor que da (null si no se cargó).
+    precioVentaUsd: m.precioVentaUsd == null ? null : Number(m.precioVentaUsd),
+    precioVentaPor: m.precioVentaUsd == null ? null : m.precioVentaPor,
+    valorVentaUsd: valorVenta(m),
     loteOrigen: m.loteOrigen,
     loteDestino: m.loteDestino,
     potreroOrigen: m.potreroOrigen,
@@ -630,7 +664,34 @@ export function listarTodas(filtro, filtros = {}) {
 }
 
 // campos: el filtro de las estancias ({ id } o { id: { in } }); undefined = todas.
-async function listarDonde(campos, { desde, hasta, potreroId, loteId, categoriaId, tipoId } = {}) {
+// ver: 'movimientos' (por defecto, como antes), 'eventos' (pesada, vacuna...;
+// eventos.service.js) o 'todo'. Los eventos van en su propia lista, `eventos`.
+async function listarDonde(campos, { ver = 'movimientos', ...filtros } = {}) {
+  const conMovimientos = ver !== 'eventos';
+  const conEventos = ver !== 'movimientos';
+  const [movimientos, eventos] = await Promise.all([
+    conMovimientos ? listarMovimientos(campos, filtros) : [],
+    conEventos ? listarEventos(campos, filtros) : [],
+  ]);
+  // Sin contar las reversiones ni lo que se revirtió: las cabezas movidas
+  // (dentro del campo), las que entraron y las que salieron.
+  const vigentes = movimientos.filter((m) => m.modo !== 'REVERSION' && !m.revertido);
+  const suma = (filtro) => vigentes.filter(filtro).reduce((s, m) => s + m.cabezas, 0);
+  return {
+    movimientos,
+    eventos,
+    resumen: {
+      movimientos: movimientos.length,
+      cabezas: suma((m) => m.modo !== 'ENTRADA' && m.modo !== 'SALIDA'),
+      entradas: suma((m) => m.modo === 'ENTRADA'),
+      salidas: suma((m) => m.modo === 'SALIDA'),
+      // Los eventos sin anular (uno por lote).
+      eventos: eventos.filter((e) => !e.anulado).length,
+    },
+  };
+}
+
+async function listarMovimientos(campos, { desde, hasta, potreroId, loteId, categoriaId, tipoId } = {}) {
   const y = [];
   // Lo de estas estancias y lo que llegó o salió entre campos (un movimiento
   // entre campos tiene un potrero en cada una).
@@ -641,20 +702,7 @@ async function listarDonde(campos, { desde, hasta, potreroId, loteId, categoriaI
   if (potreroId) y.push({ OR: [{ potreroOrigenId: potreroId }, { potreroDestinoId: potreroId }] });
   if (loteId) y.push({ OR: [{ loteOrigenId: loteId }, { loteDestinoId: loteId }] });
   if (categoriaId) y.push({ OR: [{ categoriaOrigenId: categoriaId }, { categoriaDestinoId: categoriaId }] });
-  const movimientos = await aItems(prisma, await prisma.movimiento.findMany({ where: { AND: y }, include: incluir, orderBy: ORDEN, take: 1000 }));
-  // Sin contar las reversiones ni lo que se revirtió: las cabezas movidas
-  // (dentro del campo), las que entraron y las que salieron.
-  const vigentes = movimientos.filter((m) => m.modo !== 'REVERSION' && !m.revertido);
-  const suma = (filtro) => vigentes.filter(filtro).reduce((s, m) => s + m.cabezas, 0);
-  return {
-    movimientos,
-    resumen: {
-      movimientos: movimientos.length,
-      cabezas: suma((m) => m.modo !== 'ENTRADA' && m.modo !== 'SALIDA'),
-      entradas: suma((m) => m.modo === 'ENTRADA'),
-      salidas: suma((m) => m.modo === 'SALIDA'),
-    },
-  };
+  return aItems(prisma, await prisma.movimiento.findMany({ where: { AND: y }, include: incluir, orderBy: ORDEN, take: 1000 }));
 }
 
 // La versión de un potrero justo antes de otra (null: estaba vacío).
@@ -907,5 +955,7 @@ export async function historialLote(id, { puede = () => true } = {}) {
     actual: linea ? { cabezas: linea.cabezas, pesoPromedioKg: linea.pesoPromedioKg, fecha: fechaISO(foto.version.fecha) } : null,
     familia: await familiaDe(lote, puede),
     movimientos,
+    // Lo que se le hizo (pesadas, vacunas...), del más nuevo al más viejo.
+    eventos: await listarEventos(undefined, { loteId: lote.id }),
   };
 }

@@ -19,6 +19,10 @@ import {
   getFeedlot,
   getFeedlots,
   postEntreCampos,
+  postAnularEvento,
+  postAnularGrupoEventos,
+  postEvento,
+  postVistaPreviaEvento,
   postMultiple,
   postRevertirEvento,
   postVistaPreviaEntreCampos,
@@ -32,6 +36,7 @@ import {
   postVistaPreviaEntradaSalida,
   postVistaPreviaMovimiento,
   putParametro,
+  putParametros,
   putStock,
   putUso,
   subirPlanilla,
@@ -54,11 +59,13 @@ import {
   editarTipoSchema,
   editarUsoSchema,
   entradaSalidaSchema,
+  eventoSchema,
   entreCamposSchema,
   multipleSchema,
   loteSchema,
   movimientoSchema,
   parametroSchema,
+  parametrosSchema,
   stockSchema,
   usoSchema,
 } from './pecuaria.schema.js';
@@ -67,7 +74,9 @@ import { requirePermission } from '../auth/permisos.js';
 import { validateBody } from '../middlewares/validate.js';
 import {
   alcance,
+  alcanceAnularEvento,
   alcanceEntradaSalida,
+  alcanceRegistroEvento,
   alcanceEntreCampos,
   alcanceEvento,
   alcanceMultiple,
@@ -110,6 +119,7 @@ router.post('/causas', configurar, validateBody(crearCausaSchema), causasControl
 router.patch('/causas/:id', configurar, validateBody(editarCausaSchema), causasController.update);
 
 router.get('/parametros', ver, getParametros);
+router.put('/parametros', configurar, validateBody(parametrosSchema), putParametros);
 router.put('/parametros/:clave', configurar, validateBody(parametroSchema), putParametro);
 
 // Estancias: cada uno ve las suyas. Crear una nueva es de alcance general.
@@ -155,6 +165,13 @@ router.post('/eventos/:id/revertir', revertir, alcanceEvento, postRevertirEvento
 // misma lista que los movimientos y se revierten igual.
 router.post('/entradas-salidas/vista-previa', registrar, validateBody(entradaSalidaSchema), alcanceEntradaSalida, postVistaPreviaEntradaSalida);
 router.post('/entradas-salidas', registrar, validateBody(entradaSalidaSchema), alcanceEntradaSalida, postEntradaSalida);
+// Eventos (pesada, recuento, vacuna...): no cambian dónde están ni cuántos son
+// (salvo la pesada, el peso, y el recuento con diferencia). Se listan con los
+// movimientos (?ver=eventos o ?ver=todo). Anular pide el permiso de revertir.
+router.post('/eventos-registro/vista-previa', registrar, validateBody(eventoSchema), alcanceRegistroEvento, postVistaPreviaEvento);
+router.post('/eventos-registro', registrar, validateBody(eventoSchema), alcanceRegistroEvento, postEvento);
+router.post('/eventos-registro/grupo/:grupoId/anular', revertir, alcanceAnularEvento, postAnularGrupoEventos);
+router.post('/eventos-registro/:id/anular', revertir, alcanceAnularEvento, postAnularEvento);
 
 // La planilla llega como el archivo tal cual en el cuerpo (sin JSON), con el
 // nombre en ?archivo=. Opcionales: ?hoja= y ?campo= (por defecto EG).

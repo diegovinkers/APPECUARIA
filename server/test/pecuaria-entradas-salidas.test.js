@@ -239,7 +239,7 @@ describe('lista e historial', () => {
 
     const lista = async (q = '') => (await agent.get(`${API}/campos/${campo.id}/movimientos${q}`).expect(200)).body;
     const todo = await lista();
-    expect(todo.resumen).toEqual({ movimientos: 3, cabezas: 10, entradas: 30, salidas: 2 });
+    expect(todo.resumen).toEqual({ movimientos: 3, cabezas: 10, entradas: 30, salidas: 2, eventos: 0 });
     expect(todo.movimientos.map((m) => m.tipo.clave)).toEqual(['LOTE_NUEVO', 'COMPRA', 'MUERTE']);
     expect((await lista(`?tipoId=${tipos.MUERTE.id}`)).movimientos.map((m) => m.tipo.clave)).toEqual(['MUERTE']);
     expect((await lista(`?potreroId=${P3.id}`)).movimientos.map((m) => m.tipo.clave)).toEqual(['COMPRA']);

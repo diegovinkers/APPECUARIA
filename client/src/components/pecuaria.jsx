@@ -108,3 +108,14 @@ export function textoFaltan(dias) {
 
 // Metros de comedero por cabeza: "0,32 m".
 export const formatMetros = (m) => (m == null ? '—' : `${formatNumero(m, 2)} m`);
+
+// El precio de venta real: "USD 3,2/kg" o "USD 4.800/cab".
+export const textoPrecio = (precio, por) => (precio == null ? '—' : `USD ${formatNumero(precio, 2)}/${por === 'CABEZA' ? 'cab' : 'kg'}`);
+
+// Una venta con precio, en la lista de movimientos: "USD 11.520 · USD 3,2/kg".
+// Sin precio, null.
+export function textoVenta(m) {
+  if (m?.precioVentaUsd == null) return null;
+  const precio = textoPrecio(m.precioVentaUsd, m.precioVentaPor);
+  return m.valorVentaUsd == null ? precio : `${formatUsd(m.valorVentaUsd)} · ${precio}`;
+}

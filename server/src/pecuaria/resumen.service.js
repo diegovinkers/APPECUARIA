@@ -3,20 +3,33 @@
 // último dato de cada potrero. Más la carga de cada grupo.
 // El grupo de un potrero sale de su uso de suelo vigente; un corral (tipo
 // CORRAL) es siempre Corral. Nada se guarda calculado.
+// Un feedlot (confinamiento) tiene otra tabla: las categorías por etapa del
+// encierre (feedlot.service.js: resumenPorEtapas).
 import { prisma } from '../db.js';
 import { notFound } from '../errors.js';
 import { calcularPotrero, hectareasDeCarga } from './calculos.js';
 import { findCampo } from './lugares.repository.js';
 import { parametrosCarga } from './stock.service.js';
 import { fechaISO } from './importaciones.service.js';
+import { resumenFeedlotCampo, resumenFeedlots } from './feedlot.service.js';
 
 export const GRUPOS = ['CN', 'VERDEO', 'CORRAL', 'OTRO'];
 const vacio = () => ({ CN: 0, VERDEO: 0, CORRAL: 0, OTRO: 0, total: 0 });
 const r2 = (n) => Math.round(n * 100) / 100;
 
+// Las columnas de la tabla, para el front (mismo formato que las del feedlot).
+// Corral y Otro solo aparecen si tienen animales.
+export const COLUMNAS_ESTANCIA = [
+  { clave: 'CN', nombre: 'CN', detalle: 'campo natural', grupo: true },
+  { clave: 'VERDEO', nombre: 'Verdeos', detalle: 'pasturas sembradas (raigrás, avena, sorgo…)', grupo: true },
+  { clave: 'CORRAL', nombre: 'Corral', soloSiHay: true, grupo: true },
+  { clave: 'OTRO', nombre: 'Otro', soloSiHay: true, grupo: true },
+];
+
 export async function resumenCampo(campoId) {
   const campo = await findCampo(campoId);
   if (!campo) throw notFound('Campo no encontrado');
+  if (campo.tipo === 'CONFINAMIENTO') return resumenFeedlotCampo(campo);
   const { porCampo, ...r } = await resumen({ campoId: campo.id, activo: true });
   return { campo: { id: campo.id, sigla: campo.sigla, nombre: campo.nombre }, ...r };
 }
@@ -24,7 +37,9 @@ export async function resumenCampo(campoId) {
 // "Todas las estancias" (paso 4 del rediseño): la misma tabla sumando las
 // estancias que el usuario puede ver (filtroCampos: undefined = todas), más
 // una fila por estancia con sus cabezas, potreros y hectáreas.
-export async function resumenTodas(filtroCampos) {
+// Con grupo 'feedlots', la de todos los feedlots, por etapa del encierre.
+export async function resumenTodas(filtroCampos, grupo = 'estancias') {
+  if (grupo === 'feedlots') return resumenFeedlots(filtroCampos);
   const campos = await prisma.campo.findMany({
     where: { activo: true, ...filtroCampos },
     select: { id: true, sigla: true, nombre: true },
@@ -113,6 +128,8 @@ async function resumen(where) {
   const todo = calcularPotrero({ hectareas: null, hectareasAConfirmar: true, lineas: GRUPOS.flatMap((g) => grupos[g].todas) }, kg);
   return {
     porCampo,
+    tipo: 'ESTANCIA',
+    columnas: COLUMNAS_ESTANCIA,
     fecha: fechaISO(fecha),
     valor: { usd: todo.valorUsd, completo: todo.valorCompleto },
     kgPorUg: kg.kgPorUg,

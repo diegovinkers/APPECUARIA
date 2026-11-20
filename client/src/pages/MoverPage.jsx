@@ -13,6 +13,9 @@ const etiqueta = 'block text-sm text-suelo-600';
 // Mover animales de un lote: a otro lote (toman su categoría), a un lote
 // nuevo, o el lote entero a otro potrero. Antes de confirmar se ve cómo
 // quedan los dos potreros.
+// Con ?destete=1 (desde el "+" → Destete, eventos 20/11): el lote es el de
+// los terneros; se elige el lote de las madres (en el mismo potrero) y se van
+// a otro potrero, con la categoría al llegar opcional.
 export default function MoverPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
@@ -20,6 +23,8 @@ export default function MoverPage() {
   const loteId = Number(params.get('lote'));
   // Desde el "+" → Cambio de categoría: el lote entero, en el mismo potrero.
   const cambioCategoria = params.get('cambio') === 'categoria';
+  const destete = params.get('destete') === '1';
+  const [madresId, setMadresId] = useState('');
 
   const [origen, setOrigen] = useState(null);
   const [potreros, setPotreros] = useState([]);
@@ -46,6 +51,13 @@ export default function MoverPage() {
       const [{ data: p }, { data: cats }] = await Promise.all([getPotrero(potreroId), getCategorias()]);
       setOrigen(p);
       setCategorias(cats.filter((c) => c.activo));
+      if (destete) {
+        // Las madres: el primer lote de hembras del potrero (que no sea el de los terneros).
+        const sexo = new Map(cats.map((c) => [c.id, c.sexo]));
+        const otros = (p.stock?.lineas ?? []).filter((l) => l.loteId !== loteId && sexo.get(l.categoriaId) !== 'MACHO');
+        const madres = otros.find((l) => sexo.get(l.categoriaId) === 'HEMBRA') ?? otros[0];
+        if (madres) setMadresId(String(madres.loteId));
+      }
       const elegido = p.stock?.lineas.find((l) => l.loteId === loteId);
       if (cambioCategoria && elegido) {
         setCabezas(String(elegido.cabezas));
@@ -81,6 +93,9 @@ export default function MoverPage() {
     if (cambioCategoria && mismoPotrero && todos) {
       setModo('CATEGORIA');
       setCategoriaEntero('');
+    } else if (destete && !lotesDestino.length) {
+      // Los terneros forman su lote (o se va el lote entero): no siguen siendo "el mismo lote".
+      setModo(todos ? 'ENTERO' : 'NUEVO');
     } else if (deLaFamilia || lotesDestino.length) {
       setModo('SUMAR');
       setLoteDestinoId(String((deLaFamilia ?? lotesDestino[0]).loteId));
@@ -97,7 +112,9 @@ export default function MoverPage() {
   // "Sigue siendo el mismo lote" es para una parte: si van todas, el lote entero.
   useEffect(() => {
     if (modo === 'MISMO' && todos) setModo('ENTERO');
-  }, [modo, todos]);
+    if (destete && modo === 'NUEVO' && todos && destino) setModo('ENTERO');
+    if (destete && modo === 'ENTERO' && !todos) setModo('NUEVO');
+  }, [modo, todos, destete, destino]);
 
   const cuerpo = useMemo(() => {
     if (!lote || !destinoId || !modo || n < 1) return null;
@@ -109,13 +126,15 @@ export default function MoverPage() {
       destinoPotreroId: Number(destinoId),
       modo,
       nota,
+      ...(destete && { destete: true, ...(madresId && { loteMadresId: Number(madresId) }) }),
     };
+    if (destete && !madresId) return null;
     if (modo === 'MISMO') return { ...base, modo: 'NUEVO', mismoLote: true };
     if (modo === 'SUMAR') return loteDestinoId ? { ...base, loteDestinoId: Number(loteDestinoId) } : null;
     if (modo === 'NUEVO') return nuevaCategoriaId ? { ...base, nuevoLote: { nombre: nuevoNombre, categoriaId: Number(nuevaCategoriaId) } } : null;
     if (modo === 'CATEGORIA') return categoriaEntero ? { ...base, categoriaId: Number(categoriaEntero) } : null;
     return { ...base, ...(categoriaEntero && { categoriaId: Number(categoriaEntero) }) };
-  }, [lote, destinoId, modo, n, fecha, loteId, peso, nota, loteDestinoId, nuevoNombre, nuevaCategoriaId, categoriaEntero]);
+  }, [lote, destinoId, modo, n, fecha, loteId, peso, nota, loteDestinoId, nuevoNombre, nuevaCategoriaId, categoriaEntero, destete, madresId]);
 
   // Vista previa: se pide de nuevo cada vez que cambia el formulario.
   useEffect(() => {
@@ -136,9 +155,11 @@ export default function MoverPage() {
       const { data } = await registrarMovimiento(cuerpo);
       const m = data.movimiento;
       const aviso =
-        m.modo === 'CATEGORIA'
-          ? `Categoría cambiada: el lote ${m.loteOrigen} pasa de ${m.categoriaOrigen} a ${m.categoriaDestino}.`
-          : `Movimiento registrado: ${m.cabezas} ${m.categoriaOrigen} al lote ${m.loteDestino} (${m.potreroDestino}).`;
+        m.tipo === 'DESTETE'
+          ? `Destete registrado: ${m.cabezas} ${m.categoriaOrigen} al lote ${m.loteDestino} (${m.potreroDestino}); madres: ${m.loteMadres}.`
+          : m.modo === 'CATEGORIA'
+            ? `Categoría cambiada: el lote ${m.loteOrigen} pasa de ${m.categoriaOrigen} a ${m.categoriaDestino}.`
+            : `Movimiento registrado: ${m.cabezas} ${m.categoriaOrigen} al lote ${m.loteDestino} (${m.potreroDestino}).`;
       navigate(`/pecuaria/potreros/${potreroId}`, { state: { aviso } });
     } catch (error) {
       setErrors(getErrorMessages(error, 'No se pudo registrar el movimiento'));
@@ -160,15 +181,32 @@ export default function MoverPage() {
       <Link to={`/pecuaria/potreros/${potreroId}`} className="text-sm text-campo-600 hover:underline">
         ← {origen.nombre}
       </Link>
-      <h1 className="mb-1 mt-2 text-3xl font-bold">{cambioCategoria ? 'Cambiar categoría' : 'Mover animales'}</h1>
+      <h1 className="mb-1 mt-2 text-3xl font-bold">{destete ? 'Destete' : cambioCategoria ? 'Cambiar categoría' : 'Mover animales'}</h1>
       <p className="mb-6 text-suelo-600">
         Lote <strong className="text-suelo-800">{lote.lote}</strong> · {lote.categoria} · {formatNumero(lote.cabezas)} cab
         {lote.pesoPromedioKg ? ` · ${formatNumero(lote.pesoPromedioKg)} kg` : ''} · potrero {origen.nombre}
       </p>
       <ErrorList errors={errors} />
 
+      {destete && (
+        <section className="mb-4 space-y-2 rounded-lg border border-sky-200 bg-sky-50/50 p-4" aria-label="Las madres">
+          <h2 className="font-semibold">Las madres</h2>
+          <p className="text-sm text-suelo-600">Se quedan en {origen.nombre}; queda anotado de qué lote son los terneros.</p>
+          <select value={madresId} onChange={(e) => setMadresId(e.target.value)} className={inputClass} aria-label="Lote de las madres">
+            <option value="">Elegí el lote de las madres…</option>
+            {(origen.stock?.lineas ?? [])
+              .filter((l) => l.loteId !== loteId)
+              .map((l) => (
+                <option key={l.loteId} value={l.loteId}>
+                  {l.lote} · {l.categoria} · {formatNumero(l.cabezas)} cab
+                </option>
+              ))}
+          </select>
+        </section>
+      )}
+
       <section className="space-y-4 rounded-lg border border-suelo-200 p-4">
-        <h2 className="font-semibold">1. Cuántos salen</h2>
+        <h2 className="font-semibold">{destete ? '1. Cuántos terneros se destetan' : '1. Cuántos salen'}</h2>
         <div className="grid grid-cols-2 gap-3">
           <label className={etiqueta}>
             Cabezas
@@ -204,12 +242,14 @@ export default function MoverPage() {
         <h2 className="font-semibold">2. A dónde van</h2>
         <select value={destinoId} onChange={(e) => setDestinoId(e.target.value)} className={inputClass} aria-label="Potrero de destino">
           <option value="">Elegí el potrero de destino…</option>
-          {potreros.map((p) => (
+          {potreros
+            .filter((p) => !destete || p.id !== origen.id)
+            .map((p) => (
             <option key={p.id} value={p.id}>
               {p.nombre}
               {p.id === origen.id ? ' (este mismo)' : ''} · {cabezasPorCategoria(p.stock?.lotes)} · {p.usoActual?.nombre ?? 'sin uso'}
             </option>
-          ))}
+            ))}
         </select>
 
         {destino && (
@@ -239,7 +279,7 @@ export default function MoverPage() {
               </Opcion>
             ))}
 
-            {!todos && !mismoPotrero && (
+            {!todos && !mismoPotrero && !destete && (
               <Opcion activa={modo === 'MISMO'} onElegir={() => setModo('MISMO')}>
                 Sigue siendo el mismo lote
                 <span className="block text-xs text-suelo-600">
@@ -251,7 +291,7 @@ export default function MoverPage() {
 
             <Opcion activa={modo === 'NUEVO'} onElegir={() => setModo('NUEVO')}>
               Formar un lote nuevo
-              <span className="block text-xs text-suelo-600">Con nombre y categoría propios</span>
+              <span className="block text-xs text-suelo-600">{destete ? 'El lote de los destetados: con nombre y categoría (por ejemplo, Terneros)' : 'Con nombre y categoría propios'}</span>
             </Opcion>
             {modo === 'NUEVO' && (
               <div className="grid gap-2 pl-2 sm:grid-cols-2">
@@ -272,7 +312,7 @@ export default function MoverPage() {
               </div>
             )}
 
-            {todos && mismoPotrero && (
+            {todos && mismoPotrero && !destete && (
               <>
                 <Opcion
                   activa={modo === 'CATEGORIA'}
@@ -344,7 +384,7 @@ export default function MoverPage() {
       {previa && <Impacto previa={previa} />}
 
       <button type="button" disabled={!previa || ocupado} onClick={confirmar} className={`${buttonClass} mt-6`}>
-        {ocupado ? 'Registrando…' : 'Confirmar movimiento'}
+        {ocupado ? 'Registrando…' : destete ? 'Confirmar destete' : 'Confirmar movimiento'}
       </button>
     </main>
   );

@@ -72,4 +72,16 @@ export function calcularPotrero({ hectareas, hectareasAConfirmar, areaUtilizable
   };
 }
 
+// El valor real de una venta (precio de venta cargado en la salida):
+//   por kilo:   cabezas × peso de salida × precio
+//   por cabeza: cabezas × precio
+// Sin precio (o por kilo sin peso), null.
+export function valorVenta({ cabezas, pesoPromedioKg, precioVentaUsd, precioVentaPor }) {
+  const precio = num(precioVentaUsd);
+  if (!precio || !cabezas) return null;
+  if (precioVentaPor === 'CABEZA') return r2(cabezas * precio);
+  const peso = num(pesoPromedioKg);
+  return peso ? r2(cabezas * peso * precio) : null;
+}
+
 export const kilosLinea = (l) => (l.pesoPromedioKg ? r2(l.cabezas * l.pesoPromedioKg) : null);

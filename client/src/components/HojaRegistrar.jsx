@@ -8,6 +8,60 @@ import Icono from './Icono';
 
 const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+// El "+" en secciones, como en el boceto de los eventos (20/11): MOVER arriba
+// (el primero, grande), ENTRA y SALE en dos columnas, y lo demás abajo, chico.
+function Acciones({ acciones, onElegir }) {
+  const de = (seccion) => acciones.filter((a) => (a.seccion ?? 'mover') === seccion);
+  const [entra, sale, otro] = [de('entra'), de('sale'), de('otro')];
+  const chico = (a) => (
+    <li key={a.clave}>
+      <button type="button" onClick={() => onElegir(a)} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-suelo-100">
+        <span className={TONO[a.tono] ?? 'text-campo-600'}>
+          <Icono nombre={a.icono} className="h-5 w-5" />
+        </span>
+        <span className="font-medium">{a.texto}</span>
+      </button>
+    </li>
+  );
+  return (
+    <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+      <p className="px-1 text-xs font-semibold uppercase tracking-wide text-suelo-500">Mover</p>
+      <ul className="mt-1 space-y-1">
+        {de('mover').map((a) => (
+          <li key={a.clave}>
+            <button
+              type="button"
+              onClick={() => onElegir(a)}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 text-left ${a.grande ? 'min-h-14 border border-campo-200 bg-campo-50 py-3 hover:bg-campo-100' : 'min-h-11 py-2 hover:bg-suelo-100'}`}
+            >
+              <span className={TONO[a.tono] ?? 'text-campo-600'}>
+                <Icono nombre={a.icono} className={a.grande ? 'h-7 w-7' : 'h-6 w-6'} />
+              </span>
+              <span>
+                <span className={`block font-medium ${a.grande ? 'text-base' : ''}`}>{a.texto}</span>
+                {a.detalle && <span className="block text-xs text-suelo-500">{a.detalle}</span>}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      {(entra.length > 0 || sale.length > 0) && (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-suelo-200 pt-3">
+          <div>
+            <p className="px-1 text-xs font-semibold uppercase tracking-wide text-emerald-800">Entra</p>
+            <ul className="mt-1">{entra.map(chico)}</ul>
+          </div>
+          <div>
+            <p className="px-1 text-xs font-semibold uppercase tracking-wide text-red-700">Sale</p>
+            <ul className="mt-1">{sale.map(chico)}</ul>
+          </div>
+        </div>
+      )}
+      {otro.length > 0 && <ul className="mt-2 border-t border-suelo-200 pt-2">{otro.map(chico)}</ul>}
+    </div>
+  );
+}
+
 const TONO = {
   salida: 'text-red-700',
   correccion: 'text-tierra-600',
@@ -39,14 +93,14 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
     if (!potreros) return [];
     const q = sinTildes(busqueda.trim());
     return potreros
-      .filter((p) => accion?.pide !== 'lote' || (p.stock?.lotes ?? []).length > 0)
+      .filter((p) => accion?.pide !== 'lote' || (p.stock?.lotes ?? []).length >= (accion.minLotes ?? 1))
       .filter((p) => !q || sinTildes(p.nombre).includes(q) || (p.stock?.lotes ?? []).some((l) => sinTildes(l.lote).includes(q)));
   }, [potreros, busqueda, accion]);
 
   function elegirPotrero(p) {
     const lotes = p.stock?.lotes ?? [];
     if (accion.pide === 'potrero') return navigate(accion.destino(p.id));
-    if (lotes.length === 1) return navigate(accion.destino(p.id, lotes[0].loteId));
+    if (lotes.length === 1 && !accion.minLotes) return navigate(accion.destino(p.id, lotes[0].loteId));
     setPotrero(p);
   }
 
@@ -65,7 +119,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
   let titulo = 'Registrar';
   if (pideEstancia) titulo = estancia.esFeedlot ? '¿En qué feedlot?' : '¿En qué estancia?';
   else if (accion && !potrero) titulo = accion.pregunta;
-  if (potrero) titulo = `¿Qué lote de ${potrero.nombre}?`;
+  if (potrero) titulo = accion.pideLote ?? `¿Qué lote de ${potrero.nombre}?`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center">
@@ -88,27 +142,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
           </button>
         </div>
 
-        {!accion && (
-          <ul className="space-y-1">
-            {acciones.map((a) => (
-              <li key={a.clave}>
-                <button
-                  type="button"
-                  onClick={() => (a.pide ? setAccion(a) : navigate(a.destino()))}
-                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-suelo-100"
-                >
-                  <span className={TONO[a.tono] ?? 'text-campo-600'}>
-                    <Icono nombre={a.icono} className="h-6 w-6" />
-                  </span>
-                  <span>
-                    <span className="block font-medium">{a.texto}</span>
-                    {a.detalle && <span className="block text-xs text-suelo-500">{a.detalle}</span>}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        {!accion && <Acciones acciones={acciones} onElegir={(a) => (a.pide ? setAccion(a) : navigate(a.destino()))} />}
 
         {pideEstancia && (
           <ul className="-mx-1 divide-y divide-suelo-200">

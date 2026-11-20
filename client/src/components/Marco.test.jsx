@@ -27,6 +27,17 @@ vi.mock('../context/EstanciaContext', () => ({
 vi.mock('../hooks/usePotreros', () => ({
   default: (campoId) => ({ potreros: campoId ? estado.potreros : null, errors: [] }),
 }));
+// Los tipos del catálogo (la hoja "Eventos").
+const TIPOS = vi.hoisted(() => [
+  { id: 1, clave: 'SUMAR_LOTE', nombre: 'Sumar a otro lote', efecto: 'MUEVE', activo: true, orden: 10 },
+  { id: 15, clave: 'PESADA', nombre: 'Pesada', efecto: 'REGISTRO', activo: true, orden: 150 },
+  { id: 16, clave: 'ECOGRAFIA', nombre: 'Ecografía', efecto: 'REGISTRO', sexo: 'HEMBRA', activo: true, orden: 160 },
+  { id: 24, clave: 'VACUNA_AFTOSA', nombre: 'Vacuna aftosa', efecto: 'REGISTRO', activo: true, orden: 240 },
+  { id: 27, clave: 'RECUENTO', nombre: 'Recuento', efecto: 'REGISTRO', activo: true, orden: 270 },
+  { id: 30, clave: 'BANO', nombre: 'Baño', efecto: 'REGISTRO', activo: true, orden: 300 },
+  { id: 31, clave: 'DOSIS', nombre: 'Dosificación', efecto: 'REGISTRO', activo: false, orden: 310 },
+]);
+vi.mock('../api/pecuaria', () => ({ getTiposMovimiento: () => Promise.resolve({ data: TIPOS }) }));
 
 const { default: Marco } = await import('./Marco.jsx');
 const { default: PanelFiltros } = await import('./PanelFiltros.jsx');
@@ -86,11 +97,11 @@ afterEach(() => {
 });
 
 describe('Marco: barras y panel', () => {
-  it('la barra de abajo: Resumen · Potreros · + · Movimientos · Menú', () => {
+  it('la barra de abajo: Resumen · Potreros · + · Movimientos · Eventos ("Eventos" reemplaza a "Menú")', () => {
     montar();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
     const partes = [...abajo.children].map((el) => el.textContent.trim() || el.querySelector('button')?.getAttribute('aria-label'));
-    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Movim.', 'Menú']);
+    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Movim.', 'Eventos']);
   });
 
   it('el superadmin ve Usuarios en el menú; el capataz no', () => {
@@ -187,7 +198,8 @@ describe('Marco: barras y panel', () => {
     expect(contenedor.querySelector('[role="dialog"][aria-label="Menú"]')).toBeNull();
   });
 
-  it('"Menú" de la barra de abajo abre el mismo menú', () => {
+  it('"Menú" de la barra de abajo (quien no registra) abre el mismo menú', () => {
+    estado.user = direccion;
     montar();
     click(contenedor.querySelector('nav[aria-label="Barra de abajo"] > button:last-child'));
     expect(contenedor.querySelector('[role="dialog"][aria-label="Menú"]')).not.toBeNull();
@@ -264,7 +276,7 @@ describe('Marco: el botón +', () => {
   it('Mover: potrero → lote → la pantalla de mover', () => {
     montar();
     click(boton('Registrar'));
-    elegir('Mover entre potreros');
+    elegir('Mover de potrero');
     // Sin animales no aparece.
     expect(texto()).not.toMatch(/\b14\b.*cab/);
     elegir('10.3');
@@ -276,17 +288,36 @@ describe('Marco: el botón +', () => {
   it('cada potrero dice cabezas de qué (por categoría)', () => {
     montar();
     click(boton('Registrar'));
-    elegir('Entrada');
+    elegir('Compra');
     const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
     expect(opciones).toEqual(['10.380 Terneros · 40 Vacas120 cab', '1250 Novillos50 cab', '14vacío0 cab']);
   });
 
-  it('con un solo lote en el potrero, va directo', () => {
+  it('con un solo lote en el potrero, va directo (y la salida lleva su tipo)', () => {
     montar();
     click(boton('Registrar'));
-    elegir('Salida');
+    elegir('Venta');
     elegir('12');
-    expect(donde()).toBe('/pecuaria/registrar?efecto=SALE&potrero=12&lote=121');
+    expect(donde()).toBe('/pecuaria/registrar?efecto=SALE&potrero=12&lote=121&tipo=VENTA');
+  });
+
+  it('el "+" en secciones: Mover arriba, Entra y Sale en dos columnas', () => {
+    montar();
+    click(boton('Registrar'));
+    const hoja = contenedor.querySelector('[role="dialog"]');
+    expect(hoja.textContent).toMatch(/Mover.*Mover de potrero.*Cambio de categoría.*Destete.*Mover entre campos.*Movimiento múltiple.*Entra.*Nacimiento.*Compra.*Traslado.*Sale.*Venta.*Muerte.*Traslado.*Consumo.*Pérdida.*Corrección de stock/);
+  });
+
+  it('Destete: solo potreros con las madres al lado (dos lotes o más) → el lote de los terneros', () => {
+    montar();
+    click(boton('Registrar'));
+    elegir('Destete');
+    const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
+    expect(opciones).toHaveLength(1);
+    elegir('10.3');
+    expect(texto()).toContain('¿Cuál es el lote de los terneros?');
+    elegir('10.3 · Terneros');
+    expect(donde()).toBe('/pecuaria/mover?potrero=10&lote=101&destete=1');
   });
 
   it('Mover entre campos y Movimiento múltiple van directo a su pantalla', () => {
@@ -299,12 +330,12 @@ describe('Marco: el botón +', () => {
     expect(donde()).toBe('/pecuaria/movimiento-multiple');
   });
 
-  it('Entrada pide solo el potrero (también los vacíos)', () => {
+  it('Una entrada pide solo el potrero (también los vacíos)', () => {
     montar();
     click(boton('Registrar'));
-    elegir('Entrada');
+    elegir('Nacimiento');
     elegir('14');
-    expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14');
+    expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14&tipo=NACIMIENTO');
   });
 
   it('con "Todas las estancias" elegido, primero pregunta en cuál', () => {
@@ -312,12 +343,12 @@ describe('Marco: el botón +', () => {
     estado.todas = true;
     montar();
     click(boton('Registrar'));
-    elegir('Entrada');
+    elegir('Compra');
     expect(texto()).toContain('¿En qué estancia?');
     elegir('La Gateada');
     expect(texto()).toContain('¿A qué potrero entran?');
     elegir('14');
-    expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14');
+    expect(donde()).toBe('/pecuaria/registrar?efecto=ENTRA&potrero=14&tipo=COMPRA');
   });
 
   it('con "Todos los feedlots" elegido, pregunta en qué feedlot (solo los feedlots)', () => {
@@ -326,7 +357,7 @@ describe('Marco: el botón +', () => {
     estado.grupo = 'feedlots';
     montar();
     click(boton('Registrar'));
-    elegir('Entrada');
+    elegir('Compra');
     expect(texto()).toContain('¿En qué feedlot?');
     const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
     expect(opciones).toEqual(['Feedlot A', 'Feedlot B']);
@@ -335,7 +366,7 @@ describe('Marco: el botón +', () => {
   it('la búsqueda filtra los potreros', () => {
     montar();
     click(boton('Registrar'));
-    elegir('Entrada');
+    elegir('Compra');
     const input = contenedor.querySelector('input[aria-label="Buscar potrero"]');
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
     act(() => {
@@ -345,6 +376,63 @@ describe('Marco: el botón +', () => {
     const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
     expect(opciones).toHaveLength(1);
     expect(opciones[0]).toContain('10.3');
+  });
+});
+
+describe('Marco: el botón Eventos', () => {
+  // Espera a que lleguen los tipos (la promesa de la API).
+  const abrirEventos = async () => {
+    await act(async () => {
+      contenedor.querySelector('nav[aria-label="Barra de abajo"] > button:last-child').click();
+    });
+  };
+  const hoja = () => contenedor.querySelector('[role="dialog"][aria-label="Eventos"]');
+
+  it('abre la hoja: Pesada y Recuento arriba y grandes, después los grupos; sin los inactivos ni los que mueven', async () => {
+    montar();
+    await abrirEventos();
+    const grandes = [...hoja().querySelectorAll('.grid button')].map((b) => b.textContent.trim());
+    expect(grandes).toEqual(['Pesada', 'Recuento']);
+    const grupos = [...hoja().querySelectorAll('section')].map((g) => [g.querySelector('p').textContent, [...g.querySelectorAll('button')].map((b) => b.textContent)]);
+    expect(grupos).toEqual([
+      ['Sanidad', ['Vacuna aftosa']],
+      ['Reproducción (hembras)', ['Ecografía']],
+      ['Otros', ['Baño']],
+    ]);
+    expect(hoja().textContent).not.toContain('Dosificación');
+    expect(hoja().textContent).not.toContain('Sumar a otro lote');
+  });
+
+  it('elegir un evento lleva al camino de 4 pasos', async () => {
+    montar();
+    await abrirEventos();
+    click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Pesada'));
+    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=15');
+  });
+
+  it('arranca donde estás: desde la ficha de un potrero o de un lote, lo lleva', async () => {
+    montar('/pecuaria/potreros/10');
+    await abrirEventos();
+    click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Vacuna aftosa'));
+    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=24&potrero=10');
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    montar('/pecuaria/lotes/7');
+    await abrirEventos();
+    click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Recuento'));
+    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=27&lote=7');
+  });
+
+  it('en la compu, "Eventos" está arriba al lado del "+"', () => {
+    montar();
+    const arriba = [...contenedor.querySelectorAll('header button')].map((b) => b.textContent.trim());
+    expect(arriba.indexOf('Eventos')).toBe(arriba.indexOf('Registrar') + 1);
+  });
+
+  it('Dirección (no registra) no tiene Eventos', () => {
+    estado.user = direccion;
+    montar();
+    expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Eventos')).toBe(false);
   });
 });
 

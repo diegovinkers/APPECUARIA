@@ -213,7 +213,9 @@ En `client/`: `npm run dev`.
         - Cada celda muestra arriba el valor de la categoría ("2,74 M", "391 mil") y abajo, en chico, el valor por cabeza ("800/cab"). Lleva un "*" si está incompleto.
         - `formatUsdCorto` en `components/pecuaria.jsx`. Cada fila del resumen trae `valorUsd` y `valorCompleto`.
         - Tests: 98 en el front.
-    - **Feedlots (19/11), hecho en desarrollo, sin commitear:**
+    - **Feedlots (19/11), publicado (`812ee77`) y cargado en Render:**
+      - Render: FEG 1.372 y FELS 1.046 cabezas en 21 corrales (19 con animales). Estancias sin cambios (10.934). Parámetros GMD_FEEDLOT_KG=1,5 y CICLO_FEEDLOT_DIAS=120.
+      - El análisis da USD 4,46 M con el peso estimado de hoy. El valor del Resumen genérico (USD 3,05 M) usa el peso de entrada.
       - Encargo: `docs/superpowers/prompts/2026-11-19-feedlots.md`. Plan: `docs/superpowers/plans/2026-11-19-feedlots.md`.
       - Los dos feedlots son campos CONFINAMIENTO aparte: **FEG** "Feedlot La Gateada" y **FELS** "Feedlot La Seda" (orden 10 y 11).
       - Dos grupos: "Todas las estancias" (ESTANCIA y GRANJA) y "Todos los feedlots" (CONFINAMIENTO). No se suman entre sí.
@@ -230,6 +232,44 @@ En `client/`: `npm run dev`.
         - Categorías por la observación, **confirmadas por Diego (19/11)**: gordos, gordos prontos y sin observación → Novillos 1-2; terneros nuevos y "ter. 15M" → Terneros; vaquillonas → Vaquillonas; toros nuevos → Toros.
         - Las estancias siguen en 10.934 cabezas. En Render no se cargó nada.
       - Tests: `pecuaria-feedlot.test.js` (21); 341 en el servidor y 115 en el front.
+    - **Feedlot por etapas, atrasados y precio de venta (20/11), hecho en desarrollo, sin commitear:**
+      - Encargo: `docs/superpowers/prompts/2026-11-20-feedlot-etapas-y-ventas.md`. Plan: `docs/superpowers/plans/2026-11-20-feedlot-etapas-y-ventas.md`.
+      - **Tabla de categorías del feedlot por etapa** (debajo de la tabla por corral, en el Resumen de un feedlot o de "Todos los feedlots"):
+        - Adaptación (hasta `FEEDLOT_ADAPTACION_DIAS`, 20), Engorde (hasta `FEEDLOT_ENGORDE_DIAS`, 90), Terminación (hasta el ciclo, 120), Para salir (más del ciclo) y Sin fecha (solo si hay). Después, Valor USD y Total.
+        - Servidor: `etapaDeEncierre` y `resumenPorEtapas` (puras, `feedlot.service.js`). `GET /campos/:id/resumen` de un confinamiento y `GET /resumen?grupo=feedlots` devuelven `tipo: 'FEEDLOT'`, `columnas` y `etapas`. Las estancias suman `tipo: 'ESTANCIA'` y `columnas` (CN / Verdeos / Corral / Otro); el resto no cambia.
+        - El valor sale de las filas del análisis por corral (peso estimado de hoy): la tabla y el cuadro "Valor del ganado" dan lo mismo que la tabla por corral.
+        - Front: `TablaResumen` arma los títulos con `columnas` (`columnasDe`, `valorColumna`). En el celular, Adaptación + Engorde van juntas en "Hasta 90 d"; las etapas no son link (no son un filtro de Potreros).
+        - Parámetros nuevos en el seed. Se validan adaptación < engorde < ciclo, de a uno y con el nuevo `PUT /parametros` (`{ valores }`, todos juntos o ninguno). Configuración → Feedlot guarda los cuatro juntos.
+      - **Atrasados aparte:** `totales.atrasados` (la salida ya pasó) y `totales.proximos` (de hoy a hoy + 30, sin los atrasados), contados por corral. Se sacó `salenEn30`. En la tabla por corral, "atrasado N d" en ámbar fuerte; en los próximos 7 días, en ámbar suave.
+      - **Precio de venta real:**
+        - Migración `precio_de_venta`: `movimiento.precio_venta_usd` (12,2) y `precio_venta_por` (`PrecioPor`).
+        - Solo en una salida VENTA; pide "por kilo / por cabeza"; por kilo pide el peso de salida. `valorVenta` (`calculos.js`). Va en la vista previa, la lista de movimientos (`valorVentaUsd`) y la auditoría. La reversión no cambia.
+        - Front: `components/PrecioVenta.jsx` en `RegistrarPage`; en Movimientos, `textoVenta` en la segunda línea (celular) o como detalle debajo del tipo (compu).
+        - Análisis del feedlot: `ventas` (últimos 90 días, sin las revertidas, de los corrales), con el peso estimado a esa fecha y la diferencia (`ventaConEstimado`). Sección "Últimas ventas".
+      - Base local: migración aplicada y seed corrido (los dos parámetros nuevos). En Render, la migración y el seed corren al arrancar.
+      - Tests: `pecuaria-feedlot-etapas.test.js` (22) y `FeedlotEtapasVentas.test.jsx` (12). En total, 363 en el servidor y 128 en el front.
+    - **Eventos (20/11), hecho en desarrollo, sin commitear:**
+      - Diseño: `docs/superpowers/specs/2026-11-20-eventos-design.md`. Plan seguido: `docs/superpowers/plans/2026-11-20-eventos.md`.
+      - **"+" = mover, "Eventos" = anotar:**
+        - "Eventos" reemplaza a "Menú" en la barra de abajo; quien no registra sigue viendo "Menú". En la compu va al lado del "+". Pide `pecuaria:CREAR`.
+        - El "+" está en secciones: Mover (el primero grande), Destete nuevo, Entra / Sale (cada tipo con `?tipo=` en `RegistrarPage`) y Corrección abajo.
+      - **La hoja "Eventos"** (`HojaEventos.jsx`, `navegacion/eventos.js`): los tipos REGISTRO activos, agrupados por clave. Pesada y Recuento van grandes; después Sanidad, Reproducción, Manejo y Otros.
+      - **Camino de 4 pasos:**
+        - `Camino.jsx` (genérico) y `pages/pecuaria/EventoPage.jsx` (`/pecuaria/eventos/nuevo?tipo=&potrero=&lote=`); lo puro está en `components/eventos.js`.
+        - A quién: buscador, usados hace poco (`localStorage`) y la estancia / potrero / categoría / lotes según los niveles del tipo. Filtra por el sexo.
+        - Arranca con la ficha de donde se tocó Eventos (`contextoDe`). Al final, "Hacer otro igual".
+      - **Servidor:**
+        - Migración `eventos_registro`: tabla `evento_registro`, un registro por lote, con `grupoId`, `nivel` y `datos` JSON (zod por clave en `eventos.datos.js`). `OrigenStock.EVENTO`.
+        - `eventos.service.js`. Rutas `POST /eventos-registro(/vista-previa)`, `/eventos-registro/:id/anular` y `/eventos-registro/grupo/:grupoId/anular` (ANULAR).
+        - Auditoría: `EVENTO_REGISTRADO` y `EVENTO_ANULADO`.
+      - **Pesada:** una versión de stock con el peso nuevo. **Recuento:** con diferencia, motivo obligatorio y versión con las cabezas contadas (en 0, cierra el lote).
+      - **Anular:** lo que no tocó el stock, siempre. Una pesada o un recuento con efecto, solo si el potrero no cambió después (se anulan juntos los de esa versión).
+      - **Feedlot:** el peso de hoy sale de la última pesada (`pesoReal`), con la GMD real por lote y `gmdRealPromedio`.
+      - **Destete:** el mover con `destete: true` + `loteMadresId` (madres en el mismo potrero, no machos; los terneros a otro potrero). Tipo `DESTETE`.
+      - **Historiales y lista:** los eventos están en el historial del lote y del potrero (la versión dice "Pesada del lote X: de 250 a 262 kg"). La lista acepta `?ver=todo|movimientos|eventos` (por defecto, movimientos) y en el front tiene el filtro "Todo / Movimientos / Eventos". Una fila por carga, con "Anular".
+      - La lista de potreros trae el `sexo` de cada lote.
+      - Tests: `pecuaria-eventos-registro.test.js` (34) en el servidor; `eventos.test.js` y `EventoPage.test.jsx` en el front, más tests sumados a Marco, menu, MovimientosLista, LotePage y FeedlotAnalisis. En total, 397 en el servidor y 172 en el front. `npx vite build` anda.
+      - Base local: migración aplicada. El seed no cambió. En Render, la migración corre al arrancar.
     - Para levantar la app desde la app de escritorio: `.claude/launch.json` (configuraciones `api` y `web`).
     - `exceljs` trae un `uuid` viejo: está forzado a `^11.1.1` con `overrides` en `server/package.json`.
   - **Módulo Parcelas:** en diseño (`docs/DECISIONES.md` §9).

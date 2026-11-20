@@ -60,16 +60,17 @@ describe('analisisFeedlot (cálculo puro)', () => {
     expect(r.vacios).toEqual([{ corralId: 4, corral: 'Corral 4', campo: FX }]);
   });
 
-  it('la salida se marca si ya pasó o falta menos de una semana', () => {
+  it('la salida se marca si falta menos de una semana; si ya pasó, está atrasado', () => {
     const tarde = analisisFeedlot({ corrales, hoy: '2026-11-11', gmdKg: 1.5, cicloDias: 120, parametros });
-    expect(tarde.filas[1]).toMatchObject({ diasParaSalida: 6, salidaCerca: true });
+    expect(tarde.filas[1]).toMatchObject({ diasParaSalida: 6, salidaCerca: true, atrasado: false });
     const pasada = analisisFeedlot({ corrales, hoy: '2026-12-01', gmdKg: 1.5, cicloDias: 120, parametros });
-    expect(pasada.filas[1]).toMatchObject({ diasParaSalida: -14, salidaCerca: true });
+    expect(pasada.filas[1]).toMatchObject({ diasParaSalida: -14, salidaCerca: false, atrasado: true });
+    expect(pasada.totales).toMatchObject({ atrasados: 1, proximos: 0 });
   });
 
-  it('totales: cabezas, corrales, días ponderados por cabezas, valor y salidas en 30 días', () => {
+  it('totales: cabezas, corrales, días ponderados por cabezas, valor, atrasados y salidas en 30 días', () => {
     // Días: (40 × 100 + 113 × 50) / 150 = 64,3. El corral 2 no tiene peso: se valúa con el de la categoría (≈360 kg).
-    expect(r.totales).toMatchObject({ cabezas: 160, corrales: 3, diasPromedio: 64.3, salenEn30: 1 });
+    expect(r.totales).toMatchObject({ cabezas: 160, corrales: 3, diasPromedio: 64.3, atrasados: 0, proximos: 1 });
     expect(r.totales.valorUsd).toBe(108_000 + 50 * 360 * 3 + 50_000);
     expect(r.totales.valorCompleto).toBe(true);
     expect(r.fecha).toBe('2026-11-12');
@@ -133,7 +134,8 @@ describe('grupo estancias / feedlots', () => {
     expect((await agent.get('/api/pecuaria/resumen?grupo=estancias').expect(200)).body.totales.total).toBe(100);
     const feedlots = (await agent.get('/api/pecuaria/resumen?grupo=feedlots').expect(200)).body;
     expect(feedlots.estancias.map((e) => e.sigla)).toEqual(['FX']);
-    expect(feedlots.totales).toMatchObject({ total: 80, CORRAL: 80 });
+    // Los feedlots, por etapa del encierre: el lote F entró hace 30 días (engorde).
+    expect(feedlots.totales).toMatchObject({ total: 80, ENGORDE: 80 });
     await agent.get('/api/pecuaria/resumen?grupo=todo').expect(400);
   });
 
@@ -258,7 +260,7 @@ describe('GET /campos/:id/feedlot y /feedlots', () => {
       mComederoPorCabeza: 0.5,
     });
     expect(body.vacios.map((v) => v.corral)).toEqual(['C2']);
-    expect(body.totales).toMatchObject({ cabezas: 80, corrales: 1, diasPromedio: 30, salenEn30: 0 });
+    expect(body.totales).toMatchObject({ cabezas: 80, corrales: 1, diasPromedio: 30, atrasados: 0, proximos: 0 });
   });
 
   it('una estancia no tiene esta vista; otra estancia del usuario contesta 404', async () => {

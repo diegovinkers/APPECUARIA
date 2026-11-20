@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { editarLote, getLote } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, inputClass } from '../components/ui';
 import { formatFecha, formatNumero } from '../components/pecuaria';
-import { MovimientoItem } from '../components/movimientos';
+import { EventoItem, MovimientoItem } from '../components/movimientos';
 import usePuede from '../hooks/usePuede';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
@@ -113,9 +113,11 @@ function Familia({ familia, loteId }) {
 export default function LotePage() {
   const { id } = useParams();
   const puedo = usePuede();
+  const location = useLocation();
   const [datos, setDatos] = useState(null);
   const [errors, setErrors] = useState([]);
-  const [aviso, setAviso] = useState(null);
+  // Lo que se acaba de anotar (un evento abierto desde acá).
+  const [aviso, setAviso] = useState(location.state?.aviso ?? null);
 
   const cargar = useCallback(
     () =>
@@ -151,7 +153,7 @@ export default function LotePage() {
       </main>
     );
   }
-  const { lote, actual, familia, movimientos } = datos;
+  const { lote, actual, familia, movimientos, eventos = [] } = datos;
   // La entrada al corral se ve en un corral, o si ya tiene datos (un lote que salió del feedlot).
   const conEntrada = lote.potrero.tipo === 'CORRAL' || lote.fechaEntrada || lote.pesoEntradaKg != null;
   return (
@@ -197,6 +199,18 @@ export default function LotePage() {
         <ul className="space-y-2">
           {movimientos.map((m) => (
             <MovimientoItem key={m.id} m={m} />
+          ))}
+        </ul>
+      )}
+
+      {/* Lo que se le hizo sin moverlo (pesadas, vacunas...): botón Eventos. */}
+      <h2 className="mb-2 mt-8 text-lg font-semibold">Eventos</h2>
+      {eventos.length === 0 ? (
+        <p className="text-suelo-600">Todavía no tiene eventos (pesadas, vacunas…). Se anotan con el botón Eventos.</p>
+      ) : (
+        <ul className="space-y-2" data-testid="eventos-lote">
+          {eventos.map((e) => (
+            <EventoItem key={e.id} e={e} />
           ))}
         </ul>
       )}

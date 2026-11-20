@@ -10,6 +10,7 @@
 import { prisma } from '../db.js';
 import { notFound, parseId } from '../errors.js';
 import { campoDeEvento } from './movimientos.service.js';
+import { campoDeGrupo, campoDeRegistro } from './eventos.service.js';
 
 const NO_ENCONTRADO = 'No encontrado';
 
@@ -71,6 +72,8 @@ export async function alcanceMovimiento(req, res, next) {
     await controlar(req.user, 'lote', b.loteOrigenId);
     await controlar(req.user, 'potrero', b.destinoPotreroId);
     await controlar(req.user, 'lote', b.loteDestinoId);
+    // Destete: el lote de las madres.
+    await controlar(req.user, 'lote', b.loteMadresId);
   }
   next();
 }
@@ -104,6 +107,26 @@ export async function alcanceMultiple(req, res, next) {
 export async function alcanceEvento(req, res, next) {
   if (!veTodas(req.user)) {
     const campoId = await campoDeEvento(req.params.id);
+    if (campoId != null && !puedeCampo(req.user, campoId)) throw notFound(NO_ENCONTRADO);
+  }
+  next();
+}
+
+// Eventos (pesada, vacuna...): la estancia, los potreros y los lotes elegidos.
+export async function alcanceRegistroEvento(req, res, next) {
+  if (!veTodas(req.user)) {
+    const b = req.body;
+    await controlar(req.user, 'campo', b.campoId);
+    for (const id of b.potreroIds ?? []) await controlar(req.user, 'potrero', id);
+    for (const linea of b.lineas ?? []) await controlar(req.user, 'lote', linea.loteId);
+  }
+  next();
+}
+
+// Anular un evento (o una carga entera): el de su estancia.
+export async function alcanceAnularEvento(req, res, next) {
+  if (!veTodas(req.user)) {
+    const campoId = req.params.grupoId ? await campoDeGrupo(req.params.grupoId) : await campoDeRegistro(req.params.id);
     if (campoId != null && !puedeCampo(req.user, campoId)) throw notFound(NO_ENCONTRADO);
   }
   next();

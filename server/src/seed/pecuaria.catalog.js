@@ -47,6 +47,10 @@ export const PARAMETROS = [
   // Feedlot (confinamiento): los valores de CIGAM (TEA4SISTMANEJO), editables.
   { clave: 'GMD_FEEDLOT_KG', valor: 1.5, descripcion: 'Feedlot: ganancia diaria de peso esperada, en kg por día' },
   { clave: 'CICLO_FEEDLOT_DIAS', valor: 120, descripcion: 'Feedlot: días del ciclo de encierre, de la entrada a la salida' },
+  // Las etapas del encierre (Resumen del feedlot): valores genéricos, editables.
+  // Adaptación < engorde < ciclo.
+  { clave: 'FEEDLOT_ADAPTACION_DIAS', valor: 20, descripcion: 'Feedlot: días de adaptación (de 0 a este número)' },
+  { clave: 'FEEDLOT_ENGORDE_DIAS', valor: 90, descripcion: 'Feedlot: días hasta el final del engorde (después viene la terminación)' },
 ];
 
 // Niveles a los que se aplica un movimiento (PROPUESTA_MOVIMIENTOS §5). Las

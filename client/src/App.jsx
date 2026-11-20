@@ -19,6 +19,7 @@ import UsersPage from './pages/UsersPage';
 import MovimientosPage from './pages/pecuaria/MovimientosPage';
 import MoverEntreCamposPage from './pages/pecuaria/MoverEntreCamposPage';
 import MovimientoMultiplePage from './pages/pecuaria/MovimientoMultiplePage';
+import EventoPage from './pages/pecuaria/EventoPage';
 import PotrerosPage from './pages/pecuaria/PotrerosPage';
 import ResumenPage from './pages/pecuaria/ResumenPage';
 import { RedirigirPecuaria } from './pages/pecuaria/comun';
@@ -56,6 +57,8 @@ export default function App() {
                 <Route path="/pecuaria/registrar" element={<RegistrarPage />} />
                 <Route path="/pecuaria/mover-entre-campos" element={<MoverEntreCamposPage />} />
                 <Route path="/pecuaria/movimiento-multiple" element={<MovimientoMultiplePage />} />
+                {/* Eventos (pesada, vacuna...): el camino de 4 pasos. */}
+                <Route path="/pecuaria/eventos/nuevo" element={<EventoPage />} />
               </Route>
               <Route element={<ProtectedRoute permiso="pecuaria:EDITAR" />}>
                 <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />

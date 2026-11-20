@@ -62,6 +62,8 @@ model Usuario {
   importaciones     Importacion[]
   movimientos       Movimiento[]
   eventosMovimiento EventoMovimiento[]
+  eventosRegistro   EventoRegistro[]  @relation("EventoRegistroUsuario")
+  eventosAnulados   EventoRegistro[]  @relation("EventoRegistroAnulador")
 
   @@map("usuario")
 }
@@ -268,10 +270,13 @@ enum NivelMovimiento {
   PARTE_LOTE
 }
 
+/// EVENTO: una pesada (peso nuevo) o un recuento con diferencia (cabezas
+/// contadas), o la anulación de uno de ellos (evento_registro).
 enum OrigenStock {
   PLANILLA
   MANUAL
   MOVIMIENTO
+  EVENTO
 }
 
 enum TipoImportacion {
@@ -306,6 +311,7 @@ model Campo {
   movimientos    Movimiento[]       @relation("MovimientoCampo")
   trasladosOtro  Movimiento[]       @relation("MovimientoCampoOtro")
   eventos        EventoMovimiento[]
+  registros      EventoRegistro[]
 
   @@map("campo")
 }
@@ -340,6 +346,7 @@ model Potrero {
   movimientosOrigen  Movimiento[]   @relation("MovimientoPotreroOrigen")
   movimientosDestino Movimiento[]   @relation("MovimientoPotreroDestino")
   sesionesBaston     SesionBaston[]
+  registros          EventoRegistro[]
 
   @@unique([campoId, nombre])
   @@map("potrero")
@@ -406,6 +413,7 @@ model Categoria {
   lineasStock    VersionStockLinea[]
   lotes          Lote[]
   sesionesBaston SesionBaston[]
+  registros      EventoRegistro[]
 
   @@map("categoria")
 }
@@ -469,6 +477,8 @@ model VersionStock {
   lineas             VersionStockLinea[]
   movimientosOrigen  Movimiento[]        @relation("MovimientoVersionOrigen")
   movimientosDestino Movimiento[]        @relation("MovimientoVersionDestino")
+  registros          EventoRegistro[]    @relation("EventoRegistroVersion")
+  anulaciones        EventoRegistro[]    @relation("EventoRegistroVersionAnulacion")
 
   @@index([potreroId, fecha])
   @@map("version_stock")
@@ -529,6 +539,7 @@ model Lote {
   movimientosOrigen  Movimiento[]        @relation("MovimientoLoteOrigen")
   movimientosDestino Movimiento[]        @relation("MovimientoLoteDestino")
   nacimientos        Movimiento[]        @relation("MovimientoLoteMadres")
+  registros          EventoRegistro[]
 
   @@unique([campoId, nombre])
   @@index([potreroId])
@@ -583,6 +594,10 @@ model Movimiento {
   cabezas            Int
   /// Peso promedio de los que se mueven (si se cargó).
   pesoPromedioKg     Decimal? @map("peso_promedio_kg") @db.Decimal(7, 2)
+  /// Ventas: el precio real (opcional), en dólares por kilo o por cabeza. El
+  /// valor de la venta se calcula (cabezas × peso × precio, o cabezas × precio).
+  precioVentaUsd     Decimal?   @map("precio_venta_usd") @db.Decimal(12, 2)
+  precioVentaPor     PrecioPor? @map("precio_venta_por")
   categoriaOrigenId  Int?     @map("categoria_origen_id")
   categoriaDestinoId Int?     @map("categoria_destino_id")
   /// SUMAR (a un lote que ya estaba), NUEVO (lote nuevo), ENTERO (el lote
@@ -636,6 +651,61 @@ model Movimiento {
   @@map("movimiento")
 }
 
+/// Un evento que no cambia cuántos animales hay ni dónde están (diseño
+/// docs/superpowers/specs/2026-11-20-eventos-design.md): pesada, recuento,
+/// vacuna, ecografía... Uno por lote: los niveles grandes (la estancia, un
+/// potrero, una categoría) son atajos y quedan anotados en `nivel`. Lo que se
+/// cargó junto (una campaña de vacunación) comparte `grupoId`.
+/// La pesada y el recuento con diferencia además dejan una versión de stock
+/// (`versionId`, origen EVENTO): el peso nuevo o las cabezas contadas.
+/// Nada se borra: se anula (y si cambió el stock, otra versión lo deja como estaba).
+model EventoRegistro {
+  id                  Int             @id @default(autoincrement())
+  tipoId              Int             @map("tipo_movimiento_id")
+  fecha               DateTime        @db.Date
+  campoId             Int             @map("campo_id")
+  potreroId           Int?            @map("potrero_id")
+  loteId              Int?            @map("lote_id")
+  categoriaId         Int?            @map("categoria_id")
+  /// A qué se le aplicó: CAMPO (la estancia entera), POTRERO, CATEGORIA, LOTE
+  /// o PARTE_LOTE (algunas cabezas del lote).
+  nivel               NivelMovimiento @default(LOTE)
+  cabezas             Int
+  /// Los datos propios del tipo (validados con zod según la clave): el peso
+  /// de la pesada, las cabezas contadas, las preñadas y vacías, el producto...
+  datos               Json            @default("{}")
+  nota                String?         @db.VarChar(255)
+  /// Lo que se registró junto, en una sola carga.
+  grupoId             String          @map("grupo_id") @db.VarChar(36)
+  /// Pesada o recuento con diferencia: la versión de stock que dejó.
+  versionId           Int?            @map("version_id")
+  anulado             Boolean         @default(false)
+  anuladoEn           DateTime?       @map("anulado_en") @db.Timestamptz(3)
+  anuladoPorId        Int?            @map("anulado_por_id")
+  /// Si cambió el stock: la versión que lo dejó como estaba al anular.
+  versionAnulacionId  Int?            @map("version_anulacion_id")
+  usuarioId           Int?            @map("usuario_id")
+  creadoEn            DateTime        @default(now()) @map("creado_en") @db.Timestamptz(3)
+
+  tipo             TipoMovimiento @relation(fields: [tipoId], references: [id], onDelete: Restrict)
+  campo            Campo          @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  potrero          Potrero?       @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  lote             Lote?          @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  categoria        Categoria?     @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  version          VersionStock?  @relation("EventoRegistroVersion", fields: [versionId], references: [id], onDelete: Restrict)
+  versionAnulacion VersionStock?  @relation("EventoRegistroVersionAnulacion", fields: [versionAnulacionId], references: [id], onDelete: Restrict)
+  usuario          Usuario?       @relation("EventoRegistroUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
+  anuladoPor       Usuario?       @relation("EventoRegistroAnulador", fields: [anuladoPorId], references: [id], onDelete: Restrict)
+
+  @@index([campoId, fecha])
+  @@index([potreroId, fecha])
+  @@index([loteId])
+  @@index([grupoId])
+  @@index([tipoId])
+  @@index([versionId])
+  @@map("evento_registro")
+}
+
 /// Catálogo de tipos de movimiento y evento: el "libro del rodeo". Sigue los
 /// eventos de CIGAM (TEA4TIPOEVENTO) donde los hay.
 model TipoMovimiento {
@@ -655,6 +725,7 @@ model TipoMovimiento {
 
   causas      CausaTipoMovimiento[]
   movimientos Movimiento[]
+  registros   EventoRegistro[]
 
   @@map("tipo_movimiento")
 }

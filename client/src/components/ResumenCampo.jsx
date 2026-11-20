@@ -7,6 +7,29 @@ import { formatFecha, formatNumero, formatUsd, formatUsdCorto } from './pecuaria
 
 const NOMBRE_GRUPO = { CN: 'CN', VERDEO: 'Verdeos', CORRAL: 'Corral', OTRO: 'Otro' };
 
+// Las columnas de la tabla las manda el servidor (resumen.columnas): en una
+// estancia, CN / Verdeos / Corral / Otro; en un feedlot, las etapas del
+// encierre. Cada una: { clave, nombre, corto?, detalle?, grupo? (sus números
+// llevan a Potreros con ese grupo), soloSiHay?, compu? (solo en la compu),
+// celular? (solo en el celular), suma? (las columnas que junta) }.
+// Si no vienen (un servidor viejo), las de la estancia.
+export const COLUMNAS_ESTANCIA = [
+  { clave: 'CN', nombre: 'CN', detalle: 'campo natural', grupo: true },
+  { clave: 'VERDEO', nombre: 'Verdeos', detalle: 'pasturas sembradas (raigrás, avena, sorgo…)', grupo: true },
+  { clave: 'CORRAL', nombre: 'Corral', soloSiHay: true, grupo: true },
+  { clave: 'OTRO', nombre: 'Otro', soloSiHay: true, grupo: true },
+];
+
+// Las columnas que se muestran: Corral y Otro (en la estancia), solo si tienen animales.
+export const columnasDe = (resumen) => (resumen.columnas ?? COLUMNAS_ESTANCIA).filter((c) => !c.soloSiHay || resumen.totales[c.clave] > 0);
+
+// El número de una fila (o de los totales) en una columna: si junta otras, la suma.
+export const valorColumna = (fila, c) => (c.suma ? c.suma.reduce((s, k) => s + (fila[k] ?? 0), 0) : (fila[c.clave] ?? 0));
+
+// En el celular (375 px) no entran todas: las "solo en la compu" se esconden
+// y las "solo en el celular" (Adaptación + Engorde juntas) aparecen.
+const claseColumna = (c) => (c.compu ? 'hidden md:table-cell' : c.celular ? 'md:hidden' : '');
+
 // Tocar una categoría, un número o un grupo lleva a Potreros con ese filtro.
 const aPotreros = ({ categoriaId, grupo } = {}) => {
   const q = new URLSearchParams();
@@ -75,8 +98,10 @@ function Valor({ usd, cabezas, completo }) {
 export function TablaResumen({ resumen }) {
   if (!resumen.filas.length) return <p className="text-suelo-600">Todavía no hay animales cargados.</p>;
 
-  // CN y Verdeos siempre; Corral y Otro, solo si tienen animales (en el celular no sobra lugar).
-  const columnas = ['CN', 'VERDEO', ...['CORRAL', 'OTRO'].filter((g) => resumen.totales[g] > 0)];
+  // CN y Verdeos siempre; Corral y Otro, solo si tienen animales (en el celular
+  // no sobra lugar). En un feedlot, las etapas del encierre.
+  const columnas = columnasDe(resumen);
+  const feedlot = resumen.tipo === 'FEEDLOT';
   // La columna Valor (entre los grupos y el Total), solo si hay precios cargados.
   const conValor = resumen.valor?.usd > 0;
   const celda = (n, filtro) =>
@@ -87,6 +112,8 @@ export function TablaResumen({ resumen }) {
     ) : (
       <span className="text-suelo-400">—</span>
     );
+  // Las etapas del feedlot no son un filtro de Potreros: el número, sin link.
+  const numero = (n) => (n ? formatNumero(n) : <span className="text-suelo-400">—</span>);
 
   return (
     <div className="space-y-6">
@@ -94,9 +121,20 @@ export function TablaResumen({ resumen }) {
 
       <div className="text-sm text-suelo-600">
         <p>Último dato: {formatFecha(resumen.fecha)}</p>
-        <p className="text-xs text-suelo-500">
-          CN: campo natural · Verdeos: pasturas sembradas (raigrás, avena, sorgo…). Tocá una categoría o un número para ver esos potreros.
-        </p>
+        {feedlot ? (
+          <p className="text-xs text-suelo-500" data-testid="leyenda-etapas">
+            Por días de encierre:{' '}
+            {columnas
+              .filter((c) => !c.celular)
+              .map((c) => `${c.nombre}, ${c.detalle}`)
+              .join(' · ')}
+            . El valor usa el peso estimado de hoy (≈), como la tabla por corral.
+          </p>
+        ) : (
+          <p className="text-xs text-suelo-500">
+            CN: campo natural · Verdeos: pasturas sembradas (raigrás, avena, sorgo…). Tocá una categoría o un número para ver esos potreros.
+          </p>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-suelo-200">
@@ -104,9 +142,16 @@ export function TablaResumen({ resumen }) {
           <thead className="bg-suelo-200/70 text-suelo-600">
             <tr>
               <th className="px-2 py-2 sm:px-3 text-left">Categoría</th>
-              {columnas.map((g) => (
-                <th key={g} className="px-2 py-2 sm:px-3">
-                  {NOMBRE_GRUPO[g]}
+              {columnas.map((c) => (
+                <th key={c.clave} className={`px-2 py-2 sm:px-3 ${claseColumna(c)}`} title={c.detalle}>
+                  {c.corto ? (
+                    <>
+                      <span className="md:hidden">{c.corto}</span>
+                      <span className="hidden md:inline">{c.nombre}</span>
+                    </>
+                  ) : (
+                    c.nombre
+                  )}
                 </th>
               ))}
               {conValor && <th className="px-2 py-2 sm:px-3">Valor USD</th>}
@@ -121,9 +166,9 @@ export function TablaResumen({ resumen }) {
                     {f.categoria}
                   </Link>
                 </td>
-                {columnas.map((g) => (
-                  <td key={g} className="px-2 py-2 sm:px-3">
-                    {celda(f[g], { categoriaId: f.categoriaId, grupo: g })}
+                {columnas.map((c) => (
+                  <td key={c.clave} className={`px-2 py-2 sm:px-3 ${claseColumna(c)}`}>
+                    {c.grupo ? celda(valorColumna(f, c), { categoriaId: f.categoriaId, grupo: c.clave }) : numero(valorColumna(f, c))}
                   </td>
                 ))}
                 {conValor && (
@@ -138,9 +183,9 @@ export function TablaResumen({ resumen }) {
           <tfoot className="border-t-2 border-suelo-300 bg-suelo-50 font-bold">
             <tr>
               <td className="px-2 py-2 sm:px-3 text-left">Total</td>
-              {columnas.map((g) => (
-                <td key={g} className="px-2 py-2 sm:px-3">
-                  {celda(resumen.totales[g], { grupo: g })}
+              {columnas.map((c) => (
+                <td key={c.clave} className={`px-2 py-2 sm:px-3 ${claseColumna(c)}`}>
+                  {c.grupo ? celda(valorColumna(resumen.totales, c), { grupo: c.clave }) : numero(valorColumna(resumen.totales, c))}
                 </td>
               ))}
               {conValor && (
@@ -154,43 +199,45 @@ export function TablaResumen({ resumen }) {
         </table>
       </div>
 
-      <section>
-        <h3 className="mb-2 font-semibold">Carga por grupo</h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {resumen.porGrupo
-            .filter((g) => g.potreros > 0)
-            .map((g) => (
-              <Link key={g.grupo} to={aPotreros({ grupo: g.grupo })} className="block rounded-lg border border-suelo-200 bg-white px-4 py-3 hover:border-campo-400">
-                <div className="flex items-baseline justify-between">
-                  <p className="font-semibold">{NOMBRE_GRUPO[g.grupo]}</p>
-                  <p className="text-xl font-bold">{formatNumero(g.cabezas)} cab</p>
-                </div>
-                <p className="mt-1 text-sm text-suelo-600">
-                  {g.potreros} {g.potreros === 1 ? 'potrero' : 'potreros'} · {formatNumero(g.hectareas)} ha conocidas
-                  {g.valorUsd > 0 && ` · ${formatUsd(g.valorUsd)}`}
-                </p>
-                <p className="mt-1 text-sm">
-                  {g.cabHa == null ? (
-                    <span className="text-suelo-500">Sin hectáreas: no se calcula la carga</span>
-                  ) : (
-                    <>
-                      {formatNumero(g.cabHa, 2)} cab/ha ·{' '}
-                      {g.kilosCompletos ? (
-                        `${g.kilosEstimados ? '≈' : ''}${formatNumero(g.ugHa, 2)} UG/ha`
-                      ) : (
-                        <span className="text-amber-800">UG incompletas (faltan pesos)</span>
-                      )}
-                    </>
-                  )}
-                </p>
-              </Link>
-            ))}
-        </div>
-        <p className="mt-2 text-xs text-suelo-500">
-          La carga se calcula solo con los potreros que tienen hectáreas confirmadas. 1 UG = {formatNumero(resumen.kgPorUg)} kg de peso vivo. ≈: algunos
-          lotes no tienen peso y se usa el peso promedio de su categoría.
-        </p>
-      </section>
+      {resumen.porGrupo?.length > 0 && (
+        <section>
+          <h3 className="mb-2 font-semibold">Carga por grupo</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {resumen.porGrupo
+              .filter((g) => g.potreros > 0)
+              .map((g) => (
+                <Link key={g.grupo} to={aPotreros({ grupo: g.grupo })} className="block rounded-lg border border-suelo-200 bg-white px-4 py-3 hover:border-campo-400">
+                  <div className="flex items-baseline justify-between">
+                    <p className="font-semibold">{NOMBRE_GRUPO[g.grupo]}</p>
+                    <p className="text-xl font-bold">{formatNumero(g.cabezas)} cab</p>
+                  </div>
+                  <p className="mt-1 text-sm text-suelo-600">
+                    {g.potreros} {g.potreros === 1 ? 'potrero' : 'potreros'} · {formatNumero(g.hectareas)} ha conocidas
+                    {g.valorUsd > 0 && ` · ${formatUsd(g.valorUsd)}`}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    {g.cabHa == null ? (
+                      <span className="text-suelo-500">Sin hectáreas: no se calcula la carga</span>
+                    ) : (
+                      <>
+                        {formatNumero(g.cabHa, 2)} cab/ha ·{' '}
+                        {g.kilosCompletos ? (
+                          `${g.kilosEstimados ? '≈' : ''}${formatNumero(g.ugHa, 2)} UG/ha`
+                        ) : (
+                          <span className="text-amber-800">UG incompletas (faltan pesos)</span>
+                        )}
+                      </>
+                    )}
+                  </p>
+                </Link>
+              ))}
+          </div>
+          <p className="mt-2 text-xs text-suelo-500">
+            La carga se calcula solo con los potreros que tienen hectáreas confirmadas. 1 UG = {formatNumero(resumen.kgPorUg)} kg de peso vivo. ≈: algunos
+            lotes no tienen peso y se usa el peso promedio de su categoría.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

@@ -65,6 +65,11 @@ export const ACCION = {
   MOVIMIENTO_MULTIPLE: 'MOVIMIENTO_MULTIPLE',
   // entidad_id = el evento que se deshizo. detalle: { revierteA, tipoOriginal, fechaOriginal, pasos }
   EVENTO_REVERTIDO: 'EVENTO_REVERTIDO',
+  // Eventos (pesada, recuento, vacuna...). entidad = evento_registro, entidad_id = el grupo (la carga).
+  // detalle: { grupoId, tipo, fecha, nivel, referencia?, lotes, cabezas, cambiaStock, lineas: [{ lote, potrero, cabezas, ...datos }], nota? }
+  EVENTO_REGISTRADO: 'EVENTO_REGISTRADO',
+  // detalle: { tipo, fecha, grupoId, registros: [ids], lotes: [{ lote, potrero, cabezas }], cambiaStock }
+  EVENTO_ANULADO: 'EVENTO_ANULADO',
 };
 
 // Para auditar una edición: de las claves indicadas, solo las que cambiaron.

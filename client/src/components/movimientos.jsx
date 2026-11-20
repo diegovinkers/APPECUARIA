@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { formatFecha, formatNumero } from './pecuaria';
+import { formatFecha, formatNumero, textoVenta } from './pecuaria';
 
 const TIPO = {
   SUMAR: ['Entre lotes', 'bg-campo-100 text-campo-700'],
@@ -33,6 +33,7 @@ function Extras({ m }) {
     m.evento && `Parte de un ${NOMBRE_EVENTO[m.evento.tipo] ?? 'evento'} (#${m.evento.id}): se revierte entero, desde Movimientos`,
     m.causa && `Causa: ${m.causa.codigo} · ${m.causa.nombre}`,
     m.guia && `Guía ${m.guia}`,
+    textoVenta(m) && `Venta: ${textoVenta(m)}`,
     deOtroCampo ? entreCampos(m) : m.campoOtro && `${m.modo === 'ENTRADA' ? 'Desde' : 'Hacia'} ${m.campoOtro.sigla} (${m.campoOtro.nombre})`,
     m.loteMadres && `Madres: ${m.loteMadres.nombre}`,
   ].filter(Boolean);
@@ -47,7 +48,9 @@ export function MovimientoItem({ m, onRevertir }) {
       ? [m.tipo.nombre, 'bg-emerald-500/15 text-emerald-800']
       : m.modo === 'SALIDA'
         ? [m.tipo.nombre, 'bg-red-500/15 text-red-700']
-        : (TIPO[m.modo] ?? [m.modo, '']);
+        : m.tipo?.clave === 'DESTETE'
+          ? [m.tipo.nombre, 'bg-sky-500/15 text-sky-800']
+          : (TIPO[m.modo] ?? [m.modo, '']);
   const cambiaCategoria = m.categoriaOrigen !== m.categoriaDestino;
   let texto;
   if (m.modo === 'ENTRADA') {
@@ -115,6 +118,32 @@ export function MovimientoItem({ m, onRevertir }) {
           Revertir
         </button>
       )}
+    </li>
+  );
+}
+
+// Un evento (pesada, vacuna...) en el historial de un lote o de un potrero.
+// Anulado: queda, tachado.
+export function EventoItem({ e, conPotrero = false }) {
+  return (
+    <li className={`rounded-lg border border-sky-200 bg-sky-50/40 px-4 py-3 text-sm ${e.anulado ? 'opacity-60' : ''}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">{formatFecha(e.fecha)}</span>
+        <span className={`rounded bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-800 ${e.anulado ? 'line-through' : ''}`}>{e.tipo.nombre}</span>
+        {e.anulado && <span className="rounded bg-red-500/15 px-2 py-0.5 text-xs text-red-700">anulado</span>}
+        {e.usuario && <span className="text-xs text-suelo-500">{e.usuario}</span>}
+      </div>
+      <p className={`mt-1 ${e.anulado ? 'line-through' : ''}`}>
+        {formatNumero(e.cabezas)} {e.categoria ?? 'cab'}
+        {conPotrero && e.lote && (
+          <>
+            {' '}
+            · lote <LoteLink lote={e.lote} />
+          </>
+        )}
+        {e.texto ? ` · ${e.texto}` : ''}
+      </p>
+      {e.nota && <p className="mt-1 text-suelo-600">Nota: {e.nota}</p>}
     </li>
   );
 }

@@ -1,9 +1,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { getMovimientos, getMovimientosTodas, getTiposMovimiento, revertirEvento, revertirMovimiento } from '../api/pecuaria';
+import {
+  anularEventoRegistro,
+  anularGrupoEventos,
+  getMovimientos,
+  getMovimientosTodas,
+  getTiposMovimiento,
+  revertirEvento,
+  revertirMovimiento,
+} from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice } from './ui';
-import { formatFecha, formatNumero, nombreConSigla } from './pecuaria';
+import { formatFecha, formatNumero, nombreConSigla, textoVenta } from './pecuaria';
 import usePuede from '../hooks/usePuede';
 import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
 import PanelFiltros from './PanelFiltros';
@@ -36,6 +44,13 @@ const NOMBRE_MODO = {
   REVERSION: 'Reversión',
 };
 const NOMBRE_EVENTO = { MULTIPLE: 'Múltiple', ENTRE_CAMPOS: 'Entre campos', REVERSION: 'Reversión' };
+
+// Qué se lista (eventos, 20/11). Por defecto, los movimientos (como antes).
+export const VER = [
+  ['todo', 'Todo'],
+  ['movimientos', 'Movimientos'],
+  ['eventos', 'Eventos'],
+];
 
 // [clave, título, solo en la compu]. En el celular la tabla tiene que entrar
 // sin scroll de costado: las "solo en la compu" se esconden y su dato va como
@@ -78,13 +93,56 @@ const categoriaDe = (m) =>
     ? `${m.categoriaOrigen} → ${m.categoriaDestino}`
     : (m.categoriaOrigen ?? m.categoriaDestino ?? '—');
 
-const tipoDe = (m) => (m.modo === 'ENTRADA' || m.modo === 'SALIDA' ? m.tipo.nombre : (NOMBRE_MODO[m.modo] ?? m.tipo?.nombre ?? m.modo));
+// Las entradas, las salidas y el destete muestran el nombre de su tipo.
+const tipoDe = (m) =>
+  m.modo === 'ENTRADA' || m.modo === 'SALIDA' || m.tipo?.clave === 'DESTETE' ? m.tipo.nombre : (NOMBRE_MODO[m.modo] ?? m.tipo?.nombre ?? m.modo);
+
+// Dónde se anotó un evento: "potrero · lote" (con la sigla si son todas).
+function lugarEvento(e, campoId, corto = false) {
+  if (!e.potrero) return e.campo?.nombre ?? '—';
+  const sigla = campoId == null && e.potrero.campo?.sigla ? `${e.potrero.campo.sigla} ` : '';
+  if (!e.lote || corto) return sigla + e.potrero.nombre;
+  return sigla + (e.lote.nombre.startsWith(`${e.potrero.nombre} · `) ? e.lote.nombre : `${e.potrero.nombre} · ${e.lote.nombre}`);
+}
+
+// Una fila por carga de eventos (lo que se anotó junto: una vacuna a 30 lotes
+// es una fila que se despliega con sus lotes).
+function filaEventos(lista, campoId) {
+  const eventos = [...lista].sort((a, b) => a.id - b.id);
+  const [e] = eventos;
+  const vigentes = eventos.filter((x) => !x.anulado);
+  const n = eventos.length;
+  return {
+    clave: `g${e.grupoId}`,
+    eventos,
+    fecha: e.fecha,
+    creadoEn: e.creadoEn,
+    tipo: `${e.tipo.nombre}${n > 1 ? ` · ${n} lotes` : ''}`,
+    categoria: unicos(eventos.map((x) => x.categoria)).join(', ') || '—',
+    cabezas: eventos.reduce((s, x) => s + x.cabezas, 0),
+    signo: '',
+    peso: e.tipo.clave === 'PESADA' && n === 1 ? (e.datos?.pesoPromedioKg ?? null) : null,
+    origen: unicos(eventos.map((x) => lugarEvento(x, campoId))).join(', ') || '—',
+    destino: '—',
+    origenCorto: unicos(eventos.map((x) => lugarEvento(x, campoId, true))).join(', ') || '—',
+    destinoCorto: '—',
+    usuario: e.usuario ?? '',
+    revertido: vigentes.length === 0,
+    // Se anula la carga entera si ninguno de sus lotes tuvo cambios después.
+    puedeRevertir: vigentes.length > 0 && vigentes.every((x) => x.puedeAnular),
+    nota: e.nota,
+    guia: '',
+    venta: null,
+    detalle: unicos(eventos.map((x) => x.texto)).join(' · '),
+  };
+}
 
 const unicos = (lista) => [...new Set(lista.filter((x) => x && x !== '—'))];
 
 // Una fila de la tabla: un movimiento suelto o un evento (múltiple, entre
 // campos, o su reversión) con sus pasos adentro.
-export function armarFilas(movimientos, campoId) {
+// registros: los eventos (pesada, vacuna...) de la lista, uno por lote.
+export function armarFilas(movimientos, campoId, registros = []) {
   const filas = [];
   const eventos = new Map();
   for (const m of movimientos) {
@@ -100,13 +158,16 @@ export function armarFilas(movimientos, campoId) {
       filas.push({ clave: `m${m.id}`, m });
     }
   }
-  return filas.map((f, i) => {
+  const grupos = new Map();
+  for (const e of registros) grupos.set(e.grupoId, [...(grupos.get(e.grupoId) ?? []), e]);
+  const deEventos = [...grupos.values()].map((lista) => filaEventos(lista, campoId));
+  const deMovimientos = filas.map((f) => {
     if (f.m) {
       const { m } = f;
       return {
         ...f,
-        i,
         fecha: m.fecha,
+        creadoEn: m.creadoEn,
         tipo: tipoDe(m),
         categoria: categoriaDe(m),
         cabezas: m.cabezas,
@@ -121,6 +182,8 @@ export function armarFilas(movimientos, campoId) {
         puedeRevertir: m.puedeRevertir,
         nota: m.nota,
         guia: m.guia ?? '',
+        // Una venta con precio: el valor en dólares ("USD 11.520 · USD 3,2/kg").
+        venta: textoVenta(m),
       };
     }
     const pasos = [...f.pasos].sort((a, b) => a.id - b.id);
@@ -128,8 +191,8 @@ export function armarFilas(movimientos, campoId) {
     return {
       ...f,
       pasos,
-      i,
       fecha: pasos[0].fecha,
+      creadoEn: pasos[0].creadoEn,
       tipo: `${NOMBRE_EVENTO[f.evento.tipo] ?? f.evento.tipo}${multiple ? ` · ${pasos.length} pasos` : ''}`,
       categoria: unicos(pasos.map(categoriaDe)).join(', '),
       cabezas: pasos.reduce((s, m) => s + m.cabezas, 0),
@@ -144,8 +207,17 @@ export function armarFilas(movimientos, campoId) {
       puedeRevertir: Boolean(f.evento.puedeRevertir),
       nota: f.evento.nota,
       guia: unicos(pasos.map((m) => m.guia)).join(', '),
+      venta: null,
     };
   });
+  // Movimientos y eventos juntos, del más nuevo al más viejo (por fecha y por
+  // cuándo se cargó). `i` es ese orden: el de los empates al ordenar.
+  const juntos = deEventos.length
+    ? [...deMovimientos, ...deEventos].sort(
+        (a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? '') || String(b.creadoEn ?? '').localeCompare(String(a.creadoEn ?? '')),
+      )
+    : deMovimientos;
+  return juntos.map((f, i) => ({ ...f, i }));
 }
 
 // Ordena por una columna; a igualdad, como vinieron (del más nuevo al más viejo).
@@ -194,7 +266,9 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
     potreroId: params.get('mpotrero') ?? '',
     categoriaId: params.get('mcategoria') ?? '',
     tipoId: params.get('mtipo') ?? '',
+    ver: params.get('ver') ?? '',
   };
+  const ver = VER.some(([v]) => v === f.ver) ? f.ver : 'movimientos';
   const poner = (cambios) =>
     setParams(
       (actual) => {
@@ -217,8 +291,8 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
     const desde =
       f.periodo === 'rango' ? f.desde : f.periodo === 'hoy' ? iso(new Date()) : f.periodo === 'mes' ? inicioDeMes() : f.periodo ? hace(Number(f.periodo)) : '';
     const hasta = f.periodo === 'rango' ? f.hasta : '';
-    return { desde, hasta, potreroId: f.potreroId, categoriaId: f.categoriaId, tipoId: f.tipoId };
-  }, [f.periodo, f.desde, f.hasta, f.potreroId, f.categoriaId, f.tipoId]);
+    return { desde, hasta, potreroId: f.potreroId, categoriaId: f.categoriaId, tipoId: f.tipoId, ver };
+  }, [f.periodo, f.desde, f.hasta, f.potreroId, f.categoriaId, f.tipoId, ver]);
 
   const cargar = useCallback(
     () =>
@@ -247,7 +321,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
   }, [potreros]);
 
   const lugar = todas ? null : campoId;
-  const filas = useMemo(() => (datos ? ordenarFilas(armarFilas(datos.movimientos, lugar), orden) : []), [datos, lugar, orden]);
+  const filas = useMemo(() => (datos ? ordenarFilas(armarFilas(datos.movimientos, lugar, datos.eventos ?? []), orden) : []), [datos, lugar, orden]);
   // Cambiar un filtro o el orden vuelve a la página 1.
   useEffect(() => setPagina(1), [filtrosApi, orden]);
   const pag = paginar(filas, pagina);
@@ -261,7 +335,26 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
       return nuevo;
     });
 
+  async function onAnular(fila, evento = null) {
+    const texto = evento
+      ? `¿Anular ${evento.tipo.nombre} del lote ${evento.lote?.nombre ?? ''}?`
+      : `¿Anular ${fila.eventos[0].tipo.nombre}${fila.eventos.length > 1 ? ` en sus ${fila.eventos.length} lotes` : ''}?`;
+    const stock = (evento ? [evento] : fila.eventos).some((e) => e.cambiaStock) ? ' El stock vuelve a como estaba.' : '';
+    if (!window.confirm(`${texto}${stock} Queda registrado, tachado.`)) return;
+    try {
+      if (evento) await anularEventoRegistro(evento.id);
+      else await anularGrupoEventos(fila.eventos[0].grupoId);
+      setErrors([]);
+      setAviso('Anulado.');
+      await cargar();
+    } catch (error) {
+      setAviso(null);
+      setErrors(getErrorMessages(error, 'No se pudo anular'));
+    }
+  }
+
   async function onRevertir(fila) {
+    if (fila.eventos) return onAnular(fila);
     const texto = fila.evento
       ? `¿Revertir este ${fila.evento.tipo === 'MULTIPLE' ? 'movimiento múltiple entero' : 'movimiento entre campos'}? Todos sus pasos vuelven a como estaban.`
       : '¿Revertir este movimiento? Los potreros vuelven a como estaban antes.';
@@ -278,15 +371,30 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
     }
   }
 
-  const activos = [f.periodo, f.potreroId, f.categoriaId, f.tipoId].filter(Boolean).length;
+  const activos = [f.periodo, f.potreroId, f.categoriaId, f.tipoId, ver !== 'movimientos'].filter(Boolean).length;
   const hayFiltros = activos > 0;
-  const limpiar = () => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '', mtipo: '' });
+  const limpiar = () => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '', mtipo: '', ver: '' });
+  const conFiltrosDeDatos = Boolean(f.periodo || f.potreroId || f.categoriaId || f.tipoId);
+  const nombreLista = ver === 'eventos' ? 'eventos' : ver === 'todo' ? 'movimientos ni eventos' : 'movimientos';
   const conRevertir = puedo('pecuaria:ANULAR');
   const columnas = conRevertir ? COLUMNAS.length + 1 : COLUMNAS.length;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PanelFiltros activos={activos} onLimpiar={limpiar}>
+        <div className="flex gap-1.5" role="group" aria-label="Qué se ve">
+          {VER.map(([valor, texto]) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => poner({ ver: valor === 'movimientos' ? '' : valor })}
+              aria-pressed={ver === valor}
+              className={`min-h-9 flex-1 rounded-md px-2 py-1 text-sm font-medium ${ver === valor ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
+            >
+              {texto}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Período">
           {PERIODOS.map(([valor, texto]) => (
             <button
@@ -345,9 +453,13 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
 
       {!datos ? (
         <p className="text-suelo-600">Cargando…</p>
-      ) : datos.movimientos.length === 0 ? (
+      ) : filas.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">
-          {hayFiltros ? 'No hay movimientos con esos filtros.' : 'Todavía no hay movimientos. Se registran con el botón +.'}
+          {conFiltrosDeDatos
+            ? `No hay ${nombreLista} con esos filtros.`
+            : ver === 'eventos'
+              ? 'Todavía no hay eventos. Se anotan con el botón Eventos.'
+              : 'Todavía no hay movimientos. Se registran con el botón +.'}
         </p>
       ) : (
         // Se achica para que entre en la pantalla; lo que no entra, scrollea adentro.
@@ -381,6 +493,9 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                       fila.pasos.map((m, n) => (
                         <Paso key={m.id} m={m} n={n + 1} campoId={lugar} conRevertir={conRevertir} />
                       ))}
+                    {fila.eventos?.length > 1 &&
+                      abierto &&
+                      fila.eventos.map((e) => <LoteEvento key={e.id} e={e} campoId={lugar} conRevertir={conRevertir} onAnular={() => onAnular(fila, e)} />)}
                   </Fragment>
                 );
               })}
@@ -389,10 +504,21 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
               <tr>
                 <td colSpan={columnas} className="sticky bottom-0 left-0 z-20 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
                   <span className="sticky left-3">
-                    <strong>Total{hayFiltros ? ' filtrado' : ''}:</strong> {datos.resumen.movimientos} {datos.resumen.movimientos === 1 ? 'movimiento' : 'movimientos'} ·{' '}
-                    <strong>{formatNumero(datos.resumen.cabezas)}</strong> cabezas movidas ·{' '}
-                    <strong className="text-emerald-800">+{formatNumero(datos.resumen.entradas)}</strong> entraron ·{' '}
-                    <strong className="text-red-700">−{formatNumero(datos.resumen.salidas)}</strong> salieron
+                    <strong>Total{hayFiltros ? ' filtrado' : ''}:</strong>{' '}
+                    {ver !== 'eventos' && (
+                      <>
+                        {datos.resumen.movimientos} {datos.resumen.movimientos === 1 ? 'movimiento' : 'movimientos'} ·{' '}
+                        <strong>{formatNumero(datos.resumen.cabezas)}</strong> cabezas movidas ·{' '}
+                        <strong className="text-emerald-800">+{formatNumero(datos.resumen.entradas)}</strong> entraron ·{' '}
+                        <strong className="text-red-700">−{formatNumero(datos.resumen.salidas)}</strong> salieron
+                      </>
+                    )}
+                    {ver !== 'movimientos' && (
+                      <>
+                        {ver === 'todo' ? ' · ' : ''}
+                        <strong>{formatNumero(datos.resumen.eventos ?? 0)}</strong> {datos.resumen.eventos === 1 ? 'evento' : 'eventos'} (uno por lote)
+                      </>
+                    )}
                   </span>
                 </td>
               </tr>
@@ -412,7 +538,7 @@ function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
   return (
     <tr className={`${fondo} ${fila.revertido ? 'text-suelo-400' : ''}`}>
       <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap font-medium`}>
-        {fila.pasos ? (
+        {fila.pasos || fila.eventos?.length > 1 ? (
           <button type="button" onClick={onAlternar} aria-expanded={abierto} aria-label={abierto ? 'Cerrar los pasos' : 'Ver los pasos'} className="mr-1 text-campo-600">
             {abierto ? '▾' : '▸'}
           </button>
@@ -421,15 +547,28 @@ function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
         <span className="hidden md:inline">{formatFecha(fila.fecha)}</span>
       </td>
       <td className={celda}>
-        {fila.tipo}
-        {fila.revertido && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">revertido</span>}
+        {fila.eventos && <span className="mr-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
+        <span className={fila.eventos && fila.revertido ? 'line-through' : ''}>{fila.tipo}</span>
+        {fila.revertido && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">{fila.eventos ? 'anulado' : 'revertido'}</span>}
+        {fila.detalle && <span className="block text-xs text-suelo-600">{fila.detalle}</span>}
         {/* En el celular: categoría, de dónde a dónde, peso y quién, debajo del tipo. */}
         <span className="block text-xs text-suelo-600 md:hidden">
           {fila.categoria}
-          {fila.origenCorto !== '—' || fila.destinoCorto !== '—' ? ` · ${fila.origenCorto} → ${fila.destinoCorto}` : ''}
+          {fila.eventos
+            ? ` · ${fila.origenCorto}`
+            : fila.origenCorto !== '—' || fila.destinoCorto !== '—'
+              ? ` · ${fila.origenCorto} → ${fila.destinoCorto}`
+              : ''}
           {fila.peso ? ` · ${formatNumero(fila.peso)} kg` : ''}
           {fila.usuario ? ` · ${fila.usuario}` : ''}
+          {fila.venta ? ` · ${fila.venta}` : ''}
         </span>
+        {/* En la compu, el valor de la venta va como detalle debajo del tipo. */}
+        {fila.venta && (
+          <span className="hidden text-xs text-suelo-600 md:block" data-testid="venta">
+            Venta: {fila.venta}
+          </span>
+        )}
         {fila.guia && <span className="block text-xs text-suelo-500">Guía {fila.guia}</span>}
         {fila.nota && <span className="block text-xs text-suelo-500">{fila.nota}</span>}
       </td>
@@ -446,7 +585,7 @@ function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
         <td className={`${celda} whitespace-nowrap`}>
           {fila.puedeRevertir && (
             <button type="button" onClick={onRevertir} className="text-xs text-red-700 hover:underline">
-              Revertir
+              {fila.eventos ? 'Anular' : 'Revertir'}
             </button>
           )}
         </td>
@@ -486,6 +625,38 @@ function Paso({ m, n, campoId, conRevertir }) {
       <td className={`${celda} ${SOLO_COMPU}`}>{lado(m, 'destino', campoId)}</td>
       <td className={`${celda} ${SOLO_COMPU}`} />
       {conRevertir && <td className={celda} />}
+    </tr>
+  );
+}
+
+// Un lote de una carga de eventos (al desplegarla).
+function LoteEvento({ e, campoId, conRevertir, onAnular }) {
+  return (
+    <tr className={`text-suelo-700 [&>td]:bg-sky-50 ${e.anulado ? 'text-suelo-400' : ''}`}>
+      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap pl-7 text-xs text-suelo-500`}>Lote</td>
+      <td className={celda}>
+        <span className={e.anulado ? 'line-through' : ''}>{e.lote?.nombre ?? e.potrero?.nombre ?? '—'}</span>
+        {e.anulado && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">anulado</span>}
+        <span className="block text-xs text-suelo-600">
+          {e.texto || e.categoria}
+          <span className="md:hidden"> · {lugarEvento(e, campoId, true)}</span>
+        </span>
+      </td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{e.categoria}</td>
+      <td className={`${celda} text-right tabular-nums`}>{formatNumero(e.cabezas)}</td>
+      <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{e.tipo.clave === 'PESADA' && e.datos?.pesoPromedioKg ? `${formatNumero(e.datos.pesoPromedioKg)} kg` : '—'}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>{lugarEvento(e, campoId)}</td>
+      <td className={`${celda} ${SOLO_COMPU}`}>—</td>
+      <td className={`${celda} ${SOLO_COMPU}`} />
+      {conRevertir && (
+        <td className={`${celda} whitespace-nowrap`}>
+          {e.puedeAnular && (
+            <button type="button" onClick={onAnular} className="text-xs text-red-700 hover:underline">
+              Anular
+            </button>
+          )}
+        </td>
+      )}
     </tr>
   );
 }

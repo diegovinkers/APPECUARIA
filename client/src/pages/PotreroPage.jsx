@@ -15,11 +15,12 @@ import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { Dato, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
 import usePuede from '../hooks/usePuede';
+import { EventoItem } from '../components/movimientos';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 // Acepta "250" o "250,5" (como se escribe acá).
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
-const ORIGEN = { PLANILLA: 'Planilla', MANUAL: 'A mano', MOVIMIENTO: 'Movimiento' };
+const ORIGEN = { PLANILLA: 'Planilla', MANUAL: 'A mano', MOVIMIENTO: 'Movimiento', EVENTO: 'Evento' };
 const botonSecundario =
   'rounded-md border border-suelo-300 px-3 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500 hover:text-suelo-900';
 
@@ -563,10 +564,21 @@ function Historial({ historial }) {
               {v.importacion && ` · ${v.importacion.archivo} (${v.importacion.hoja})`}
             </p>
             {v.movimiento && <p className="mt-1 text-campo-700">{v.movimiento}</p>}
+            {v.evento && <p className="mt-1 text-sky-800">{v.evento}</p>}
             {v.nota && <p className="text-suelo-600">Nota: {v.nota}</p>}
           </li>
         ))}
       </ul>
+      {historial.eventos?.length > 0 && (
+        <>
+          <h3 className="mb-2 mt-5 text-sm font-semibold text-suelo-700">Eventos (pesadas, vacunas…)</h3>
+          <ul className="space-y-2" data-testid="eventos-potrero">
+            {historial.eventos.map((e) => (
+              <EventoItem key={e.id} e={e} conPotrero />
+            ))}
+          </ul>
+        </>
+      )}
       {historial.usos.length > 0 && (
         <>
           <h3 className="mb-2 mt-5 text-sm font-semibold text-suelo-700">Usos de suelo</h3>

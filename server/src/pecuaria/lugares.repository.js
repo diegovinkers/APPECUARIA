@@ -143,7 +143,7 @@ async function listarPotreros(where) {
               cabezas: true,
               pesoPromedioKg: true,
               lote: { select: { nombre: true } },
-              categoria: { select: { id: true, nombre: true, orden: true } },
+              categoria: { select: { id: true, nombre: true, orden: true, sexo: true } },
             },
           },
         },
@@ -162,6 +162,8 @@ async function listarPotreros(where) {
         lote: l.lote.nombre,
         categoriaId: l.categoria.id,
         categoria: l.categoria.nombre,
+        // Para los eventos solo de hembras o de machos (ecografía, castración).
+        sexo: l.categoria.sexo,
         cabezas: l.cabezas,
         pesoPromedioKg: l.pesoPromedioKg == null ? null : Number(l.pesoPromedioKg),
         orden: l.categoria.orden,

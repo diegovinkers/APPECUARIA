@@ -37,6 +37,8 @@ export const getFeedlots = () => api.get('/pecuaria/feedlots');
 
 export const getParametros = () => api.get('/pecuaria/parametros');
 export const setParametro = (clave, valor) => api.put(`/pecuaria/parametros/${clave}`, { valor });
+// Varios juntos ({ CLAVE: valor }): se controlan juntos (las etapas del feedlot).
+export const setParametros = (valores) => api.put('/pecuaria/parametros', { valores });
 export const crearUso = (datos) => api.post('/pecuaria/usos-suelo', datos);
 export const editarUso = (id, datos) => api.patch(`/pecuaria/usos-suelo/${id}`, datos);
 export const crearCategoria = (datos) => api.post('/pecuaria/categorias', datos);
@@ -71,3 +73,11 @@ export const registrarEntreCampos = (datos) => api.post('/pecuaria/movimientos/e
 export const vistaPreviaMultiple = (datos) => api.post('/pecuaria/movimientos/multiple/vista-previa', datos);
 export const registrarMultiple = (datos) => api.post('/pecuaria/movimientos/multiple', datos);
 export const revertirEvento = (id) => api.post(`/pecuaria/eventos/${id}/revertir`);
+
+// Eventos (pesada, recuento, vacuna...): no mueven animales. Se anotan lote por
+// lote (con atajos: la estancia, un potrero, una categoría). En la lista de
+// movimientos van con ?ver=eventos o ?ver=todo.
+export const vistaPreviaEventoRegistro = (datos) => api.post('/pecuaria/eventos-registro/vista-previa', datos);
+export const registrarEventoRegistro = (datos) => api.post('/pecuaria/eventos-registro', datos);
+export const anularEventoRegistro = (id) => api.post(`/pecuaria/eventos-registro/${id}/anular`);
+export const anularGrupoEventos = (grupoId) => api.post(`/pecuaria/eventos-registro/grupo/${grupoId}/anular`);

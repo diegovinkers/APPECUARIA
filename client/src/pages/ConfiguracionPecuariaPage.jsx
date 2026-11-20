@@ -11,6 +11,7 @@ import {
   getTiposMovimiento,
   getUsosSuelo,
   setParametro,
+  setParametros,
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, inputClass } from '../components/ui';
@@ -31,6 +32,15 @@ const boton = 'rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white 
 const selectClass = 'rounded-md border border-suelo-300 bg-white px-2 py-1.5 text-sm text-suelo-900';
 // "1,5" o "1.5" → 1.5 (vacío: null).
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).trim().replace(',', '.')));
+// Las etapas del encierre tienen que ir en orden: adaptación < engorde < ciclo.
+// Devuelve el problema (para mostrarlo antes de guardar), o null.
+export function problemaEtapas(adaptacion, engorde, ciclo) {
+  if ([adaptacion, engorde, ciclo].some((n) => !(n > 0))) return 'Completá los días de cada etapa';
+  if (!(adaptacion < engorde)) return 'La adaptación tiene que ser más corta que el engorde';
+  if (!(engorde < ciclo)) return 'El engorde tiene que terminar antes que el ciclo';
+  return null;
+}
+
 // "Ternero, Terneros" → ["Ternero", "Terneros"]
 const separarAlias = (texto) =>
   texto
@@ -45,6 +55,8 @@ export default function ConfiguracionPecuariaPage() {
   const [kgPorUg, setKgPorUg] = useState('');
   const [gmd, setGmd] = useState('');
   const [ciclo, setCiclo] = useState('');
+  const [adaptacion, setAdaptacion] = useState('');
+  const [engorde, setEngorde] = useState('');
   const [usos, setUsos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -58,6 +70,8 @@ export default function ConfiguracionPecuariaPage() {
     setKgPorUg(valor('KG_POR_UG'));
     setGmd(valor('GMD_FEEDLOT_KG'));
     setCiclo(valor('CICLO_FEEDLOT_DIAS'));
+    setAdaptacion(valor('FEEDLOT_ADAPTACION_DIAS'));
+    setEngorde(valor('FEEDLOT_ENGORDE_DIAS'));
     setUsos(u.data);
     setCategorias(c.data);
     setTipos(t.data);
@@ -67,6 +81,8 @@ export default function ConfiguracionPecuariaPage() {
   useEffect(() => {
     cargar().catch((error) => setErrors(getErrorMessages(error, 'No se pudo cargar la configuración')));
   }, [cargar]);
+
+  const etapasMal = problemaEtapas(aNumero(adaptacion), aNumero(engorde), aNumero(ciclo));
 
   async function guardar(accion, mensaje) {
     try {
@@ -119,17 +135,24 @@ export default function ConfiguracionPecuariaPage() {
       <section className="mb-8 rounded-lg border border-suelo-200 p-4" aria-label="Feedlot">
         <h2 className="mb-1 text-lg font-semibold">Feedlot</h2>
         <p className="mb-3 text-sm text-suelo-600">
-          Para el Resumen del feedlot: el peso estimado de hoy (peso de entrada + días × ganancia diaria) y la salida probable (entrada + días del
-          ciclo). Los valores de arranque son los de CIGAM.
+          Para el Resumen del feedlot: el peso estimado de hoy (peso de entrada + días × ganancia diaria), la salida probable (entrada + días del
+          ciclo) y las etapas del encierre (adaptación, engorde, terminación y, pasado el ciclo, para salir). La ganancia y el ciclo son los de
+          CIGAM; las etapas, valores de arranque para ajustar.
         </p>
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            guardar(async () => {
-              await setParametro('GMD_FEEDLOT_KG', aNumero(gmd));
-              await setParametro('CICLO_FEEDLOT_DIAS', aNumero(ciclo));
-            }, `Listo: ${gmd} kg por día y ${ciclo} días de ciclo.`);
+            guardar(
+              () =>
+                setParametros({
+                  GMD_FEEDLOT_KG: aNumero(gmd),
+                  CICLO_FEEDLOT_DIAS: aNumero(ciclo),
+                  FEEDLOT_ADAPTACION_DIAS: aNumero(adaptacion),
+                  FEEDLOT_ENGORDE_DIAS: aNumero(engorde),
+                }),
+              `Listo: ${gmd} kg por día; adaptación hasta ${adaptacion} días, engorde hasta ${engorde} y ciclo de ${ciclo}.`,
+            );
           }}
         >
           <label className="flex items-center gap-2 text-sm">
@@ -142,10 +165,33 @@ export default function ConfiguracionPecuariaPage() {
             <input inputMode="numeric" value={ciclo} onChange={(e) => setCiclo(e.target.value)} aria-label="Días del ciclo" className={`${inputClass.replace('w-full', '')} w-20`} />
             días
           </label>
-          <button type="submit" className={boton} disabled={!(aNumero(gmd) > 0 && aNumero(ciclo) > 0)}>
+          <label className="flex items-center gap-2 text-sm">
+            Adaptación hasta
+            <input
+              inputMode="numeric"
+              value={adaptacion}
+              onChange={(e) => setAdaptacion(e.target.value)}
+              aria-label="Días de adaptación"
+              className={`${inputClass.replace('w-full', '')} w-20`}
+            />
+            días
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            Engorde hasta
+            <input
+              inputMode="numeric"
+              value={engorde}
+              onChange={(e) => setEngorde(e.target.value)}
+              aria-label="Días hasta el final del engorde"
+              className={`${inputClass.replace('w-full', '')} w-20`}
+            />
+            días
+          </label>
+          <button type="submit" className={boton} disabled={!(aNumero(gmd) > 0) || Boolean(etapasMal)}>
             Guardar
           </button>
         </form>
+        {etapasMal && <p className="mt-2 text-sm text-amber-800">{etapasMal}</p>}
       </section>
 
       <section className="mb-8">

@@ -12,7 +12,8 @@ import {
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, buttonClass, inputClass } from '../components/ui';
-import { formatNumero } from '../components/pecuaria';
+import { formatNumero, formatUsd } from '../components/pecuaria';
+import CamposPrecioVenta, { cuerpoVenta } from '../components/PrecioVenta';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto ?? '').trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -28,6 +29,8 @@ const lineaVacia = (categoriaId = '') => ({ categoriaId: String(categoriaId), ca
 // Registrar una entrada (nacimiento, compra, traslado desde otro campo) o una
 // salida (muerte, consumo, venta, traslado a otro campo, pérdida). Qué datos
 // pide lo dice el tipo elegido (Configuración → Tipos de movimiento).
+// Una venta puede llevar el peso de salida y el precio real (USD por kilo o
+// por cabeza): con eso se calcula el valor de la venta.
 export default function RegistrarPage() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -48,6 +51,8 @@ export default function RegistrarPage() {
   const [loteId, setLoteId] = useState(loteParam);
   const [cabezas, setCabezas] = useState('');
   const [peso, setPeso] = useState('');
+  const [precioVenta, setPrecioVenta] = useState('');
+  const [precioPor, setPrecioPor] = useState('KG');
   const [lineas, setLineas] = useState([lineaVacia()]);
   const [madresId, setMadresId] = useState('');
   const [causaId, setCausaId] = useState('');
@@ -91,6 +96,7 @@ export default function RegistrarPage() {
   const tipo = delEfecto.find((t) => String(t.id) === tipoId) ?? null;
   const esNacimiento = tipo?.clave === 'NACIMIENTO';
   const esTraslado = tipo?.clave?.startsWith('TRASLADO');
+  const esVenta = tipo?.clave === 'VENTA';
   const causasDelTipo = tipo ? causas.filter((c) => c.tipos.some((t) => t.id === tipo.id)) : [];
   const sexoDe = useMemo(() => new Map(categorias.map((c) => [c.id, c.sexo])), [categorias]);
   const lotes = potrero?.stock?.lineas ?? [];
@@ -102,10 +108,21 @@ export default function RegistrarPage() {
     setCausaId('');
   }, [efecto]);
 
+  // Desde el "+" (Nacimiento, Venta...): el tipo ya viene elegido (?tipo=CLAVE).
+  const tipoParam = params.get('tipo');
+  useEffect(() => {
+    if (!tipoParam || tipoId || !categorias.length) return;
+    const t = delEfecto.find((x) => x.clave === tipoParam);
+    if (t) elegirTipo(t);
+    // Una vez, cuando llegan los catálogos.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoParam, delEfecto, categorias]);
+
   // Al elegir el tipo: las líneas que tienen sentido (un nacimiento: terneros y terneras).
   function elegirTipo(t) {
     setTipoId(String(t.id));
     setCausaId('');
+    setPrecioVenta('');
     if (!sale) {
       if (t.clave === 'NACIMIENTO') {
         const machos = categorias.find((c) => c.nombre === 'Terneros') ?? categorias.find((c) => c.sexo === 'MACHO');
@@ -131,7 +148,7 @@ export default function RegistrarPage() {
     };
     if (sale) {
       if (!lote || entero(cabezas) < 1) return null;
-      return { ...comun, loteId: lote.loteId, cabezas: entero(cabezas), pesoPromedioKg: aNumero(peso) };
+      return { ...comun, loteId: lote.loteId, cabezas: entero(cabezas), pesoPromedioKg: aNumero(peso), ...(esVenta && cuerpoVenta(precioVenta, precioPor)) };
     }
     // Las líneas en 0 no se mandan (por ejemplo, un parto sin terneras).
     const conAnimales = lineas.filter((l) => entero(l.cabezas) > 0 && l.categoriaId);
@@ -146,7 +163,7 @@ export default function RegistrarPage() {
         ...(l.destino === 'nuevo' ? { nuevoLote: { nombre: l.nombre, categoriaId: Number(l.categoriaId) } } : { loteId: Number(l.destino) }),
       })),
     };
-  }, [tipo, potrero, fecha, nota, causaId, guia, campoOtroId, sale, lote, cabezas, peso, lineas, esNacimiento, madresId]);
+  }, [tipo, potrero, fecha, nota, causaId, guia, campoOtroId, sale, lote, cabezas, peso, esVenta, precioVenta, precioPor, lineas, esNacimiento, madresId]);
 
   // Vista previa: se pide de nuevo cada vez que cambia el formulario.
   useEffect(() => {
@@ -291,7 +308,7 @@ export default function RegistrarPage() {
                     </div>
                   </label>
                   <label className={etiqueta}>
-                    Peso promedio (opcional)
+                    {esVenta ? 'Peso de salida (opcional)' : 'Peso promedio (opcional)'}
                     <input
                       inputMode="decimal"
                       value={peso}
@@ -304,6 +321,16 @@ export default function RegistrarPage() {
                 </div>
               )}
               {lote && entero(cabezas) > lote.cabezas && <p className="text-sm text-red-700">El lote tiene {formatNumero(lote.cabezas)} cabezas.</p>}
+              {lote && esVenta && (
+                <CamposPrecioVenta
+                  precio={precioVenta}
+                  por={precioPor}
+                  peso={peso}
+                  valor={previa?.valorVentaUsd ?? null}
+                  onPrecio={setPrecioVenta}
+                  onPor={setPrecioPor}
+                />
+              )}
             </>
           ) : (
             <>
@@ -487,6 +514,11 @@ function ComoQueda({ previa: p }) {
       <p>
         UG/ha: <strong>{p.despues.ugHa == null ? '—' : cambio(p.antes.ugHa, p.despues.ugHa, 2)}</strong>
       </p>
+      {p.valorVentaUsd != null && (
+        <p>
+          Valor de la venta: <strong>{formatUsd(p.valorVentaUsd)}</strong>
+        </p>
+      )}
       <ul className="mt-2 text-suelo-600">
         {p.lineas.map((x) => (
           <li key={x.loteId ?? x.lote}>

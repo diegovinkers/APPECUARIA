@@ -209,11 +209,19 @@ export const editarCausaSchema = z.object({
 
 // --- Parámetros ---
 
-export const parametroSchema = z.object({
-  valor: z
-    .number({ error: 'El valor tiene que ser un número mayor que cero' })
-    .positive('El valor tiene que ser un número mayor que cero')
-    .max(99_999_999, 'El valor es demasiado grande'),
+const valorParametro = z
+  .number({ error: 'El valor tiene que ser un número mayor que cero' })
+  .positive('El valor tiene que ser un número mayor que cero')
+  .max(99_999_999, 'El valor es demasiado grande');
+
+export const parametroSchema = z.object({ valor: valorParametro });
+
+// Varios a la vez: { valores: { CLAVE: valor } }.
+export const parametrosSchema = z.object({
+  valores: z
+    .record(z.string().regex(/^[A-Z0-9_]{2,50}$/, 'La clave del parámetro no es válida'), valorParametro, { error: 'Mandá los valores como { CLAVE: valor }' })
+    .refine((v) => Object.keys(v).length > 0, 'No hay valores para guardar')
+    .refine((v) => Object.keys(v).length <= 10, 'Demasiados valores juntos'),
 });
 
 // --- Campos ---
@@ -365,6 +373,10 @@ export const movimientoSchema = z.object({
   // NUEVO: la parte sigue siendo del mismo lote (familia de lotes): misma
   // categoría y nombre automático; nuevoLote no hace falta.
   mismoLote: z.boolean({ error: 'mismoLote tiene que ser true o false' }).optional(),
+  // Destete (eventos, paso 5): el lote de terneros (o una parte) se va del
+  // potrero de las madres; queda anotado el lote de las madres.
+  destete: z.boolean({ error: 'destete tiene que ser true o false' }).optional(),
+  loteMadresId: idPositivo('El lote de las madres no es válido').optional(),
   nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
 });
 
@@ -410,6 +422,13 @@ export const entradaSalidaSchema = z.object({
   loteId: idPositivo('El lote no es válido').optional(),
   cabezas: cabezasEntradaSalida.optional(),
   pesoPromedioKg: pesoOpcional,
+  // Ventas: el precio real (opcional), en dólares por kilo o por cabeza.
+  precioVentaUsd: z
+    .number({ error: 'El precio de venta tiene que ser un número de dólares' })
+    .positive('El precio de venta tiene que ser mayor que cero')
+    .max(10_000_000, 'El precio de venta es demasiado alto')
+    .nullish(),
+  precioVentaPor: z.enum(['KG', 'CABEZA'], { error: 'El precio de venta es por KG o por CABEZA' }).nullish(),
   // Entradas
   potreroId: idPositivo('El potrero no es válido').optional(),
   loteMadresId: idPositivo('El lote de las madres no es válido').optional(),
@@ -433,6 +452,31 @@ export const entradaSalidaSchema = z.object({
     .optional(),
 });
 
+// --- Eventos (pesada, recuento, vacunas...: docs/superpowers/specs/2026-11-20-eventos-design.md) ---
+// A quién: la estancia (CAMPO + campoId), potreros enteros (POTRERO +
+// potreroIds), una categoría (CATEGORIA + campoId + categoriaId) o lotes
+// (LOTE + lineas). Lo propio del tipo (el peso, las cabezas contadas, el
+// producto...) lo valida el servicio según la clave (eventos.datos.js).
+export const eventoSchema = z.object({
+  tipoId: idPositivo('Elegí qué le hiciste (el tipo de evento)'),
+  fecha: fechaDato.optional(),
+  nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+  nivel: z.enum(['CAMPO', 'POTRERO', 'CATEGORIA', 'LOTE'], { error: 'El nivel tiene que ser CAMPO, POTRERO, CATEGORIA o LOTE' }).default('LOTE'),
+  campoId: idPositivo('La estancia no es válida').optional(),
+  categoriaId: idPositivo('La categoría no es válida').optional(),
+  potreroIds: z
+    .array(idPositivo('El potrero no es válido'), { error: 'Los potreros tienen que ser una lista' })
+    .max(200, 'Demasiados potreros juntos')
+    .optional(),
+  // Lo común a toda la carga (el producto de la vacuna, la ración).
+  datos: z.looseObject({}, { error: 'Los datos tienen que ser un objeto' }).optional(),
+  // Lo de cada lote: { loteId, cabezas?, pesoPromedioKg?, pesadas?, contadas?, motivo?, prenadas?, vacias? }.
+  lineas: z
+    .array(z.looseObject({ loteId: idPositivo('El lote no es válido') }), { error: 'Las líneas tienen que ser una lista' })
+    .max(500, 'Demasiados lotes juntos: anotalo por partes')
+    .optional(),
+});
+
 // Filtros de la lista de movimientos (vienen en la URL, como texto).
 const idEnUrl = z.preprocess((v) => (v === undefined || v === '' ? undefined : Number(v)), z.int().positive().optional());
 const fechaEnUrl = z
@@ -448,6 +492,12 @@ export const filtrosMovimientosSchema = z.object({
   loteId: idEnUrl,
   categoriaId: idEnUrl,
   tipoId: idEnUrl,
+  // Qué se lista (eventos, 20/11): todo, los movimientos (como antes) o los eventos.
+  ver: z
+    .enum(['todo', 'movimientos', 'eventos'], { error: 'ver tiene que ser todo, movimientos o eventos' })
+    .optional()
+    .or(z.literal('').transform(() => undefined))
+    .transform((v) => v ?? 'movimientos'),
 });
 
 // "Todas las estancias" o "Todos los feedlots" (?grupo=): sin el parámetro,

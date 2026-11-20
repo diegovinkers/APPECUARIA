@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { getFeedlot, getFeedlots, getResumenTodas } from '../../api/pecuaria';
+import { getFeedlot, getFeedlots, getResumen, getResumenTodas } from '../../api/pecuaria';
 import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
@@ -14,7 +14,9 @@ import { Encabezado, SinEstancia } from './comun';
 // categoría (CN / Verdeos / Corral / Otro). Con "Todas las estancias", las
 // suma y muestra una fila por estancia (tocarla la elige).
 // Con un feedlot o "Todos los feedlots", la vista del feedlot: una tabla por
-// corral (FeedlotAnalisis), que no se mezcla con las estancias.
+// corral (FeedlotAnalisis) y, abajo, las categorías por etapa del encierre
+// (TablaResumen con las columnas que manda el servidor). No se mezcla con las
+// estancias.
 export default function ResumenPage() {
   const location = useLocation();
   const { campoId, todas, esFeedlot } = useEstancia();
@@ -72,14 +74,20 @@ function ResumenUna({ campoId }) {
 export function ResumenFeedlot({ campoId, todas }) {
   const { setCampoId } = useEstancia();
   const [analisis, setAnalisis] = useState(null);
+  const [resumen, setResumen] = useState(null);
   const [errors, setErrors] = useState([]);
 
   useEffect(() => {
     setAnalisis(null);
+    setResumen(null);
     setErrors([]);
     let vigente = true;
-    (todas ? getFeedlots() : getFeedlot(campoId))
-      .then(({ data }) => vigente && setAnalisis(data))
+    Promise.all([todas ? getFeedlots() : getFeedlot(campoId), todas ? getResumenTodas('feedlots') : getResumen(campoId)])
+      .then(([a, r]) => {
+        if (!vigente) return;
+        setAnalisis(a.data);
+        setResumen(r.data);
+      })
       .catch((error) => vigente && setErrors(getErrorMessages(error, 'No se pudo cargar el feedlot')));
     return () => {
       vigente = false;
@@ -94,6 +102,12 @@ export function ResumenFeedlot({ campoId, todas }) {
       <ErrorList errors={errors} />
       {!analisis && !errors.length && <p className="text-suelo-600">Cargando…</p>}
       {analisis && <FeedlotAnalisis analisis={analisis} todas={todas} onElegir={setCampoId} />}
+      {resumen && resumen.filas.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-2 font-semibold">Por categoría y etapa</h2>
+          <TablaResumen resumen={resumen} />
+        </section>
+      )}
     </>
   );
 }

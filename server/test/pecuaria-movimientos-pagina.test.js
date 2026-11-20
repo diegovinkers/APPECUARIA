@@ -74,7 +74,7 @@ describe('lista de movimientos del campo', () => {
     const { agent, campo, m1, m2, m3 } = await tresMovimientos();
     const { movimientos, resumen } = await lista(agent, campo);
     expect(movimientos.map((m) => m.id)).toEqual([m3.id, m2.id, m1.id]);
-    expect(resumen).toEqual({ movimientos: 3, cabezas: 220, entradas: 0, salidas: 0 });
+    expect(resumen).toEqual({ movimientos: 3, cabezas: 220, entradas: 0, salidas: 0, eventos: 0 });
     expect(movimientos[2]).toMatchObject({
       modo: 'SUMAR',
       cabezas: 50,

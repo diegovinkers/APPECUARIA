@@ -53,7 +53,7 @@ describe('detalle del potrero', () => {
     expect(lista.find((p) => p.nombre === '10.3').stock).toMatchObject({ fecha: '2026-11-13', cabezas: 350, cabHa: 2.42, ugHa: 1.59 });
     // Los lotes de cada potrero, para mostrarlos y filtrar por categoría.
     expect(lista.find((p) => p.nombre === '10.3').stock.lotes).toEqual([
-      { loteId: expect.any(Number), lote: 'Lote A', categoriaId: expect.any(Number), categoria: 'Terneros', cabezas: 350, pesoPromedioKg: 250 },
+      { loteId: expect.any(Number), lote: 'Lote A', categoriaId: expect.any(Number), categoria: 'Terneros', sexo: 'MACHO', cabezas: 350, pesoPromedioKg: 250 },
     ]);
   });
 

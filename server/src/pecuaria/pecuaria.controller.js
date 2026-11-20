@@ -11,6 +11,7 @@ import { ACCION, cambios, registrar } from '../audit/audit.js';
 import { badRequest, notFound, parseId } from '../errors.js';
 import { filtrosMovimientosSchema, grupoSchema } from './pecuaria.schema.js';
 import * as feedlot from './feedlot.service.js';
+import * as eventos from './eventos.service.js';
 
 // Las claves que vinieron en el body: son las que se comparan para auditar.
 const clavesEnviadas = (body) => Object.keys(body).filter((k) => body[k] !== undefined);
@@ -79,12 +80,15 @@ export const camposController = abm({
   noEncontrado: 'Campo no encontrado',
 });
 
-// ?grupo=estancias|feedlots → el filtro de campos del usuario para ese grupo.
-function filtroDelGrupo(req) {
+// ?grupo=estancias|feedlots → el grupo (por defecto, estancias).
+function grupoDe(req) {
   const r = grupoSchema.safeParse(req.query);
   if (!r.success) throw badRequest(r.error.issues[0].message);
-  return filtroGrupo(req.user, r.data.grupo);
+  return r.data.grupo;
 }
+
+// El filtro de campos del usuario para ese grupo.
+const filtroDelGrupo = (req) => filtroGrupo(req.user, grupoDe(req));
 
 // Cada uno ve solo sus estancias (alcance.js).
 camposController.list = async (req, res) => res.json(await lugares.listCampos(filtroCampos(req.user)));
@@ -95,9 +99,24 @@ export async function getParametros(req, res) {
   res.json(await listParametros());
 }
 
-export async function putParametro(req, res) {
-  const resultado = await setParametro(req.params.clave, req.body.valor);
-  if (!resultado) throw notFound('Parámetro no encontrado');
+// Las etapas del feedlot tienen que quedar en orden: adaptación < engorde <
+// ciclo. valores: { CLAVE: valor } con lo que se va a guardar.
+async function controlarEtapas(valores) {
+  const claves = ['FEEDLOT_ADAPTACION_DIAS', 'FEEDLOT_ENGORDE_DIAS', 'CICLO_FEEDLOT_DIAS'];
+  if (!claves.some((c) => c in valores)) return;
+  const actuales = await feedlot.parametrosFeedlot();
+  const dias = {
+    adaptacionDias: valores.FEEDLOT_ADAPTACION_DIAS ?? actuales.adaptacionDias,
+    engordeDias: valores.FEEDLOT_ENGORDE_DIAS ?? actuales.engordeDias,
+    cicloDias: valores.CICLO_FEEDLOT_DIAS ?? actuales.cicloDias,
+  };
+  const problema = feedlot.problemaEtapas(dias);
+  if (problema) throw badRequest(problema);
+}
+
+async function guardarParametro(req, clave, valor) {
+  const resultado = await setParametro(clave, valor);
+  if (!resultado) throw notFound(`Parámetro no encontrado: ${clave}`);
   const { antes, despues } = resultado;
   if (antes.valor !== despues.valor) {
     await registrar(req, {
@@ -107,7 +126,25 @@ export async function putParametro(req, res) {
       detalle: { antes: antes.valor, despues: despues.valor },
     });
   }
-  res.json(despues);
+  return despues;
+}
+
+export async function putParametro(req, res) {
+  await controlarEtapas({ [req.params.clave]: req.body.valor });
+  res.json(await guardarParametro(req, req.params.clave, req.body.valor));
+}
+
+// Varios a la vez (los del feedlot): se controlan juntos, así el orden de las
+// etapas se puede cambiar de una sola vez. Si uno no existe, no se guarda ninguno.
+export async function putParametros(req, res) {
+  const { valores } = req.body;
+  const existentes = new Set((await listParametros()).map((p) => p.clave));
+  const falta = Object.keys(valores).find((c) => !existentes.has(c));
+  if (falta) throw notFound(`Parámetro no encontrado: ${falta}`);
+  await controlarEtapas(valores);
+  const guardados = [];
+  for (const [clave, valor] of Object.entries(valores)) guardados.push(await guardarParametro(req, clave, valor));
+  res.json(guardados);
 }
 
 // --- Potreros ---
@@ -211,7 +248,8 @@ export async function putUso(req, res) {
 
 // Todas las estancias que el usuario puede ver, sumadas.
 export async function getResumenTodas(req, res) {
-  res.json(await resumenTodas(filtroDelGrupo(req)));
+  const grupo = grupoDe(req);
+  res.json(await resumenTodas(filtroGrupo(req.user, grupo), grupo));
 }
 
 // --- Feedlot: el análisis por corral ---
@@ -324,4 +362,29 @@ export async function postRevertirMovimiento(req, res) {
 
 export async function getLote(req, res) {
   res.json(await movimientos.historialLote(req.params.id, { puede: (campoId) => puedeCampo(req.user, campoId) }));
+}
+
+// --- Eventos (pesada, recuento, vacuna...) ---
+
+export async function postVistaPreviaEvento(req, res) {
+  res.json(await eventos.vistaPrevia(req.body));
+}
+
+// Una fila de auditoría por carga (todos los lotes juntos).
+export async function postEvento(req, res) {
+  const { auditoria, ...resultado } = await eventos.registrar(req.body, req.user.id);
+  await registrar(req, { accion: ACCION.EVENTO_REGISTRADO, entidad: 'evento_registro', entidadId: resultado.grupoId, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+export async function postAnularEvento(req, res) {
+  const { auditoria, ...resultado } = await eventos.anular(req.params.id, req.user.id);
+  await registrar(req, { accion: ACCION.EVENTO_ANULADO, entidad: 'evento_registro', entidadId: auditoria.grupoId, detalle: auditoria });
+  res.json(resultado);
+}
+
+export async function postAnularGrupoEventos(req, res) {
+  const { auditoria, ...resultado } = await eventos.anularGrupo(req.params.grupoId, req.user.id);
+  await registrar(req, { accion: ACCION.EVENTO_ANULADO, entidad: 'evento_registro', entidadId: auditoria.grupoId, detalle: auditoria });
+  res.json(resultado);
 }

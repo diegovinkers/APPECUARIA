@@ -5,6 +5,7 @@ import { badRequest, conflict, notFound, parseId } from '../errors.js';
 import { calcularPotrero, kilosLinea, problemaArea } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, nombreOcupado } from './lotes.js';
+import { listarEventos, textosDeVersiones } from './eventos.service.js';
 
 export const fechaUY = (iso) => iso.split('-').reverse().join('/');
 
@@ -150,7 +151,7 @@ function textoMovimiento(m, potreroId) {
 
 export async function historialPotrero(id) {
   const potrero = await buscarPotrero(id);
-  const [versiones, usos, movimientos] = await Promise.all([
+  const [versiones, usos, movimientos, textosEventos, eventos] = await Promise.all([
     prisma.versionStock.findMany({
       where: { potreroId: potrero.id },
       orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
@@ -179,6 +180,8 @@ export async function historialPotrero(id) {
         potreroDestino: { select: { nombre: true } },
       },
     }),
+    textosDeVersiones(potrero.id),
+    listarEventos(undefined, { potreroId: potrero.id }),
   ]);
   const ids = [...new Set(movimientos.flatMap((m) => [m.categoriaOrigenId, m.categoriaDestinoId]))];
   const nombres = new Map((await prisma.categoria.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((c) => [c.id, c]));
@@ -201,6 +204,8 @@ export async function historialPotrero(id) {
         usuario: v.usuario?.nombre ?? null,
         importacion: v.importacion,
         movimiento: porVersion.get(v.id) ?? null,
+        // Una pesada o un recuento con diferencia (o su anulación).
+        evento: textosEventos.get(v.id) ?? null,
         lineas,
         cabezas: lineas.reduce((s, l) => s + l.cabezas, 0),
       };
@@ -211,6 +216,8 @@ export async function historialPotrero(id) {
       hasta: fechaISO(u.hasta),
       usuario: u.usuario?.nombre ?? null,
     })),
+    // Lo que se les hizo a los lotes del potrero (pesadas, vacunas...).
+    eventos,
   };
 }
 

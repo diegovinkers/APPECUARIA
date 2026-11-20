@@ -12,7 +12,8 @@
 export const PRINCIPAL = [
   { clave: 'resumen', texto: 'Resumen', ruta: '/pecuaria/resumen', icono: 'resumen', requiere: 'pecuaria:VER' },
   { clave: 'potreros', texto: 'Potreros', ruta: '/pecuaria/potreros', icono: 'potreros', requiere: 'pecuaria:VER' },
-  { clave: 'movimientos', texto: 'Movimientos', ruta: '/pecuaria/movimientos', icono: 'movimientos', requiere: 'pecuaria:VER' },
+  // Registro (20/11): pestañas Movimientos y Eventos (pages/pecuaria/RegistroPage.jsx).
+  { clave: 'registro', texto: 'Registro', ruta: '/pecuaria/registro', icono: 'registro', requiere: 'pecuaria:VER' },
 ];
 
 // Panel izquierdo, por grupos. Un grupo sin ítems visibles no se muestra.

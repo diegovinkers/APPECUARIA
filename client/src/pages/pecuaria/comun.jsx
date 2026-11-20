@@ -71,8 +71,15 @@ export function ElegirEstancia({ texto }) {
 // Las direcciones viejas (/pecuaria?vista=potreros&q=...) siguen andando.
 export function RedirigirPecuaria() {
   const [params] = useSearchParams();
-  const vista = ['potreros', 'movimientos'].includes(params.get('vista')) ? params.get('vista') : 'resumen';
+  const vista = { potreros: 'potreros', movimientos: 'registro' }[params.get('vista')] ?? 'resumen';
   params.delete('vista');
   const resto = params.toString();
   return <Navigate to={`/pecuaria/${vista}${resto ? `?${resto}` : ''}`} replace />;
+}
+
+// Una dirección que cambió de nombre: lleva a la nueva con los mismos filtros.
+export function RedirigirA({ ruta }) {
+  const [params] = useSearchParams();
+  const resto = params.toString();
+  return <Navigate to={`${ruta}${resto ? `?${resto}` : ''}`} replace />;
 }

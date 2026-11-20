@@ -18,7 +18,7 @@ const api = vi.hoisted(() => ({
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ user: estado.user }) }));
 vi.mock('../api/pecuaria', () => api);
 
-const { default: MovimientosLista, armarFilas, ordenarFilas } = await import('./MovimientosLista.jsx');
+const { default: MovimientosLista, armarFilas, ordenarFilas, tiposDe } = await import('./MovimientosLista.jsx');
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -339,28 +339,61 @@ describe('eventos en la lista (20/11)', () => {
       contenedor.remove();
       vi.restoreAllMocks();
     });
-    async function montar(ruta = '/pecuaria/movimientos?ver=eventos') {
+    async function montar(ruta = '/pecuaria/registro?ver=eventos', ver = 'eventos') {
       act(() =>
         root.render(
           <MemoryRouter initialEntries={[ruta]}>
             <ConPanel>
-              <MovimientosLista campoId={EG.id} potreros={[]} />
+              <MovimientosLista campoId={EG.id} potreros={[]} ver={ver} />
             </ConPanel>
           </MemoryRouter>,
         ),
       );
       await act(async () => {});
     }
-    const botonVer = (texto) => [...contenedor.querySelectorAll('[aria-label="Qué se ve"] button')].find((b) => b.textContent === texto);
+    const titulos = () => [...contenedor.querySelectorAll('thead th')].map((th) => th.textContent.replace(/[↕▲▼]/g, '').trim()).filter(Boolean);
 
-    it('por defecto pide solo los movimientos; "Eventos" y "Todo" cambian lo que se pide', async () => {
-      await montar('/pecuaria/movimientos');
+    it('cada pestaña pide lo suyo y tiene sus columnas (Eventos: sin Peso ni Destino; Origen es "Dónde")', async () => {
+      await montar('/pecuaria/registro', 'movimientos');
       expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'movimientos' }));
-      expect(botonVer('Movimientos').getAttribute('aria-pressed')).toBe('true');
-      await act(async () => botonVer('Eventos').click());
+      expect(titulos()).toEqual(['Fecha', 'Movimiento', 'Categoría', 'Cab.', 'Peso', 'Origen', 'Destino', 'Usuario']);
+      act(() => root.unmount());
+      root = createRoot(contenedor);
+      await montar();
       expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'eventos' }));
-      await act(async () => botonVer('Todo').click());
-      expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'todo' }));
+      expect(titulos()).toEqual(['Fecha', 'Evento', 'Categoría', 'Cab.', 'Dónde', 'Usuario']);
+      // Cada fila tiene tantas celdas como títulos (más la de Anular).
+      expect(contenedor.querySelector('tbody tr').children).toHaveLength(7);
+    });
+
+    it('en Movimientos, un recuento con diferencia va con la marca "evento" y se cuenta en el total', async () => {
+      const recuento = ev(50, {
+        grupoId: 'g5',
+        tipo: { id: 20, clave: 'RECUENTO', nombre: 'Recuento' },
+        datos: { anteriores: 100, contadas: 96 },
+        texto: 'había 100, se contaron 96 (abigeato)',
+        cambiaStock: true,
+        cambiaCabezas: true,
+      });
+      api.getMovimientos.mockResolvedValue({ data: { movimientos: [], eventos: [recuento], resumen: { movimientos: 0, cabezas: 0, entradas: 0, salidas: 0, eventos: 1 } } });
+      await montar('/pecuaria/registro', 'movimientos');
+      expect(textoCompu(contenedor.querySelector('tbody tr'))).toMatch(/evento.*Recuento.*había 100, se contaron 96/);
+      expect(contenedor.querySelector('tfoot').textContent).toMatch(/0 movimientos.*1 recuento con diferencia/);
+    });
+
+    it('el filtro Tipo muestra los de la pestaña', async () => {
+      const TIPOS = [
+        { id: 1, clave: 'SUMAR_LOTE', nombre: 'Sumar a otro lote', efecto: 'MUEVE' },
+        { id: 2, clave: 'MUERTE', nombre: 'Muerte', efecto: 'SALE' },
+        { id: 3, clave: 'PESADA', nombre: 'Pesada', efecto: 'REGISTRO' },
+        { id: 4, clave: 'RECUENTO', nombre: 'Recuento', efecto: 'REGISTRO' },
+      ];
+      expect(tiposDe(TIPOS, 'movimientos').map((t) => t.clave)).toEqual(['SUMAR_LOTE', 'MUERTE', 'RECUENTO']);
+      expect(tiposDe(TIPOS, 'eventos').map((t) => t.clave)).toEqual(['PESADA', 'RECUENTO']);
+      api.getTiposMovimiento.mockResolvedValue({ data: TIPOS });
+      await montar();
+      const opciones = [...contenedor.querySelectorAll('select')].at(-1).querySelectorAll('option');
+      expect([...opciones].map((o) => o.textContent)).toEqual(['Todos', 'Pesada', 'Recuento']);
     });
 
     it('con ?ver=eventos: las cargas como filas, el total de eventos, y se despliegan los lotes', async () => {

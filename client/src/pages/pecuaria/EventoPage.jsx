@@ -168,7 +168,7 @@ export default function EventoPage() {
     const aviso = hecho?.oracion;
     if (contexto.potrero) navigate(`/pecuaria/potreros/${contexto.potrero}`, { state: { aviso } });
     else if (contexto.lote) navigate(`/pecuaria/lotes/${contexto.lote}`, { state: { aviso } });
-    else navigate('/pecuaria/movimientos?ver=eventos', { state: { aviso } });
+    else navigate('/pecuaria/registro?ver=eventos', { state: { aviso } });
   }
 
   const irA = (i) => {

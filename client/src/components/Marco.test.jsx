@@ -97,11 +97,11 @@ afterEach(() => {
 });
 
 describe('Marco: barras y panel', () => {
-  it('la barra de abajo: Resumen · Potreros · + · Movimientos · Eventos ("Eventos" reemplaza a "Menú")', () => {
+  it('la barra de abajo: Resumen · Potreros · + · Registro · Eventos ("Eventos" reemplaza a "Menú")', () => {
     montar();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
     const partes = [...abajo.children].map((el) => el.textContent.trim() || el.querySelector('button')?.getAttribute('aria-label'));
-    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Movim.', 'Eventos']);
+    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Registro', 'Eventos']);
   });
 
   it('el superadmin ve Usuarios en el menú; el capataz no', () => {
@@ -124,7 +124,7 @@ describe('Marco: barras y panel', () => {
     montar();
     expect(boton('Registrar')).toBeUndefined();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
-    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Movim.', 'Menú']);
+    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Registro', 'Menú']);
   });
 
   it('con una sola estancia, la muestra fija (sin selector)', () => {

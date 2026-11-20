@@ -14,7 +14,7 @@ const panel = (user) => Object.fromEntries(menuPara(user).panel.map((g) => [g.gr
 describe('menuPara', () => {
   it('el superadmin ve todo: lo diario, el panel completo y todo el "+"', () => {
     const m = menuPara(superadmin);
-    expect(claves(m.principal)).toEqual(['resumen', 'potreros', 'movimientos']);
+    expect(claves(m.principal)).toEqual(['resumen', 'potreros', 'registro']);
     expect(panel(superadmin)).toEqual({
       Campo: ['pecuaria', 'parcelas'],
       Pecuaria: ['importar', 'configuracion'],
@@ -30,12 +30,12 @@ describe('menuPara', () => {
 
   it('el capataz: ve y registra, pero no importa ni configura', () => {
     expect(panel(capataz)).toEqual({ Campo: ['pecuaria', 'parcelas'] });
-    expect(claves(menuPara(capataz).principal)).toEqual(['resumen', 'potreros', 'movimientos']);
+    expect(claves(menuPara(capataz).principal)).toEqual(['resumen', 'potreros', 'registro']);
     expect(menuPara(capataz).registrar).toHaveLength(REGISTRAR.length);
   });
 
   it('Dirección: mira, sin el "+"', () => {
-    expect(claves(menuPara(direccion).principal)).toEqual(['resumen', 'potreros', 'movimientos']);
+    expect(claves(menuPara(direccion).principal)).toEqual(['resumen', 'potreros', 'registro']);
     expect(menuPara(direccion).registrar).toEqual([]);
   });
 

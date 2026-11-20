@@ -13,7 +13,7 @@ import Icono from './Icono';
 // - arriba: logo, selector de estancia, en la compu Resumen · Potreros ·
 //   Movimientos + "Registrar", y el botón ☰ que despliega el menú (secciones,
 //   perfil, salir);
-// - abajo, en el celular: Resumen · Potreros · + · Movimientos · Eventos (20/11:
+// - abajo, en el celular: Resumen · Potreros · + · Registro · Eventos (20/11:
 //   "Eventos" reemplaza a "Menú", que sigue en el ☰ de arriba; quien no
 //   registra sigue viendo "Menú"). En la compu, "Eventos" va al lado del "+";
 // - panel izquierdo: los filtros de la pantalla donde estás (PanelFiltros).
@@ -374,7 +374,7 @@ function MarcoInterno() {
         {menu.principal.slice(2).map((item) => (
           <NavLink key={item.clave} to={item.ruta} className={linkAbajo}>
             <Icono nombre={item.icono} className="h-6 w-6" />
-            {item.texto === 'Movimientos' ? 'Movim.' : item.texto}
+            {item.texto}
           </NavLink>
         ))}
         {menu.eventos ? (

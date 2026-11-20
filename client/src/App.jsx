@@ -16,13 +16,13 @@ import ProfilePage from './pages/ProfilePage';
 import RegistrarPage from './pages/RegistrarPage';
 import RolesPage from './pages/RolesPage';
 import UsersPage from './pages/UsersPage';
-import MovimientosPage from './pages/pecuaria/MovimientosPage';
+import RegistroPage from './pages/pecuaria/RegistroPage';
 import MoverEntreCamposPage from './pages/pecuaria/MoverEntreCamposPage';
 import MovimientoMultiplePage from './pages/pecuaria/MovimientoMultiplePage';
 import EventoPage from './pages/pecuaria/EventoPage';
 import PotrerosPage from './pages/pecuaria/PotrerosPage';
 import ResumenPage from './pages/pecuaria/ResumenPage';
-import { RedirigirPecuaria } from './pages/pecuaria/comun';
+import { RedirigirA, RedirigirPecuaria } from './pages/pecuaria/comun';
 
 // No hay página de registro: los usuarios los crea un administrador.
 // Marco pone las barras y el panel (docs/DECISIONES.md §11).
@@ -48,7 +48,9 @@ export default function App() {
                 <Route path="/pecuaria" element={<RedirigirPecuaria />} />
                 <Route path="/pecuaria/resumen" element={<ResumenPage />} />
                 <Route path="/pecuaria/potreros" element={<PotrerosPage />} />
-                <Route path="/pecuaria/movimientos" element={<MovimientosPage />} />
+                <Route path="/pecuaria/registro" element={<RegistroPage />} />
+                {/* La dirección vieja (antes de las pestañas, 20/11) sigue andando. */}
+                <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
                 <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
                 <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
               </Route>

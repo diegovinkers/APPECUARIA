@@ -270,6 +270,13 @@ En `client/`: `npm run dev`.
       - La lista de potreros trae el `sexo` de cada lote.
       - Tests: `pecuaria-eventos-registro.test.js` (34) en el servidor; `eventos.test.js` y `EventoPage.test.jsx` en el front, más tests sumados a Marco, menu, MovimientosLista, LotePage y FeedlotAnalisis. En total, 397 en el servidor y 172 en el front. `npx vite build` anda.
       - Base local: migración aplicada. El seed no cambió. En Render, la migración corre al arrancar.
+    - **Registro con pestañas (20/11), aprobado por Diego y publicado:**
+      - En la barra de abajo, "Movim." pasa a ser **Registro** (`/pecuaria/registro`, `pages/pecuaria/RegistroPage.jsx`). `/pecuaria/movimientos` redirige con sus filtros (`RedirigirA` en `comun.jsx`).
+      - Pestañas **Movimientos** / **Eventos** en el lugar del título (`?ver=eventos`). Al cambiar de pestaña se conservan el período y el potrero, y se borra el tipo. Se sacó el filtro "Todo / Movimientos / Eventos". El botón Filtros es solo el ícono en el celular (`PanelFiltros compacto`).
+      - Movimientos: los movimientos, más los eventos que cambiaron las cabezas (`cambiaCabezas`: un recuento con diferencia). **La pesada no**: cambia los kilos, no las cabezas ni el lugar (decisión de Diego). El servidor usa `listarEventos(..., { soloCabezas })`.
+      - Eventos: todos los eventos, con sus columnas (Evento, Dónde; sin Peso ni Destino). El filtro Tipo muestra los de cada pestaña (`tiposDe`).
+      - Lo siguiente que pidió Diego: "Parición" en un solo paso (mover las madres + nacimiento vinculado + "con cría al pie", que cierra el Destete).
+      - Tests: 398 en el servidor y 177 en el front.
     - Para levantar la app desde la app de escritorio: `.claude/launch.json` (configuraciones `api` y `web`).
     - `exceljs` trae un `uuid` viejo: está forzado a `^11.1.1` con `overrides` en `server/package.json`.
   - **Módulo Parcelas:** en diseño (`docs/DECISIONES.md` §9).

@@ -348,7 +348,7 @@ describe('alcance por estancia', () => {
 });
 
 describe('la lista: Todo / Movimientos / Eventos', () => {
-  it('por defecto, solo movimientos (como antes); con ver=eventos o ver=todo, los eventos', async () => {
+  it('por defecto, los movimientos (un evento que no cambió cabezas no va); con ver=eventos o ver=todo, los eventos', async () => {
     const { agent, tipos, campo, cat, P2, A } = await preparar();
     await anotar(agent, { tipoId: tipos.VACUNA_AFTOSA.id, lineas: [{ loteId: A.id }] });
     await agent.post(`${API}/movimientos`).send({ loteOrigenId: A.id, cabezas: 10, destinoPotreroId: P2.id, modo: 'NUEVO', nuevoLote: { categoriaId: cat.Terneros } }).expect(201);
@@ -366,6 +366,20 @@ describe('la lista: Todo / Movimientos / Eventos', () => {
     const otroTipo = (await agent.get(`${API}/campos/${campo.id}/movimientos`).query({ ver: 'todo', tipoId: tipos.PESADA.id }).expect(200)).body;
     expect(otroTipo.eventos).toEqual([]);
     await agent.get(`${API}/campos/${campo.id}/movimientos`).query({ ver: 'otra' }).expect(400);
+  });
+
+  it('Movimientos trae también los eventos que cambiaron las cabezas (recuento con diferencia), no la pesada', async () => {
+    const { agent, tipos, campo, A } = await preparar();
+    await anotar(agent, { tipoId: tipos.PESADA.id, lineas: [{ loteId: A.id, pesoPromedioKg: 262 }] });
+    await anotar(agent, { tipoId: tipos.VACUNA_AFTOSA.id, lineas: [{ loteId: A.id }] });
+    await anotar(agent, { tipoId: tipos.RECUENTO.id, lineas: [{ loteId: A.id, contadas: 100 }] });
+    await anotar(agent, { tipoId: tipos.RECUENTO.id, lineas: [{ loteId: A.id, contadas: 96, motivo: 'Abigeato' }] });
+
+    const mov = (await agent.get(`${API}/campos/${campo.id}/movimientos`).expect(200)).body;
+    expect(mov.eventos.map((e) => [e.tipo.clave, e.datos.contadas, e.cambiaCabezas])).toEqual([['RECUENTO', 96, true]]);
+    const ev = (await agent.get(`${API}/campos/${campo.id}/movimientos`).query({ ver: 'eventos' }).expect(200)).body;
+    expect(ev.eventos.map((e) => e.tipo.clave).sort()).toEqual(['PESADA', 'RECUENTO', 'RECUENTO', 'VACUNA_AFTOSA']);
+    expect(ev.eventos.find((e) => e.tipo.clave === 'PESADA')).toMatchObject({ cambiaStock: true, cambiaCabezas: false });
   });
 
   it('"Todas las estancias" y "Todos los feedlots": cada grupo con lo suyo, con la sigla', async () => {

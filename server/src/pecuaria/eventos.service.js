@@ -332,6 +332,10 @@ async function aItems(db, rows) {
     usuario: r.usuario?.nombre ?? null,
     creadoEn: r.creadoEn,
     cambiaStock: r.versionId != null,
+    // Cambió las cabezas (un recuento con diferencia): también va en la
+    // pestaña Movimientos. La pesada cambia el stock (los kilos) pero no las
+    // cabezas ni el lugar, así que no (pedido de Diego, 20/11).
+    cambiaCabezas: r.versionId != null && r.tipo.clave !== 'PESADA',
     anulado: r.anulado,
     anuladoEn: r.anuladoEn,
     anuladoPor: r.anuladoPor?.nombre ?? null,
@@ -342,9 +346,11 @@ async function aItems(db, rows) {
 
 // Los eventos de esas estancias (campos: { id } o { id: { in } }; undefined =
 // todas), del más nuevo al más viejo. Filtros: desde / hasta, potreroId,
-// loteId, categoriaId, tipoId y grupoId.
-export async function listarEventos(campos, { desde, hasta, potreroId, loteId, categoriaId, tipoId, grupoId } = {}) {
+// loteId, categoriaId, tipoId y grupoId. soloCabezas: solo los que cambiaron
+// las cabezas (ver cambiaCabezas).
+export async function listarEventos(campos, { desde, hasta, potreroId, loteId, categoriaId, tipoId, grupoId, soloCabezas = false } = {}) {
   const y = [];
+  if (soloCabezas) y.push({ versionId: { not: null } }, { tipo: { clave: { not: 'PESADA' } } });
   if (campos) y.push({ campo: campos });
   if (grupoId) y.push({ grupoId });
   if (tipoId) y.push({ tipoId });

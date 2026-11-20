@@ -158,8 +158,8 @@ export default function LotePage() {
   const conEntrada = lote.potrero.tipo === 'CORRAL' || lote.fechaEntrada || lote.pesoEntradaKg != null;
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link to="/pecuaria/movimientos" className="text-sm text-campo-600 hover:underline">
-        ← Movimientos
+      <Link to="/pecuaria/registro" className="text-sm text-campo-600 hover:underline">
+        ← Registro
       </Link>
       <h1 className="mt-2 text-3xl font-bold">
         {lote.nombre}

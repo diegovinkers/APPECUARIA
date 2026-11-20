@@ -664,14 +664,16 @@ export function listarTodas(filtro, filtros = {}) {
 }
 
 // campos: el filtro de las estancias ({ id } o { id: { in } }); undefined = todas.
-// ver: 'movimientos' (por defecto, como antes), 'eventos' (pesada, vacuna...;
-// eventos.service.js) o 'todo'. Los eventos van en su propia lista, `eventos`.
+// ver (pestañas de Registro, 20/11): 'movimientos' (por defecto) trae los
+// movimientos y los eventos que cambiaron las cabezas (un recuento con
+// diferencia); 'eventos', todos los eventos (pesada, vacuna...;
+// eventos.service.js); 'todo', todo. Los eventos van en su propia lista.
 async function listarDonde(campos, { ver = 'movimientos', ...filtros } = {}) {
   const conMovimientos = ver !== 'eventos';
-  const conEventos = ver !== 'movimientos';
+  const soloCabezas = ver === 'movimientos';
   const [movimientos, eventos] = await Promise.all([
     conMovimientos ? listarMovimientos(campos, filtros) : [],
-    conEventos ? listarEventos(campos, filtros) : [],
+    listarEventos(campos, { ...filtros, soloCabezas }),
   ]);
   // Sin contar las reversiones ni lo que se revirtió: las cabezas movidas
   // (dentro del campo), las que entraron y las que salieron.

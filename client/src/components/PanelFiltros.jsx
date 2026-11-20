@@ -47,7 +47,9 @@ export function usePanelFiltros() {
 }
 
 // activos: cuántos filtros hay puestos (para el botón). onLimpiar: si hay.
-export default function PanelFiltros({ activos = 0, onLimpiar, children }) {
+// compacto: en el celular el botón es solo el ícono (y cuántos hay), y
+// "Limpiar" queda adentro del cajón (Registro, donde van las pestañas).
+export default function PanelFiltros({ activos = 0, onLimpiar, compacto = false, children }) {
   const { destino, setAbierto, setCuantos, destinoBoton } = usePanelFiltros();
 
   useEffect(() => {
@@ -61,13 +63,14 @@ export default function PanelFiltros({ activos = 0, onLimpiar, children }) {
       <button
         type="button"
         onClick={() => setAbierto(true)}
+        aria-label={compacto ? 'Filtros' : undefined}
         className="flex items-center gap-1.5 rounded-md border border-suelo-300 bg-white px-2.5 py-1.5 text-sm font-medium text-suelo-800 hover:border-campo-400"
       >
         <Icono nombre="configuracion" className="h-4 w-4" />
-        Filtros
+        <span className={compacto ? 'hidden sm:inline' : ''}>Filtros</span>
         {activos > 0 && <span className="rounded-full bg-campo-600 px-2 text-xs text-white">{activos}</span>}
       </button>
-      {activos > 0 && onLimpiar && (
+      {activos > 0 && onLimpiar && !compacto && (
         <button type="button" onClick={onLimpiar} className="text-sm text-campo-600 hover:underline">
           Limpiar
         </button>

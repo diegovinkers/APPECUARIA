@@ -45,13 +45,6 @@ const NOMBRE_MODO = {
 };
 const NOMBRE_EVENTO = { MULTIPLE: 'Múltiple', ENTRE_CAMPOS: 'Entre campos', REVERSION: 'Reversión' };
 
-// Qué se lista (eventos, 20/11). Por defecto, los movimientos (como antes).
-export const VER = [
-  ['todo', 'Todo'],
-  ['movimientos', 'Movimientos'],
-  ['eventos', 'Eventos'],
-];
-
 // [clave, título, solo en la compu]. En el celular la tabla tiene que entrar
 // sin scroll de costado: las "solo en la compu" se esconden y su dato va como
 // segunda línea, chica, debajo del tipo.
@@ -65,6 +58,21 @@ const COLUMNAS = [
   ['destino', 'Destino', true],
   ['usuario', 'Usuario', true],
 ];
+// La pestaña Eventos: un evento no va de un lado a otro, se anota en un lugar.
+// El dato (el peso, el producto, el resultado) va debajo del nombre.
+const COLUMNAS_EVENTOS = [
+  ['fecha', 'Fecha', false],
+  ['tipo', 'Evento', false],
+  ['categoria', 'Categoría', true],
+  ['cabezas', 'Cab.', false],
+  ['origen', 'Dónde', true],
+  ['usuario', 'Usuario', true],
+];
+// Los tipos del filtro de cada pestaña: en Movimientos, los que mueven, entran
+// o salen, más el recuento (que puede cambiar las cabezas); en Eventos, los
+// que se anotan.
+export const tiposDe = (tipos, ver) =>
+  tipos.filter((t) => (ver === 'eventos' ? t.efecto === 'REGISTRO' : t.efecto !== 'REGISTRO' || t.clave === 'RECUENTO'));
 const SOLO_COMPU = 'hidden md:table-cell';
 // "13/11/2026" → "13/11" (en el celular, para que entre).
 const fechaCorta = (f) => formatFecha(f).slice(0, 5);
@@ -251,12 +259,12 @@ function Selector({ etiqueta, valor, onChange, children }) {
   );
 }
 
-// Movimientos de la estancia como una tabla tipo Excel (pedido de Diego,
-// 18/11): una fila por movimiento; los múltiples y entre campos, una fila que
-// se despliega con sus pasos. Se ordena tocando el título de la columna; abajo,
-// los totales de lo filtrado. En el celular se desplaza de costado con la
-// fecha fija. Registrar se hace desde el botón "+".
-export default function MovimientosLista({ campoId, potreros, todas = false, grupo = 'estancias' }) {
+// Una pestaña de Registro como una tabla tipo Excel (pedido de Diego, 18/11).
+// ver = 'movimientos': una fila por movimiento (los múltiples y entre campos,
+// una fila que se despliega con sus pasos) y los eventos que cambiaron las
+// cabezas. ver = 'eventos': una fila por carga de eventos. Se ordena tocando
+// el título de la columna; abajo, los totales de lo filtrado.
+export default function MovimientosLista({ campoId, potreros, todas = false, grupo = 'estancias', ver = 'movimientos' }) {
   const puedo = usePuede();
   const [params, setParams] = useSearchParams();
   const f = {
@@ -266,9 +274,8 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
     potreroId: params.get('mpotrero') ?? '',
     categoriaId: params.get('mcategoria') ?? '',
     tipoId: params.get('mtipo') ?? '',
-    ver: params.get('ver') ?? '',
   };
-  const ver = VER.some(([v]) => v === f.ver) ? f.ver : 'movimientos';
+  const deEventos = ver === 'eventos';
   const poner = (cambios) =>
     setParams(
       (actual) => {
@@ -371,30 +378,18 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
     }
   }
 
-  const activos = [f.periodo, f.potreroId, f.categoriaId, f.tipoId, ver !== 'movimientos'].filter(Boolean).length;
+  const activos = [f.periodo, f.potreroId, f.categoriaId, f.tipoId].filter(Boolean).length;
   const hayFiltros = activos > 0;
-  const limpiar = () => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '', mtipo: '', ver: '' });
-  const conFiltrosDeDatos = Boolean(f.periodo || f.potreroId || f.categoriaId || f.tipoId);
-  const nombreLista = ver === 'eventos' ? 'eventos' : ver === 'todo' ? 'movimientos ni eventos' : 'movimientos';
+  const limpiar = () => poner({ periodo: '', desde: '', hasta: '', mpotrero: '', mcategoria: '', mtipo: '' });
+  const nombreLista = deEventos ? 'eventos' : 'movimientos';
   const conRevertir = puedo('pecuaria:ANULAR');
-  const columnas = conRevertir ? COLUMNAS.length + 1 : COLUMNAS.length;
+  const titulos = deEventos ? COLUMNAS_EVENTOS : COLUMNAS;
+  const columnas = conRevertir ? titulos.length + 1 : titulos.length;
+  const cuantosEventos = datos?.resumen.eventos ?? 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PanelFiltros activos={activos} onLimpiar={limpiar}>
-        <div className="flex gap-1.5" role="group" aria-label="Qué se ve">
-          {VER.map(([valor, texto]) => (
-            <button
-              key={valor}
-              type="button"
-              onClick={() => poner({ ver: valor === 'movimientos' ? '' : valor })}
-              aria-pressed={ver === valor}
-              className={`min-h-9 flex-1 rounded-md px-2 py-1 text-sm font-medium ${ver === valor ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
-            >
-              {texto}
-            </button>
-          ))}
-        </div>
+      <PanelFiltros activos={activos} onLimpiar={limpiar} compacto>
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Período">
           {PERIODOS.map(([valor, texto]) => (
             <button
@@ -439,7 +434,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
           </Selector>
           <Selector etiqueta="Tipo" valor={f.tipoId} onChange={(v) => poner({ mtipo: v })}>
             <option value="">Todos</option>
-            {tipos.map((t) => (
+            {tiposDe(tipos, ver).map((t) => (
               <option key={t.id} value={t.id}>
                 {t.nombre}
               </option>
@@ -455,9 +450,9 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
         <p className="text-suelo-600">Cargando…</p>
       ) : filas.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">
-          {conFiltrosDeDatos
+          {hayFiltros
             ? `No hay ${nombreLista} con esos filtros.`
-            : ver === 'eventos'
+            : deEventos
               ? 'Todavía no hay eventos. Se anotan con el botón Eventos.'
               : 'Todavía no hay movimientos. Se registran con el botón +.'}
         </p>
@@ -467,7 +462,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
           <table className="w-full border-separate md:min-w-[56rem] border-spacing-0 text-left text-sm">
             <thead className="text-xs text-suelo-600">
               <tr>
-                {COLUMNAS.map(([col, titulo, soloCompu], i) => (
+                {titulos.map(([col, titulo, soloCompu], i) => (
                   <TituloOrdenable
                     key={col}
                     col={col}
@@ -487,7 +482,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                 const abierto = abiertos.has(fila.clave);
                 return (
                   <Fragment key={fila.clave}>
-                    <Fila fila={fila} par={n % 2 === 1} abierto={abierto} onAlternar={() => alternar(fila.clave)} conRevertir={conRevertir} onRevertir={() => onRevertir(fila)} />
+                    <Fila fila={fila} deEventos={deEventos} par={n % 2 === 1} abierto={abierto} onAlternar={() => alternar(fila.clave)} conRevertir={conRevertir} onRevertir={() => onRevertir(fila)} />
                     {fila.pasos &&
                       abierto &&
                       fila.pasos.map((m, n) => (
@@ -495,7 +490,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                       ))}
                     {fila.eventos?.length > 1 &&
                       abierto &&
-                      fila.eventos.map((e) => <LoteEvento key={e.id} e={e} campoId={lugar} conRevertir={conRevertir} onAnular={() => onAnular(fila, e)} />)}
+                      fila.eventos.map((e) => <LoteEvento key={e.id} e={e} deEventos={deEventos} campoId={lugar} conRevertir={conRevertir} onAnular={() => onAnular(fila, e)} />)}
                   </Fragment>
                 );
               })}
@@ -505,18 +500,17 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                 <td colSpan={columnas} className="sticky bottom-0 left-0 z-20 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
                   <span className="sticky left-3">
                     <strong>Total{hayFiltros ? ' filtrado' : ''}:</strong>{' '}
-                    {ver !== 'eventos' && (
+                    {deEventos ? (
+                      <>
+                        <strong>{formatNumero(cuantosEventos)}</strong> {cuantosEventos === 1 ? 'evento' : 'eventos'} (uno por lote)
+                      </>
+                    ) : (
                       <>
                         {datos.resumen.movimientos} {datos.resumen.movimientos === 1 ? 'movimiento' : 'movimientos'} ·{' '}
                         <strong>{formatNumero(datos.resumen.cabezas)}</strong> cabezas movidas ·{' '}
                         <strong className="text-emerald-800">+{formatNumero(datos.resumen.entradas)}</strong> entraron ·{' '}
                         <strong className="text-red-700">−{formatNumero(datos.resumen.salidas)}</strong> salieron
-                      </>
-                    )}
-                    {ver !== 'movimientos' && (
-                      <>
-                        {ver === 'todo' ? ' · ' : ''}
-                        <strong>{formatNumero(datos.resumen.eventos ?? 0)}</strong> {datos.resumen.eventos === 1 ? 'evento' : 'eventos'} (uno por lote)
+                        {cuantosEventos > 0 && ` · ${cuantosEventos} ${cuantosEventos === 1 ? 'recuento' : 'recuentos'} con diferencia`}
                       </>
                     )}
                   </span>
@@ -531,7 +525,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
   );
 }
 
-function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
+function Fila({ fila, deEventos = false, par, abierto, onAlternar, conRevertir, onRevertir }) {
   const colorCabezas = fila.signo === '+' ? 'text-emerald-800' : fila.signo === '−' ? 'text-red-700' : '';
   // Filas alternadas, como en Excel.
   const fondo = par ? '[&>td]:bg-suelo-50' : '[&>td]:bg-white';
@@ -577,9 +571,9 @@ function Fila({ fila, par, abierto, onAlternar, conRevertir, onRevertir }) {
         {fila.signo}
         {formatNumero(fila.cabezas)}
       </td>
-      <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{fila.peso ? `${formatNumero(fila.peso)} kg` : '—'}</td>
+      {!deEventos && <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{fila.peso ? `${formatNumero(fila.peso)} kg` : '—'}</td>}
       <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteOrigen ? <LadoConLink m={fila.m} texto={fila.origen} lote={fila.m.loteOrigen} /> : fila.origen}</td>
-      <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteDestino ? <LadoConLink m={fila.m} texto={fila.destino} lote={fila.m.loteDestino} /> : fila.destino}</td>
+      {!deEventos && <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteDestino ? <LadoConLink m={fila.m} texto={fila.destino} lote={fila.m.loteDestino} /> : fila.destino}</td>}
       <td className={`${celda} ${SOLO_COMPU} whitespace-nowrap text-suelo-600`}>{fila.usuario}</td>
       {conRevertir && (
         <td className={`${celda} whitespace-nowrap`}>
@@ -630,7 +624,7 @@ function Paso({ m, n, campoId, conRevertir }) {
 }
 
 // Un lote de una carga de eventos (al desplegarla).
-function LoteEvento({ e, campoId, conRevertir, onAnular }) {
+function LoteEvento({ e, deEventos = false, campoId, conRevertir, onAnular }) {
   return (
     <tr className={`text-suelo-700 [&>td]:bg-sky-50 ${e.anulado ? 'text-suelo-400' : ''}`}>
       <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap pl-7 text-xs text-suelo-500`}>Lote</td>
@@ -644,9 +638,9 @@ function LoteEvento({ e, campoId, conRevertir, onAnular }) {
       </td>
       <td className={`${celda} ${SOLO_COMPU}`}>{e.categoria}</td>
       <td className={`${celda} text-right tabular-nums`}>{formatNumero(e.cabezas)}</td>
-      <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{e.tipo.clave === 'PESADA' && e.datos?.pesoPromedioKg ? `${formatNumero(e.datos.pesoPromedioKg)} kg` : '—'}</td>
+      {!deEventos && <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{e.tipo.clave === 'PESADA' && e.datos?.pesoPromedioKg ? `${formatNumero(e.datos.pesoPromedioKg)} kg` : '—'}</td>}
       <td className={`${celda} ${SOLO_COMPU}`}>{lugarEvento(e, campoId)}</td>
-      <td className={`${celda} ${SOLO_COMPU}`}>—</td>
+      {!deEventos && <td className={`${celda} ${SOLO_COMPU}`}>—</td>}
       <td className={`${celda} ${SOLO_COMPU}`} />
       {conRevertir && (
         <td className={`${celda} whitespace-nowrap`}>

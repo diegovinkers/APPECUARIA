@@ -56,6 +56,20 @@ export function cabezasPorCategoria(lotes = []) {
     .join(' · ');
 }
 
+// Qué hay en un potrero y su uso, para las listas donde se elige un potrero:
+// "120 Terneros · 80 Vacas · Campo natural". Un potrero que vino sin esos datos
+// (destino en una estancia que el usuario no ve) da ''.
+export function queHayYUso(p) {
+  if (!p || (!p.stock && !('usoActual' in p))) return '';
+  return `${cabezasPorCategoria(p.stock?.lotes)} · ${p.usoActual?.nombre ?? 'sin uso'}`;
+}
+
+// El texto de la opción de un potrero en un selector: "8.1 · 350 Terneros · Avena".
+export function opcionPotrero(p, prefijo = '') {
+  const detalle = queHayYUso(p);
+  return `${prefijo}${p.nombre}${detalle ? ` · ${detalle}` : ''}`;
+}
+
 const COLOR_GRUPO = {
   CN: 'bg-lime-500/15 text-lime-800',
   VERDEO: 'bg-emerald-500/15 text-emerald-800',

@@ -5,7 +5,7 @@ import { getErrorMessages } from '../../api/axios';
 import usePotreros from '../../hooks/usePotreros';
 import Camino from '../../components/Camino';
 import { ErrorList, Notice, inputClass } from '../../components/ui';
-import { formatNumero } from '../../components/pecuaria';
+import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import {
   ETAPAS_CON_PANTALLA,
   cuerpoDiagnostico,
@@ -403,7 +403,7 @@ export default function ProcesoEtapaPage() {
                       <option value="">Elegí el potrero…</option>
                       {otrosPotreros(l).map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.nombre}
+                          {opcionPotrero(p)}
                         </option>
                       ))}
                     </select>
@@ -468,7 +468,7 @@ export default function ProcesoEtapaPage() {
                       <option value="">Se quedan en {l.potrero?.nombre}</option>
                       {otrosPotreros(l).map((p) => (
                         <option key={p.id} value={p.id}>
-                          A {p.nombre}
+                          {opcionPotrero(p, 'A ')}
                         </option>
                       ))}
                     </select>
@@ -584,7 +584,7 @@ function Grupo({ lote, grupo, destino, onCambiar, potreros, categorias, conDespu
           {!vacias &&
             potreros.map((p) => (
               <option key={p.id} value={`POTRERO:${p.id}`}>
-                A {p.nombre}
+                {opcionPotrero(p, 'A ')}
               </option>
             ))}
           {vacias && <option value="REENTORE">Volver a intentar (próximo servicio)</option>}
@@ -595,7 +595,7 @@ function Grupo({ lote, grupo, destino, onCambiar, potreros, categorias, conDespu
             <option value="">Se quedan en {lote.potrero?.nombre}</option>
             {potreros.map((p) => (
               <option key={p.id} value={p.id}>
-                A {p.nombre}
+                {opcionPotrero(p, 'A ')}
               </option>
             ))}
           </select>

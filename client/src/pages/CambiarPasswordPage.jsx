@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { getErrorMessages } from '../api/axios';
 import { useAuth } from '../context/AuthContext';
-import { Card, ErrorList, FieldError, Notice, buttonClass, inputClass } from '../components/ui';
+import { CampoPassword, Card, ErrorList, FieldError, Notice, buttonClass } from '../components/ui';
 import { newPasswordRules } from '../utils/password';
 
 // Cambio de la propia contraseña. Si la puso un administrador (usuario nuevo
@@ -34,31 +34,25 @@ export default function CambiarPasswordPage() {
         {/* Para que el administrador de contraseñas del navegador sepa de qué usuario es. */}
         <input type="text" autoComplete="username" value={user.usuario} readOnly hidden />
         <div>
-          <input
-            type="password"
+          <CampoPassword
             placeholder="Contraseña actual"
             autoComplete="current-password"
-            className={inputClass}
             {...register('passwordActual', { required: 'Ingresá tu contraseña actual' })}
           />
           <FieldError error={formState.errors.passwordActual} />
         </div>
         <div>
-          <input
-            type="password"
+          <CampoPassword
             placeholder="Contraseña nueva"
             autoComplete="new-password"
-            className={inputClass}
             {...register('passwordNueva', newPasswordRules)}
           />
           <FieldError error={formState.errors.passwordNueva} />
         </div>
         <div>
-          <input
-            type="password"
+          <CampoPassword
             placeholder="Repetí la contraseña nueva"
             autoComplete="new-password"
-            className={inputClass}
             {...register('repetida', {
               required: 'Repetí la contraseña nueva',
               validate: (value, values) => value === values.passwordNueva || 'Las contraseñas no coinciden',

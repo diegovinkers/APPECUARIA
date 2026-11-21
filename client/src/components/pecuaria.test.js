@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aprox, cabezasPorCategoria, familiasJuntas, formatDiaMes, formatMetros, formatUsd, nombreConSigla, textoFaltan } from './pecuaria.jsx';
+import { aprox, cabezasPorCategoria, opcionPotrero, queHayYUso, familiasJuntas, formatDiaMes, formatMetros, formatUsd, nombreConSigla, textoFaltan } from './pecuaria.jsx';
 
 describe('nombreConSigla', () => {
   const p = { nombre: '8.1', campo: { sigla: 'EG' } };
@@ -70,5 +70,27 @@ describe('formateos del feedlot', () => {
     expect(formatMetros(0.3)).toBe('0,3 m');
     expect(formatMetros(1.6)).toBe('1,6 m');
     expect(formatMetros(null)).toBe('—');
+  });
+});
+
+describe('opcionPotrero / queHayYUso (los selectores de potrero)', () => {
+  const lotes = [
+    { categoria: 'Vacas', cabezas: 80 },
+    { categoria: 'Terneros', cabezas: 120 },
+  ];
+
+  it('nombre, qué hay por categoría y el uso', () => {
+    const p = { nombre: '8.1', stock: { lotes }, usoActual: { nombre: 'Avena' } };
+    expect(queHayYUso(p)).toBe('120 Terneros · 80 Vacas · Avena');
+    expect(opcionPotrero(p)).toBe('8.1 · 120 Terneros · 80 Vacas · Avena');
+    expect(opcionPotrero(p, 'A ')).toBe('A 8.1 · 120 Terneros · 80 Vacas · Avena');
+  });
+
+  it('vacío y sin uso', () => {
+    expect(opcionPotrero({ nombre: 'C1', stock: null, usoActual: null })).toBe('C1 · vacío · sin uso');
+  });
+
+  it('un potrero que vino sin esos datos muestra solo el nombre', () => {
+    expect(opcionPotrero({ id: 1, nombre: 'O1' })).toBe('O1');
   });
 });

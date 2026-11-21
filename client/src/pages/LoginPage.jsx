@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { CAMBIAR_PASSWORD } from '../components/ProtectedRoute';
-import { Card, ErrorList, FieldError, Notice, buttonClass, inputClass } from '../components/ui';
+import { CampoPassword, Card, ErrorList, FieldError, Notice, buttonClass, inputClass } from '../components/ui';
 
 export default function LoginPage() {
   const { register, handleSubmit, formState } = useForm();
@@ -34,11 +34,9 @@ export default function LoginPage() {
           <FieldError error={formState.errors.usuario} />
         </div>
         <div>
-          <input
-            type="password"
+          <CampoPassword
             placeholder="Contraseña"
             autoComplete="current-password"
-            className={inputClass}
             {...register('password', { required: 'Ingresá tu contraseña' })}
           />
           <FieldError error={formState.errors.password} />

@@ -305,7 +305,7 @@ export async function postMovimiento(req, res) {
 export async function getDestinosEntreCampos(req, res) {
   const origen = parseId(req.query.origen);
   if (!origen) throw badRequest('Elegí el campo de origen');
-  res.json(await movimientos.destinosEntreCampos(origen));
+  res.json(await movimientos.destinosEntreCampos(origen, filtroCampos(req.user)));
 }
 
 export async function postVistaPreviaEntreCampos(req, res) {

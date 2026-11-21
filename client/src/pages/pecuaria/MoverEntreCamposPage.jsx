@@ -5,7 +5,7 @@ import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros, { ordenNatural } from '../../hooks/usePotreros';
 import { ErrorList, buttonClass, inputClass } from '../../components/ui';
-import { cabezasPorCategoria, formatNumero } from '../../components/pecuaria';
+import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
@@ -172,7 +172,7 @@ export default function MoverEntreCamposPage() {
             <option value="">{potreros ? 'Elegí el potrero…' : 'Cargando…'}</option>
             {conAnimales.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.nombre} · {cabezasPorCategoria(p.stock.lotes)}
+                {opcionPotrero(p)}
               </option>
             ))}
           </select>
@@ -233,7 +233,7 @@ export default function MoverEntreCamposPage() {
               <option value="">Elegí el potrero…</option>
               {campoDestino.potreros.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.nombre}
+                  {opcionPotrero(p)}
                 </option>
               ))}
             </select>

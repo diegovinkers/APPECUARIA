@@ -1,4 +1,6 @@
 // Piezas visuales compartidas. Todo es Tailwind: cambialo por tu propio estilo.
+import { useState } from 'react';
+import Icono from './Icono';
 
 export const inputClass =
   'w-full rounded-md border border-suelo-300 bg-white px-4 py-2 text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500';
@@ -41,4 +43,24 @@ export function Notice({ children, tone = 'info' }) {
 
 export function FieldError({ error }) {
   return error ? <p className="mt-1 text-sm text-red-700">{error.message}</p> : null;
+}
+
+// Campo de contraseña con un botón de ojo para mostrarla u ocultarla.
+// Acepta lo mismo que un <input> (también el register de react-hook-form).
+export function CampoPassword({ className = inputClass, ...props }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input {...props} type={visible ? 'text' : 'password'} className={`${className} pr-11`} />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+        aria-pressed={visible}
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-suelo-500 hover:text-suelo-800"
+      >
+        <Icono nombre={visible ? 'ojoTachado' : 'ojo'} />
+      </button>
+    </div>
+  );
 }

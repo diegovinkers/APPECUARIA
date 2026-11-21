@@ -21,12 +21,9 @@ import Icono from './Icono';
 //   el botón "Filtros" o deslizando desde el borde. Sin filtros, no aparece.
 // El lugar del asistente (✦) queda para el paso 7.
 
-export function Logo({ className = 'h-8 w-8 text-lg' }) {
-  return (
-    <span className={`flex shrink-0 items-center justify-center rounded-lg bg-trigo-500 font-bold text-trigo-900 ${className}`} aria-hidden="true">
-      S
-    </span>
-  );
+// El logo de SAPSA (barras verdes + letras blancas, para la barra verde).
+export function Logo({ className = 'h-7 w-auto' }) {
+  return <img src="/logo-sapsa.png" alt="SAPSA" className={`shrink-0 ${className}`} />;
 }
 
 // Dos grupos (feedlots, 19/11): Estancias y Feedlots, cada uno con su
@@ -152,7 +149,7 @@ function BarraSimple({ onSalir }) {
   return (
     <header className="flex items-center gap-2 bg-campo-600 px-4 py-3 text-white">
       <Logo />
-      <span className="flex-1 text-lg font-semibold">SAPSA</span>
+      <span className="flex-1" />
       {onSalir && (
         <button type="button" onClick={onSalir} className="rounded-md px-3 py-1.5 text-sm hover:bg-white/15">
           Salir
@@ -255,9 +252,8 @@ function MarcoInterno() {
     // abajo (pedido de Diego, 19/11).
     <div className="fixed inset-0 flex flex-col">
       <header className="relative z-30 flex shrink-0 items-center gap-2 bg-campo-600 px-3 py-2.5 text-white lg:gap-3 lg:px-4">
-        <Link to="/pecuaria/resumen" className="flex items-center gap-2">
+        <Link to="/pecuaria/resumen" className="flex shrink-0 items-center" aria-label="SAPSA, ir al inicio">
           <Logo />
-          <span className="text-lg font-semibold">SAPSA</span>
         </Link>
         <SelectorEstancia />
         <nav aria-label="Principal" className="ml-3 hidden items-center gap-1 lg:flex">

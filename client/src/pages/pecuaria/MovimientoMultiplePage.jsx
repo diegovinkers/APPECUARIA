@@ -5,7 +5,7 @@ import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros, { ordenNatural } from '../../hooks/usePotreros';
 import { ErrorList, buttonClass, inputClass } from '../../components/ui';
-import { cabezasPorCategoria, formatNumero } from '../../components/pecuaria';
+import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import { ElegirEstancia, SinEstancia } from './comun';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
@@ -265,7 +265,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
             <option value="">Elegí…</option>
             {conAnimales.map((x) => (
               <option key={x.id} value={x.id}>
-                {x.nombre} · {cabezasPorCategoria(x.stock?.lotes)}
+                {opcionPotrero(x)}
               </option>
             ))}
           </select>
@@ -318,7 +318,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
               .filter((x) => String(x.id) !== p.potreroOrigenId)
               .map((x) => (
                 <option key={x.id} value={x.id}>
-                  {x.nombre} · {cabezasPorCategoria(x.stock?.lotes)}
+                  {opcionPotrero(x)}
                 </option>
               ))}
           </select>

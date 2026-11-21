@@ -20,6 +20,7 @@ import { crearLote, crearVersion, fotoActual, nombreLibre, nombreOcupado } from 
 import { detallePotrero, fechaUY, parametrosCarga } from './stock.service.js';
 import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
 import { listarEventos } from './eventos.service.js';
+import { listPotrerosTodas } from './lugares.repository.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const potreroSelect = { id: true, nombre: true, campoId: true, tipo: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
@@ -383,9 +384,14 @@ export async function registrar(body, usuarioId) {
 // A dónde se puede mandar desde una estancia: las demás estancias activas con
 // los nombres de sus potreros (nada de su stock: el que registra puede no
 // tener esas estancias).
-export async function destinosEntreCampos(origenCampoId) {
-  return prisma.campo.findMany({
-    where: { activo: true, id: { not: origenCampoId } },
+// Las estancias a las que se puede mandar. De las que el usuario ve
+// (filtro: filtroCampos de alcance.js; undefined = todas), cada potrero viene
+// completo, como en la lista de potreros: qué hay (categorías y cabezas) y su
+// uso, para elegir bien el destino. De las otras, solo el id y el nombre.
+export async function destinosEntreCampos(origenCampoId, filtro) {
+  const donde = { activo: true, id: { not: origenCampoId } };
+  const campos = await prisma.campo.findMany({
+    where: donde,
     select: {
       id: true,
       sigla: true,
@@ -394,6 +400,8 @@ export async function destinosEntreCampos(origenCampoId) {
     },
     orderBy: [{ orden: 'asc' }, { sigla: 'asc' }],
   });
+  const completos = new Map((await listPotrerosTodas({ ...donde, ...filtro })).map((p) => [p.id, p]));
+  return campos.map((c) => ({ ...c, potreros: c.potreros.map((p) => completos.get(p.id) ?? p) }));
 }
 
 const campoDe = (db, id) => db.campo.findUnique({ where: { id }, select: { id: true, sigla: true, nombre: true } });

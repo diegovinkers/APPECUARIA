@@ -244,11 +244,19 @@ describe('Marco: barras y panel', () => {
     expect(contenedor.querySelector('[data-testid="contenido"]').className).toContain('overflow-y-auto');
   });
 
+  it('la barra de arriba lleva el logo de SAPSA, que vuelve al inicio', () => {
+    montar();
+    const logo = contenedor.querySelector('header img[alt="SAPSA"]');
+    expect(logo.getAttribute('src')).toBe('/logo-sapsa.png');
+    expect(logo.closest('a').getAttribute('href')).toBe('/pecuaria/resumen');
+  });
+
   it('sin sesión no hay menú, solo la barra simple', () => {
     estado.user = null;
     montar('/login');
     expect(contenedor.querySelector('nav[aria-label="Barra de abajo"]')).toBeNull();
     expect(boton('Salir')).toBeUndefined();
+    expect(contenedor.querySelector('header img[alt="SAPSA"]')).toBeTruthy();
   });
 
   it('con la contraseña por cambiar, solo se puede salir', () => {
@@ -285,12 +293,12 @@ describe('Marco: el botón +', () => {
     expect(donde()).toBe('/pecuaria/mover?potrero=10&lote=102');
   });
 
-  it('cada potrero dice cabezas de qué (por categoría)', () => {
+  it('cada potrero dice cabezas de qué (por categoría) y su uso', () => {
     montar();
     click(boton('Registrar'));
     elegir('Compra');
     const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
-    expect(opciones).toEqual(['10.380 Terneros · 40 Vacas120 cab', '1250 Novillos50 cab', '14vacío0 cab']);
+    expect(opciones).toEqual(['10.380 Terneros · 40 Vacas · sin uso120 cab', '1250 Novillos · sin uso50 cab', '14vacío · sin uso0 cab']);
   });
 
   it('con un solo lote en el potrero, va directo (y la salida lleva su tipo)', () => {

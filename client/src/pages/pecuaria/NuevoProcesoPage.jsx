@@ -6,7 +6,7 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import Camino from '../../components/Camino';
 import { ErrorList, inputClass } from '../../components/ui';
-import { formatNumero } from '../../components/pecuaria';
+import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import { indexarLotes } from '../../components/eventos';
 import { cuerpoProceso } from '../../components/procesos';
 import { ElegirEstancia } from './comun';
@@ -302,7 +302,7 @@ export default function NuevoProcesoPage() {
                           <option value="">Elegí…</option>
                           {otros.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.nombre}
+                              {opcionPotrero(p)}
                             </option>
                           ))}
                         </select>

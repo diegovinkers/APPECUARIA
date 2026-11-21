@@ -101,6 +101,16 @@ describe('mover entre campos', () => {
     expect(a.detalle).toMatchObject({ revierteA: body.evento.id, tipoOriginal: 'ENTRE_CAMPOS' });
   });
 
+  it('de las estancias que ve, cada destino trae qué hay y su uso (para elegir bien)', async () => {
+    const { agent, campo, A, O1 } = await preparar();
+    await agent.post('/api/pecuaria/movimientos/entre-campos').send({ loteOrigenId: A.id, cabezas: 100, destinoPotreroId: O1.id, modo: 'ENTERO' }).expect(201);
+    const [destino] = (await agent.get(`/api/pecuaria/movimientos/entre-campos/destinos?origen=${campo.id}`).expect(200)).body;
+    const [o1] = destino.potreros;
+    expect(o1.nombre).toBe('O1');
+    expect(o1).toHaveProperty('usoActual');
+    expect(o1.stock.lotes.map((l) => [l.categoria, l.cabezas])).toEqual([['Terneros', 100]]);
+  });
+
   it('el encargado de origen lo registra sin tener la estancia de destino (pero no desde una ajena)', async () => {
     const { campo, otra, A, O1 } = await preparar();
     const ajeno = await prisma.lote.create({ data: { campoId: otra.id, potreroId: O1.id, categoriaId: A.categoriaId, nombre: 'Ajeno' } });

@@ -12,7 +12,7 @@ import {
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, buttonClass, inputClass } from '../components/ui';
-import { formatNumero, formatUsd } from '../components/pecuaria';
+import { formatNumero, formatUsd, opcionPotrero } from '../components/pecuaria';
 import CamposPrecioVenta, { cuerpoVenta } from '../components/PrecioVenta';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
@@ -271,7 +271,7 @@ export default function RegistrarPage() {
                 .filter((p) => !sale || (p.stock?.cabezas ?? 0) > 0 || p.id === potrero.id)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} · {formatNumero(p.stock?.cabezas ?? 0)} cab
+                    {opcionPotrero(p)}
                   </option>
                 ))}
             </select>

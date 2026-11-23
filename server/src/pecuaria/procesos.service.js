@@ -24,6 +24,7 @@ import { aplicar, revertirEventoEn } from './movimientos.service.js';
 import { aplicarEntradaSalida } from './entradas-salidas.service.js';
 import { ETAPAS_UNICAS, PLANTILLAS, TIPOS_REPRODUCCION, etapaDe, etapaDePlantilla } from './procesos.plantillas.js';
 import { textoDatos } from './eventos.datos.js';
+import { plazosProceso } from './procesos.configuracion.js';
 import { MODALIDAD, lineaDiagnostico, lineaParicion, lineaRevision, lineaSimple, textoAncla } from './procesos.datos.js';
 
 const TX = { timeout: 60_000, maxWait: 10_000 };
@@ -44,10 +45,12 @@ async function enTransaccion(fn) {
 
 // --- Parámetros ---
 
+// Desde el 23/11 salen de los plazos de las etapas (etapa_plantilla, editables
+// en Configuración → Procesos): gestación = plazo de la parición, ecografía y
+// destete (en meses).
 export async function parametrosProceso(db = prisma) {
-  const filas = await db.parametro.findMany({ where: { clave: { in: ['GESTACION_DIAS', 'DIAGNOSTICO_DESDE_DIAS', 'DESTETE_EDAD_DIAS'] } } });
-  const valor = (clave, porDefecto) => Number(filas.find((f) => f.clave === clave)?.valor ?? porDefecto);
-  return { gestacionDias: valor('GESTACION_DIAS', 283), diagnosticoDesdeDias: valor('DIAGNOSTICO_DESDE_DIAS', 45), desteteEdadDias: valor('DESTETE_EDAD_DIAS', 180) };
+  const plazos = await plazosProceso(db);
+  return { gestacionDias: plazos.PARICION.plazo, diagnosticoDesdeDias: plazos.DIAGNOSTICO.plazo, lactanciaMeses: plazos.DESTETE.plazo, plazos };
 }
 
 // --- Lotes ---

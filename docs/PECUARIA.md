@@ -141,6 +141,51 @@ Con filas (tabla · filas): AREAMANEJO 154 · AREAMANEJOXTALHOES 2 · AREAMANXCA
 8. ES "8 y 10" del 13/11: ¿son vacas de 200 kg o terneras?
 9. ¿Los ovinos entran en la app?
 
+## 9. Procesos de reproducción con eventos sugeridos (pedido del 22/11/2026)
+
+"Proyecto" y "proceso" son lo mismo: el `Proceso` de la tabla `proceso` (diseño `docs/superpowers/specs/2026-11-20-procesos-design.md`). Lo nuevo se construye encima, sin duplicar.
+
+### Decisiones (aprobadas por Diego, 23/11/2026)
+
+- **Menú:** Procesos es una página propia (`/pecuaria/procesos`), con su botón en la barra de abajo donde estaba Eventos. Eventos queda dentro de Registro (pestaña Eventos, botón "Anotar evento") y en las fichas del potrero y del lote. Los eventos de un proceso se cargan desde la página del proceso.
+- **Dos tipos:** entore e inseminación (la `modalidad` TOROS / IATF que ya existe).
+- **Vacas y terneros por lote**, como cantidades; un evento puede tocar solo una parte del lote. **El toro, uno por uno** (identificación y genética), dentro de un lote de toros: asignarlo a un proceso mueve 1 cabeza con el mecanismo de siempre. Los toros cuentan en el stock del potrero mientras están ahí.
+- **Categoría y estado, separados.** La madre queda en su categoría ("Vacas de cría") y no cambia; el estado (vacía, preñada, parida con ternero al pie) sale del rol del lote en el proceso, con nombres editables. Los lotes que ya están en "Vacas paridas" o "Vacas preñadas" quedan como están.
+- **Una vaca en dos procesos:** una parida con cría al pie puede entrar a un entore nuevo (a los ~70 días del parto). El stock es del lote: el proceso solo lo vincula, no se duplica.
+- **Ecografía en varios días y por partes**, en los dos tipos. Después de cada parte: mover las preñadas, mover las vacías o dejar todo. Toros: sacarlos, el mismo otra vez o traer otro.
+- **Vacías:** se mueven o se dejan, y pueden empezar un proceso nuevo enganchado al de origen.
+- **Parición** en tandas, machos y hembras por separado, al lote del mes en que nacieron (los primeros, "de punta", se venden primero). Quedan en el potrero o van al de paridas. Caravana del ternero: dato opcional.
+- **Destete** sugerido según la lactancia (5 a 7 meses, en meses).
+- **Bajas** (muerte de la vaca, del ternero, aborto) en todas las etapas, dentro de "Más opciones". En un aborto, la vaca vuelve a vacía y se ofrece moverla.
+- La fecha real manda (se recalcula lo que sigue); la app propone y el usuario confirma; si la realidad se sale del plan, avisa pero no bloquea. El proceso queda abierto hasta que cada vaca tiene destino. Estados de una sugerencia: pendiente, próxima, hoy, atrasada, hecha, descartada.
+- Jefe, dueño y encargado pueden hacer lo mismo. El encargado carga desde el celular.
+
+### Supuestos (valores iniciales, editables en Configuración)
+
+| Plazo | Valor |
+|---|---|
+| Fin del entore (salida de los toros) | 90 días desde el inicio |
+| Ecografía | 30 días después del fin del entore o de cada tanda de inseminación (antes eran 45) |
+| Gestación | 283 días |
+| Ventana de parición | entore: inicio + 283 a fin + 283; inseminación: cada tanda + 283 |
+| Nuevo entore de la parida | 70 días después del parto |
+| Destete (lactancia) | 6 meses (antes eran 180 días) |
+| Aviso | 7 días antes |
+
+Ejemplo de control (ficticio): inicio 01/12/2026 → fin del entore 01/03/2027 → ecografía 31/03/2027 → parición 10/09 al 09/12/2027; tanda del 15/09/2027 → nuevo entore 24/11/2027 y destete 15/03/2028.
+
+### A averiguar con el encargado
+
+1. Los nombres de los estados y los plazos reales.
+2. En la inseminación, ¿hay protocolo previo y toro de repaso?
+3. Los cambios de categoría: la vaquillona que pare, los terneros al destete.
+4. ¿Hay vacas de cría en la estancia con la que arranca la app?
+5. Quién carga los toros de cada estancia (identificación y genética), y cuándo.
+
+### Fuera de esta versión
+
+Seguimiento animal por animal (la caravana queda como dato opcional), genética detallada, destete temporario, notificaciones push, ovinos e IA. Los formularios de evento quedan reutilizables para un bot futuro (con confirmación humana y control de costo).
+
 ## Anexo: potreros por campo (hoja 13.11.2026)
 
 Generado desde la planilla el 17/11/2026. Has "1" = relleno (ver trampa 3).

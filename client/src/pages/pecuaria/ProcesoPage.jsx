@@ -138,7 +138,7 @@ export default function ProcesoPage() {
 
   return (
     <main className="mx-auto flex min-h-full max-w-3xl flex-col px-4 pt-6 sm:pt-10">
-      <Link to="/pecuaria/registro?ver=procesos" className="text-sm text-campo-600 hover:underline">
+      <Link to="/pecuaria/procesos" className="text-sm text-campo-600 hover:underline">
         ← Procesos
       </Link>
       <div className="mt-2 flex items-start gap-2">

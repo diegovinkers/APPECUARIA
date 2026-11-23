@@ -14,7 +14,7 @@ import {
 } from '../src/pecuaria/procesos.calculos.js';
 import { ETAPAS_UNICAS, PLANTILLAS, etapaDe } from '../src/pecuaria/procesos.plantillas.js';
 
-const PARAMETROS = { gestacionDias: 283, diagnosticoDesdeDias: 45, desteteEdadDias: 180 };
+const PARAMETROS = { gestacionDias: 283, diagnosticoDesdeDias: 45, lactanciaMeses: 6 };
 
 // Un ancla: { etapa, loteId, fecha, cabezas, datos, anulado }.
 const ancla = (etapa, loteId, fecha, cabezas, datos = {}, anulado = false) => ({ etapa, loteId, fecha, cabezas, datos, anulado });
@@ -121,7 +121,7 @@ describe('próximas fechas', () => {
     const cria = [...diag, ancla('PARICION', 1, '2027-10-11', 40, { madres: 40, machos: 20, hembras: 20 }), ancla('FIN_PARICION', 1, '2028-01-05', 0)];
     expect(proximas({ anclas: cria, lotes: [{ loteId: 2, rol: 'CRIAS', activo: true }], parametros: PARAMETROS, hoy: '2028-01-10' })).toMatchObject({
       etapa: 'DESTETE',
-      desde: '2028-04-08',
+      desde: '2028-04-11',
       texto: 'destete desde abr',
       atrasada: false,
     });

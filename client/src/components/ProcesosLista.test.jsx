@@ -71,13 +71,13 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-async function montar({ ruta = '/pecuaria/registro?ver=procesos', todas = false } = {}) {
+async function montar({ ruta = '/pecuaria/procesos', todas = false } = {}) {
   act(() =>
     root.render(
       <MemoryRouter initialEntries={[ruta]}>
         <ConPanel>
           <Routes>
-            <Route path="/pecuaria/registro" element={<ProcesosLista campoId={todas ? null : 1} todas={todas} grupo="estancias" />} />
+            <Route path="/pecuaria/procesos" element={<ProcesosLista campoId={todas ? null : 1} todas={todas} grupo="estancias" />} />
             <Route path="*" element={null} />
           </Routes>
           <Donde />

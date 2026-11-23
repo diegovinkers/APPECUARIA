@@ -25,6 +25,17 @@ export function sumarDias(iso, dias) {
   return d.toISOString().slice(0, 10);
 }
 
+// Mismo día, N meses después; si ese mes no tiene el día (31/08 + 6 meses),
+// el último día del mes (28 o 29/02).
+export function sumarMeses(iso, meses) {
+  const [a, m, d] = iso.split('-').map(Number);
+  const total = a * 12 + (m - 1) + meses;
+  const anio = Math.floor(total / 12);
+  const mes = (total % 12) + 1;
+  const ultimo = new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+  return `${anio}-${String(mes).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`;
+}
+
 const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const nombreMes = (mes) => MESES[Number(mes.slice(5, 7)) - 1];
 
@@ -113,7 +124,8 @@ export function fechasServicio(anclas) {
 }
 
 // Lo que sigue: { etapa, texto, desde, atrasada }.
-//   parametros: { gestacionDias, diagnosticoDesdeDias, desteteEdadDias }.
+//   parametros: { gestacionDias, diagnosticoDesdeDias, lactanciaMeses } (de
+//   procesos.configuracion.js: los plazos de la parición, la ecografía y el destete).
 export function proximas({ anclas, lotes = [], parametros, hoy }) {
   const etapa = etapaActual(anclas, lotes);
   const { inicio, fin } = fechasServicio(anclas);
@@ -137,7 +149,7 @@ export function proximas({ anclas, lotes = [], parametros, hoy }) {
   }
   if (etapa === 'CRIA') {
     const partos = de(vigentes(anclas), 'PARICION').map((x) => x.fecha).sort();
-    const desde = partos[0] ? sumarDias(partos[0], parametros.desteteEdadDias) : null;
+    const desde = partos[0] ? sumarMeses(partos[0], parametros.lactanciaMeses) : null;
     return { etapa: 'DESTETE', texto: desde ? `destete desde ${nombreMes(desde)}` : 'destete', desde, atrasada: desde != null && hoy > sumarDias(desde, 60) };
   }
   return { etapa: null, texto: 'terminado', desde: null, atrasada: false };

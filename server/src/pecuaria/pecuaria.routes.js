@@ -58,6 +58,11 @@ import {
   tiposMovimientoController,
   updatePotrero,
   usosSueloController,
+  getConfiguracionProcesos,
+  putConfiguracionProcesos,
+  getToros,
+  postToro,
+  patchToro,
 } from './pecuaria.controller.js';
 import {
   confirmarImportacionSchema,
@@ -88,6 +93,9 @@ import {
   parametrosSchema,
   stockSchema,
   usoSchema,
+  configuracionProcesosSchema,
+  toroSchema,
+  editarToroSchema,
 } from './pecuaria.schema.js';
 import { authRequired } from '../auth/auth.middleware.js';
 import { requirePermission } from '../auth/permisos.js';
@@ -197,6 +205,13 @@ router.post('/eventos-registro/:id/anular', revertir, alcanceAnularEvento, postA
 // Procesos (ciclo reproductivo): un servicio con sus etapas. Las cargas se
 // anulan como los eventos (/eventos-registro/grupo/:grupoId/anular).
 router.get('/procesos', ver, getProcesosTodas);
+// Plazos, avisos y nombres de los estados (docs/PECUARIA.md §9). Antes de /procesos/:id.
+router.get('/procesos/configuracion', ver, getConfiguracionProcesos);
+router.put('/procesos/configuracion', configurar, validateBody(configuracionProcesosSchema), putConfiguracionProcesos);
+// Los toros, uno por uno, de cada estancia. ?todos=1 trae también los dados de baja.
+router.get('/campos/:campoId/toros', ver, alcance('campo', 'campoId'), getToros);
+router.post('/campos/:campoId/toros', configurar, alcance('campo', 'campoId'), validateBody(toroSchema), postToro);
+router.patch('/toros/:id', configurar, alcance('toro'), validateBody(editarToroSchema), patchToro);
 router.get('/campos/:campoId/procesos', ver, alcance('campo', 'campoId'), getProcesos);
 router.get('/procesos/:id', ver, alcance('proceso'), getProceso);
 router.post('/procesos/vista-previa', registrar, validateBody(procesoSchema), alcanceProceso, postVistaPreviaProceso);

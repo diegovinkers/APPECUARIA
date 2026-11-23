@@ -97,11 +97,11 @@ afterEach(() => {
 });
 
 describe('Marco: barras y panel', () => {
-  it('la barra de abajo: Resumen · Potreros · + · Registro · Eventos ("Eventos" reemplaza a "Menú")', () => {
+  it('la barra de abajo: Resumen · Potreros · + · Registro · Procesos (Procesos va donde estaba Eventos)', () => {
     montar();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
     const partes = [...abajo.children].map((el) => el.textContent.trim() || el.querySelector('button')?.getAttribute('aria-label'));
-    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Registro', 'Eventos']);
+    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Registro', 'Procesos']);
   });
 
   it('el superadmin ve Usuarios en el menú; el capataz no', () => {
@@ -124,7 +124,7 @@ describe('Marco: barras y panel', () => {
     montar();
     expect(boton('Registrar')).toBeUndefined();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
-    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Registro', 'Menú']);
+    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Registro', 'Procesos', 'Menú']);
   });
 
   it('con una sola estancia, la muestra fija (sin selector)', () => {
@@ -387,58 +387,14 @@ describe('Marco: el botón +', () => {
   });
 });
 
-describe('Marco: el botón Eventos', () => {
-  // Espera a que lleguen los tipos (la promesa de la API).
-  const abrirEventos = async () => {
-    await act(async () => {
-      contenedor.querySelector('nav[aria-label="Barra de abajo"] > button:last-child').click();
-    });
-  };
-  const hoja = () => contenedor.querySelector('[role="dialog"][aria-label="Eventos"]');
-
-  it('abre la hoja: Pesada y Recuento arriba y grandes, después los grupos; sin los inactivos ni los que mueven', async () => {
+describe('Marco: Procesos en lugar de Eventos (23/11)', () => {
+  it('Procesos lleva a su página', () => {
     montar();
-    await abrirEventos();
-    const grandes = [...hoja().querySelectorAll('.grid button')].map((b) => b.textContent.trim());
-    expect(grandes).toEqual(['Pesada', 'Recuento']);
-    const grupos = [...hoja().querySelectorAll('section')].map((g) => [g.querySelector('p').textContent, [...g.querySelectorAll('button')].map((b) => b.textContent)]);
-    expect(grupos).toEqual([
-      ['Sanidad', ['Vacuna aftosa']],
-      ['Reproducción (hembras)', ['Ecografía']],
-      ['Otros', ['Baño']],
-    ]);
-    expect(hoja().textContent).not.toContain('Dosificación');
-    expect(hoja().textContent).not.toContain('Sumar a otro lote');
+    const link = [...contenedor.querySelectorAll('nav[aria-label="Barra de abajo"] a')].find((a) => a.textContent.trim() === 'Procesos');
+    expect(link.getAttribute('href')).toBe('/pecuaria/procesos');
   });
 
-  it('elegir un evento lleva al camino de 4 pasos', async () => {
-    montar();
-    await abrirEventos();
-    click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Pesada'));
-    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=15');
-  });
-
-  it('arranca donde estás: desde la ficha de un potrero o de un lote, lo lleva', async () => {
-    montar('/pecuaria/potreros/10');
-    await abrirEventos();
-    click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Vacuna aftosa'));
-    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=24&potrero=10');
-    act(() => root.unmount());
-    root = createRoot(contenedor);
-    montar('/pecuaria/lotes/7');
-    await abrirEventos();
-    click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === 'Recuento'));
-    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=27&lote=7');
-  });
-
-  it('en la compu, "Eventos" está arriba al lado del "+"', () => {
-    montar();
-    const arriba = [...contenedor.querySelectorAll('header button')].map((b) => b.textContent.trim());
-    expect(arriba.indexOf('Eventos')).toBe(arriba.indexOf('Registrar') + 1);
-  });
-
-  it('Dirección (no registra) no tiene Eventos', () => {
-    estado.user = direccion;
+  it('ya no hay botón Eventos en las barras (está en Registro y en las fichas)', () => {
     montar();
     expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Eventos')).toBe(false);
   });

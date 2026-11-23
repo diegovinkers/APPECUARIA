@@ -12,6 +12,7 @@ import { MODULOS, ROLES, USUARIOS_EJEMPLO } from './catalog.js';
 import { CATEGORIAS, CAUSAS, PARAMETROS, TIPOS_MOVIMIENTO, USOS_SUELO } from './pecuaria.catalog.js';
 import { normalizarTexto } from '../pecuaria/normalizar.js';
 import { deducirSexo } from '../pecuaria/sexo.js';
+import { ESTADOS_INICIALES, PLAZOS_INICIALES } from '../pecuaria/procesos.plazos.js';
 
 export class SeedError extends Error {}
 
@@ -50,6 +51,18 @@ export async function seedPecuaria(prisma, log = console.log) {
   }
   for (const parametro of PARAMETROS) {
     await prisma.parametro.upsert({ where: { clave: parametro.clave }, update: {}, create: parametro });
+  }
+  // Procesos: los plazos de cada etapa y los nombres de los estados. Se crean
+  // los que faltan; los que existen no se tocan (se editan desde la app).
+  for (const [clave, e] of Object.entries(PLAZOS_INICIALES)) {
+    await prisma.etapaPlantilla.upsert({
+      where: { tipoProceso_clave: { tipoProceso: 'REPRODUCTIVO', clave } },
+      update: {},
+      create: { tipoProceso: 'REPRODUCTIVO', clave, nombre: e.nombre, plazo: e.plazo, unidad: e.unidad, desde: e.desde, avisoDias: e.avisoDias, orden: e.orden },
+    });
+  }
+  for (const [rol, e] of Object.entries(ESTADOS_INICIALES)) {
+    await prisma.estadoReproductivo.upsert({ where: { rol }, update: {}, create: { rol, nombre: e.nombre, orden: e.orden } });
   }
   // Tipos de movimiento: se crean los que faltan, por clave. No alcanza con
   // "si está vacío" porque la migración ya crea los 5 que usa la app para

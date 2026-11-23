@@ -51,10 +51,7 @@ export const PARAMETROS = [
   // Adaptación < engorde < ciclo.
   { clave: 'FEEDLOT_ADAPTACION_DIAS', valor: 20, descripcion: 'Feedlot: días de adaptación (de 0 a este número)' },
   { clave: 'FEEDLOT_ENGORDE_DIAS', valor: 90, descripcion: 'Feedlot: días hasta el final del engorde (después viene la terminación)' },
-  // Procesos (ciclo reproductivo): las fechas esperadas de cada etapa.
-  { clave: 'GESTACION_DIAS', valor: 283, descripcion: 'Procesos: días de gestación (del servicio al parto)' },
-  { clave: 'DIAGNOSTICO_DESDE_DIAS', valor: 45, descripcion: 'Procesos: días desde el fin del servicio hasta el diagnóstico (ecografía o tacto)' },
-  { clave: 'DESTETE_EDAD_DIAS', valor: 180, descripcion: 'Procesos: días desde el primer parto hasta el destete' },
+  // Los plazos de los procesos están en etapa_plantilla (procesos.plazos.js).
 ];
 
 // Niveles a los que se aplica un movimiento (PROPUESTA_MOVIMIENTOS §5). Las

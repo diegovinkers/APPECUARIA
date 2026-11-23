@@ -81,6 +81,12 @@ export const ACCION = {
   PROCESO_CERRADO: 'PROCESO_CERRADO',
   // detalle: { nombre, anclasAnuladas }
   PROCESO_ANULADO: 'PROCESO_ANULADO',
+  // Configuración de los procesos (plazos, avisos, nombres de los estados).
+  // entidad = etapa_plantilla. detalle: { antes, despues } por clave de etapa o de estado.
+  PROCESO_CONFIG_EDITADA: 'PROCESO_CONFIG_EDITADA',
+  // Toros (uno por uno). entidad = toro. detalle: { identificacion, campoId, ... } / { antes, despues }
+  TORO_CREADO: 'TORO_CREADO',
+  TORO_EDITADO: 'TORO_EDITADO',
 };
 
 // Para auditar una edición: de las claves indicadas, solo las que cambiaron.

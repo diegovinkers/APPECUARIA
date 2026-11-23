@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api/pecuaria', () => ({}));
 vi.mock('../components/LibroRodeoConfig', () => ({ Causas: () => null, TiposMovimiento: () => null }));
+vi.mock('../components/ProcesosConfig', () => ({ ConfigProcesos: () => null, ConfigToros: () => null }));
 const { problemaEtapas, textoPesoPrecio } = await import('./ConfiguracionPecuariaPage.jsx');
 
 describe('textoPesoPrecio', () => {

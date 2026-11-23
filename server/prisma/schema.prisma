@@ -314,6 +314,7 @@ model Campo {
   eventos        EventoMovimiento[]
   registros      EventoRegistro[]
   procesos       Proceso[]
+  toros          Toro[]
 
   @@map("campo")
 }
@@ -349,6 +350,7 @@ model Potrero {
   movimientosDestino Movimiento[]     @relation("MovimientoPotreroDestino")
   sesionesBaston     SesionBaston[]
   registros          EventoRegistro[]
+  asignacionesToros  ProcesoToro[]
 
   @@unique([campoId, nombre])
   @@map("potrero")
@@ -543,6 +545,7 @@ model Lote {
   nacimientos        Movimiento[]        @relation("MovimientoLoteMadres")
   registros          EventoRegistro[]
   procesos           ProcesoLote[]
+  toros              Toro[]
 
   @@unique([campoId, nombre])
   @@index([potreroId])
@@ -726,6 +729,8 @@ model EventoRegistro {
   proceso          Proceso?       @relation(fields: [procesoId], references: [id], onDelete: Restrict)
   movimientos      Movimiento[]   @relation("MovimientoRegistro")
   lotesProceso     ProcesoLote[]
+  torosEntrada     ProcesoToro[]  @relation("ProcesoToroEntrada")
+  torosSalida      ProcesoToro[]  @relation("ProcesoToroSalida")
 
   @@index([campoId, fecha])
   @@index([potreroId, fecha])
@@ -880,6 +885,7 @@ model Proceso {
   procesoAnterior Proceso?           @relation("Reentore", fields: [procesoAnteriorId], references: [id], onDelete: Restrict)
   siguientes      Proceso[]          @relation("Reentore")
   lotes           ProcesoLote[]
+  toros           ProcesoToro[]
   registros       EventoRegistro[]
   movimientos     Movimiento[]
   eventos         EventoMovimiento[]
@@ -943,4 +949,93 @@ enum DestinoVacias {
   REENTORE
   INVERNADA
   VENTA
+}
+
+/// Procesos con eventos sugeridos (docs/PECUARIA.md §9): cuándo se espera
+/// cada etapa y cuántos días antes se avisa, editable en Configuración. Las
+/// etapas y lo que hace cada una están en código (procesos.plantillas.js);
+/// acá van solo el nombre que se muestra, el plazo y el aviso.
+model EtapaPlantilla {
+  id            Int         @id @default(autoincrement())
+  tipoProceso   TipoProceso @default(REPRODUCTIVO) @map("tipo_proceso")
+  /// La etapa: FIN_SERVICIO, DIAGNOSTICO, PARICION, NUEVO_ENTORE, DESTETE.
+  clave         String      @db.VarChar(20)
+  nombre        String      @db.VarChar(60)
+  /// Cuánto después de `desde` se espera.
+  plazo         Int
+  unidad        UnidadPlazo @default(DIAS)
+  /// Desde qué se cuenta (fijo, no se edita): INICIO (el primer día del
+  /// servicio), SERVICIO (cada día o tanda en que entraron), FIN_SERVICIO o
+  /// PARTO. La ecografía de una inseminación se cuenta desde cada tanda.
+  desde         String      @db.VarChar(20)
+  avisoDias     Int         @default(7) @map("aviso_dias")
+  orden         Int         @default(0)
+  actualizadoEn DateTime    @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  @@unique([tipoProceso, clave])
+  @@map("etapa_plantilla")
+}
+
+enum UnidadPlazo {
+  DIAS
+  MESES
+}
+
+/// El nombre que se muestra de cada estado de las vacas en un proceso
+/// (vacía, preñada, parida con ternero al pie...). El estado es el rol del
+/// lote en el proceso; la categoría no cambia. Editable en Configuración.
+model EstadoReproductivo {
+  rol    RolProceso @id
+  nombre String     @db.VarChar(40)
+  orden  Int        @default(0)
+
+  @@map("estado_reproductivo")
+}
+
+/// Un toro, uno por uno (por su genética). Cuenta como una cabeza del lote
+/// de toros donde está (`loteId`, el último conocido): cuando se asigna a un
+/// proceso se mueve con el mecanismo de siempre y se actualiza el lote.
+model Toro {
+  id             Int      @id @default(autoincrement())
+  campoId        Int      @map("campo_id")
+  /// Caravana, número o nombre corto: lo que se usa para reconocerlo.
+  identificacion String   @db.VarChar(40)
+  raza           String?  @db.VarChar(60)
+  genetica       String?  @db.VarChar(255)
+  loteId         Int?     @map("lote_id")
+  activo         Boolean  @default(true)
+  nota           String?  @db.VarChar(255)
+  creadoEn       DateTime @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn  DateTime @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  campo        Campo         @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  lote         Lote?         @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  asignaciones ProcesoToro[]
+
+  @@unique([campoId, identificacion])
+  @@index([loteId])
+  @@map("toro")
+}
+
+/// Un toro en un proceso: cuándo entró, a qué potrero y cuándo salió
+/// (hasta = null: sigue). Los registros son los anclas de la entrada y la salida.
+model ProcesoToro {
+  id               Int       @id @default(autoincrement())
+  procesoId        Int       @map("proceso_id")
+  toroId           Int       @map("toro_id")
+  potreroId        Int       @map("potrero_id")
+  desde            DateTime  @db.Date
+  hasta            DateTime? @db.Date
+  registroId       Int?      @map("registro_id")
+  registroSalidaId Int?      @map("registro_salida_id")
+
+  proceso        Proceso         @relation(fields: [procesoId], references: [id], onDelete: Restrict)
+  toro           Toro            @relation(fields: [toroId], references: [id], onDelete: Restrict)
+  potrero        Potrero         @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  registro       EventoRegistro? @relation("ProcesoToroEntrada", fields: [registroId], references: [id], onDelete: Restrict)
+  registroSalida EventoRegistro? @relation("ProcesoToroSalida", fields: [registroSalidaId], references: [id], onDelete: Restrict)
+
+  @@index([procesoId])
+  @@index([toroId])
+  @@map("proceso_toro")
 }

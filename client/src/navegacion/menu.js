@@ -14,6 +14,9 @@ export const PRINCIPAL = [
   { clave: 'potreros', texto: 'Potreros', ruta: '/pecuaria/potreros', icono: 'potreros', requiere: 'pecuaria:VER' },
   // Registro (20/11): pestañas Movimientos y Eventos (pages/pecuaria/RegistroPage.jsx).
   { clave: 'registro', texto: 'Registro', ruta: '/pecuaria/registro', icono: 'registro', requiere: 'pecuaria:VER' },
+  // Procesos (23/11): página propia, en el lugar donde estaba "Eventos" en la
+  // barra de abajo. Eventos pasó adentro de Registro y a las fichas.
+  { clave: 'procesos', texto: 'Procesos', ruta: '/pecuaria/procesos', icono: 'procesos', requiere: 'pecuaria:VER' },
 ];
 
 // Panel izquierdo, por grupos. Un grupo sin ítems visibles no se muestra.
@@ -147,8 +150,9 @@ export const REGISTRAR = [
 ];
 
 // Botón "Eventos" = anotar: les hiciste algo y siguen donde estaban (pesada,
-// recuento, vacuna...). En el celular reemplaza a "Menú" en la barra de abajo
-// (el menú sigue en el ☰ de arriba); en la compu va al lado del "+".
+// recuento, vacuna...). Desde el 23/11 se abre con "Anotar evento" en la
+// pestaña Eventos de Registro y en las fichas del potrero y del lote
+// (components/BotonEventos.jsx); los de un proceso, desde su página.
 export const EVENTOS = { clave: 'eventos', texto: 'Eventos', icono: 'eventos', requiere: 'pecuaria:CREAR' };
 
 // La pantalla de un evento (el camino de 4 pasos). contexto: { potrero, lote }

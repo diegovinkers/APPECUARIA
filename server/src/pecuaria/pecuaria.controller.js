@@ -13,6 +13,8 @@ import { filtrosMovimientosSchema, filtrosProcesosSchema, grupoSchema } from './
 import * as feedlot from './feedlot.service.js';
 import * as eventos from './eventos.service.js';
 import * as procesos from './procesos.service.js';
+import * as procesosConfig from './procesos.configuracion.js';
+import * as toros from './toros.service.js';
 
 // Las claves que vinieron en el body: son las que se comparan para auditar.
 const clavesEnviadas = (body) => Object.keys(body).filter((k) => body[k] !== undefined);
@@ -497,4 +499,39 @@ export async function postAsociar(req, res) {
   const { auditoria, ...resultado } = await procesos.asociar(req.params.id, req.body, req.user.id);
   await registrar(req, { accion: ACCION.PROCESO_ETAPA, entidad: 'proceso', entidadId: resultado.ficha.proceso.id, detalle: auditoria });
   res.json(resultado);
+}
+
+// --- Procesos: configuración (plazos, avisos y nombres de los estados) ---
+
+export async function getConfiguracionProcesos(req, res) {
+  res.json(await procesosConfig.leerConfiguracion());
+}
+
+export async function putConfiguracionProcesos(req, res) {
+  const { antes, despues, cambio } = await procesosConfig.guardarConfiguracion(req.body);
+  if (cambio) await registrar(req, { accion: ACCION.PROCESO_CONFIG_EDITADA, entidad: 'etapa_plantilla', entidadId: null, detalle: { antes, despues } });
+  res.json(await procesosConfig.leerConfiguracion());
+}
+
+// --- Toros ---
+
+// Lo que se audita de un toro (el lote, por su nombre).
+const toroPlano = (t) => ({ identificacion: t.identificacion, raza: t.raza, genetica: t.genetica, lote: t.lote?.nombre ?? null, activo: t.activo, nota: t.nota });
+
+export async function getToros(req, res) {
+  res.json(await toros.listar(req.params.campoId, { todos: req.query.todos === '1' }));
+}
+
+export async function postToro(req, res) {
+  const toro = await toros.crear(req.params.campoId, req.body);
+  await registrar(req, { accion: ACCION.TORO_CREADO, entidad: 'toro', entidadId: toro.id, detalle: { campoId: toro.campoId, ...toroPlano(toro) } });
+  res.status(201).json(toro);
+}
+
+export async function patchToro(req, res) {
+  const { antes, despues } = await toros.editar(req.params.id, req.body);
+  const claves = clavesEnviadas(req.body).map((k) => (k === 'loteId' ? 'lote' : k));
+  const detalle = cambios(toroPlano(antes), toroPlano(despues), claves);
+  if (detalle) await registrar(req, { accion: ACCION.TORO_EDITADO, entidad: 'toro', entidadId: despues.id, detalle: { identificacion: despues.identificacion, ...detalle } });
+  res.json(despues);
 }

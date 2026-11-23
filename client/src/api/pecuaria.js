@@ -92,6 +92,13 @@ export const editarProceso = (id, datos) => api.patch(`/pecuaria/procesos/${id}`
 export const vistaPreviaEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}/vista-previa`, datos);
 export const registrarEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}`, datos);
 export const anularCargaProceso = (id, grupoId) => api.post(`/pecuaria/procesos/${id}/cargas/${grupoId}/anular`);
+// Plazos, avisos y nombres de los estados de los procesos (docs/PECUARIA.md §9).
+export const getConfiguracionProcesos = () => api.get('/pecuaria/procesos/configuracion');
+export const guardarConfiguracionProcesos = (datos) => api.put('/pecuaria/procesos/configuracion', datos);
+// Los toros, uno por uno.
+export const getToros = (campoId, { todos = false } = {}) => api.get(`/pecuaria/campos/${campoId}/toros`, { params: todos ? { todos: 1 } : {} });
+export const crearToro = (campoId, datos) => api.post(`/pecuaria/campos/${campoId}/toros`, datos);
+export const editarToro = (id, datos) => api.patch(`/pecuaria/toros/${id}`, datos);
 export const cerrarProceso = (id, datos = {}) => api.post(`/pecuaria/procesos/${id}/cerrar`, datos);
 export const anularProceso = (id) => api.post(`/pecuaria/procesos/${id}/anular`);
 export const getSueltos = (id) => api.get(`/pecuaria/procesos/${id}/sueltos`);

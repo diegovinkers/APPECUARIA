@@ -36,8 +36,10 @@ export const PLANTILLAS = {
   },
 };
 
-// Las etapas que van una sola vez por proceso y lote: las mismas del índice
-// evento_registro_proceso_etapa_unica (migración `procesos`).
+// Las etapas que van una sola vez por proceso y lote: las del índice
+// evento_registro_proceso_etapa_unica, más el diagnóstico. Desde la migración
+// `plazos_y_toros` el índice ya no incluye el diagnóstico (la ecografía va por
+// partes, docs/PECUARIA.md §9); el código lo sigue controlando hasta la fase 6.
 export const ETAPAS_UNICAS = new Set(PLANTILLAS.REPRODUCTIVO.etapas.filter((e) => e.unica).map((e) => e.clave));
 
 export const etapaDePlantilla = (clave, tipo = 'REPRODUCTIVO') => PLANTILLAS[tipo].etapas.find((e) => e.clave === clave) ?? null;

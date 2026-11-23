@@ -5,7 +5,6 @@ import { useEstancia } from '../context/EstanciaContext';
 import { FEEDLOTS, TODAS, separarGrupos } from '../navegacion/grupos';
 import { menuPara } from '../navegacion/menu';
 import HojaRegistrar from './HojaRegistrar';
-import HojaEventos from './HojaEventos';
 import { DestinoFiltros, PanelFiltrosProvider, usePanelFiltros } from './PanelFiltros';
 import Icono from './Icono';
 
@@ -13,9 +12,10 @@ import Icono from './Icono';
 // - arriba: logo, selector de estancia, en la compu Resumen · Potreros ·
 //   Movimientos + "Registrar", y el botón ☰ que despliega el menú (secciones,
 //   perfil, salir);
-// - abajo, en el celular: Resumen · Potreros · + · Registro · Eventos (20/11:
-//   "Eventos" reemplaza a "Menú", que sigue en el ☰ de arriba; quien no
-//   registra sigue viendo "Menú"). En la compu, "Eventos" va al lado del "+";
+// - abajo, en el celular: Resumen · Potreros · + · Registro · Procesos (23/11:
+//   Procesos va donde estaba "Eventos"; el menú sigue en el ☰ de arriba, y
+//   quien no registra, sin "+", ve además "Menú"). "Eventos" pasó adentro de
+//   Registro y a las fichas (BotonEventos);
 // - panel izquierdo: los filtros de la pantalla donde estás (PanelFiltros).
 //   En la compu, fijo; en el celular, se abre con la flechita del borde, con
 //   el botón "Filtros" o deslizando desde el borde. Sin filtros, no aparece.
@@ -64,16 +64,6 @@ export function SelectorEstancia() {
       )}
     </select>
   );
-}
-
-// "Arranca donde estás": si el botón Eventos se toca en la ficha de un potrero
-// o de un lote, el camino empieza con ese potrero o lote elegido.
-export function contextoDe(pathname) {
-  const potrero = pathname.match(/^\/pecuaria\/potreros\/(\d+)/);
-  if (potrero) return { potrero: Number(potrero[1]) };
-  const lote = pathname.match(/^\/pecuaria\/lotes\/(\d+)/);
-  if (lote) return { lote: Number(lote[1]) };
-  return {};
 }
 
 // Es activo si la dirección empieza con la ruta (o con `activoEn`).
@@ -174,7 +164,6 @@ function MarcoInterno() {
   const filtros = usePanelFiltros();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [registrarAbierto, setRegistrarAbierto] = useState(false);
-  const [eventosAbierto, setEventosAbierto] = useState(false);
   const contenido = useRef(null);
   const conMenu = Boolean(user && !user.debeCambiarPassword);
   const menu = menuPara(user);
@@ -193,7 +182,6 @@ function MarcoInterno() {
     setMenuAbierto(false);
     setFiltrosAbierto(false);
     setRegistrarAbierto(false);
-    setEventosAbierto(false);
   }, [location.pathname, setFiltrosAbierto]);
 
   // Deslizar desde el borde izquierdo abre los filtros (celular).
@@ -271,15 +259,6 @@ function MarcoInterno() {
             className="hidden items-center gap-1 rounded-md bg-trigo-500 px-3 py-1.5 text-sm font-semibold text-trigo-900 hover:bg-trigo-400 lg:flex"
           >
             <Icono nombre="mas" className="h-4 w-4" /> Registrar
-          </button>
-        )}
-        {menu.eventos && (
-          <button
-            type="button"
-            onClick={() => setEventosAbierto(true)}
-            className="hidden items-center gap-1 rounded-md bg-white/15 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/25 lg:flex"
-          >
-            <Icono nombre="eventos" className="h-4 w-4" /> Eventos
           </button>
         )}
         <span className="hidden text-sm text-campo-100 lg:inline">{user.nombre}</span>
@@ -373,12 +352,7 @@ function MarcoInterno() {
             {item.texto}
           </NavLink>
         ))}
-        {menu.eventos ? (
-          <button type="button" onClick={() => setEventosAbierto(true)} className={linkAbajo({ isActive: false })}>
-            <Icono nombre="eventos" className="h-6 w-6" />
-            Eventos
-          </button>
-        ) : (
+        {menu.registrar.length === 0 && (
           <button type="button" onClick={() => setMenuAbierto(true)} className={linkAbajo({ isActive: false })}>
             <Icono nombre="menu" className="h-6 w-6" />
             Menú
@@ -387,7 +361,6 @@ function MarcoInterno() {
       </nav>
 
       {registrarAbierto && <HojaRegistrar acciones={menu.registrar} onCerrar={() => setRegistrarAbierto(false)} />}
-      {eventosAbierto && <HojaEventos contexto={contextoDe(location.pathname)} onCerrar={() => setEventosAbierto(false)} />}
     </div>
   );
 }

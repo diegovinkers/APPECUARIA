@@ -16,6 +16,7 @@ import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { Dato, EnProceso, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
 import usePuede from '../hooks/usePuede';
 import { EventoItem } from '../components/movimientos';
+import BotonEventos from '../components/BotonEventos';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 // Acepta "250" o "250,5" (como se escribe acá).
@@ -95,6 +96,7 @@ export default function PotreroPage() {
       </h1>
       <p className="text-sm text-suelo-600">{potrero.campo.nombre}</p>
       <EnProceso procesos={potrero.procesos} />
+      <BotonEventos contexto={{ potrero: potrero.id }} className="mt-3" />
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {!esCorral && <UsoBadge uso={potrero.usoActual} />}
         {!esCorral && potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}

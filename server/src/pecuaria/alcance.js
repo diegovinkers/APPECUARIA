@@ -12,6 +12,7 @@ import { notFound, parseId } from '../errors.js';
 import { campoDeEvento } from './movimientos.service.js';
 import { campoDeGrupo, campoDeRegistro } from './eventos.service.js';
 import { campoDeProceso } from './procesos.service.js';
+import { campoDeToro } from './toros.service.js';
 
 const NO_ENCONTRADO = 'No encontrado';
 
@@ -46,6 +47,7 @@ const campoDe = {
   lote: async (id) => (await prisma.lote.findUnique({ where: { id }, select: { campoId: true } }))?.campoId,
   movimiento: async (id) => (await prisma.movimiento.findUnique({ where: { id }, select: { campoId: true } }))?.campoId,
   proceso: (id) => campoDeProceso(id),
+  toro: (id) => campoDeToro(id),
 };
 
 // Una id que no es un número o no existe sigue de largo: el controlador ya

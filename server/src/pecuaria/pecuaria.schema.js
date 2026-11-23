@@ -611,3 +611,52 @@ export const cerrarProcesoSchema = z.object({
 export const asociarSchema = z.object({
   registroIds: z.array(idPositivo('El evento no es válido'), { error: 'Elegí los eventos' }).min(1, 'Elegí los eventos').max(200, 'Demasiados eventos juntos'),
 });
+
+// --- Procesos: configuración (docs/PECUARIA.md §9) ---
+// Los límites del plazo dependen de la unidad de la etapa: los controla
+// procesos.configuracion.js.
+const enteroConfig = (mensaje) => z.int({ error: mensaje }).min(0, mensaje).max(400, mensaje);
+export const configuracionProcesosSchema = z
+  .object({
+    etapas: z
+      .array(
+        z.object({
+          clave: z.string({ error: 'Falta la etapa' }).regex(/^[A-Z_]{2,20}$/, 'La etapa no es válida'),
+          nombre: nombre(60, 'de la etapa').optional(),
+          plazo: enteroConfig('El plazo tiene que ser un número entero').optional(),
+          avisoDias: enteroConfig('El aviso tiene que ser un número entero de días').optional(),
+        }),
+        { error: 'Las etapas tienen que ser una lista' },
+      )
+      .max(20)
+      .optional(),
+    estados: z
+      .array(
+        z.object({
+          rol: z.string({ error: 'Falta el estado' }).regex(/^[A-Z_]{2,20}$/, 'El estado no es válido'),
+          nombre: nombre(40, 'del estado'),
+        }),
+        { error: 'Los estados tienen que ser una lista' },
+      )
+      .max(20)
+      .optional(),
+  })
+  .refine((b) => b.etapas?.length || b.estados?.length, 'No hay nada para guardar');
+
+// --- Toros (uno por uno) ---
+const loteToro = z.int({ error: 'El lote no es válido' }).positive('El lote no es válido').nullable();
+export const toroSchema = z.object({
+  identificacion: z
+    .string({ error: 'La identificación del toro es obligatoria' })
+    .trim()
+    .min(1, 'La identificación del toro es obligatoria')
+    .max(40, 'La identificación no puede superar los 40 caracteres'),
+  raza: textoOpcional(60, 'La raza no puede superar los 60 caracteres').optional(),
+  genetica: textoOpcional(255, 'La genética no puede superar los 255 caracteres').optional(),
+  loteId: loteToro.optional(),
+  nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+});
+export const editarToroSchema = toroSchema
+  .partial()
+  .extend({ activo: activo.optional() })
+  .refine((b) => Object.values(b).some((v) => v !== undefined), 'No hay nada para cambiar');

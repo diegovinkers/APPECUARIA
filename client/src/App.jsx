@@ -21,6 +21,7 @@ import MoverEntreCamposPage from './pages/pecuaria/MoverEntreCamposPage';
 import MovimientoMultiplePage from './pages/pecuaria/MovimientoMultiplePage';
 import EventoPage from './pages/pecuaria/EventoPage';
 import ProcesoPage from './pages/pecuaria/ProcesoPage';
+import ProcesosPage from './pages/pecuaria/ProcesosPage';
 import ProcesoEtapaPage from './pages/pecuaria/ProcesoEtapaPage';
 import NuevoProcesoPage from './pages/pecuaria/NuevoProcesoPage';
 import PotrerosPage from './pages/pecuaria/PotrerosPage';
@@ -52,6 +53,7 @@ export default function App() {
                 <Route path="/pecuaria/resumen" element={<ResumenPage />} />
                 <Route path="/pecuaria/potreros" element={<PotrerosPage />} />
                 <Route path="/pecuaria/registro" element={<RegistroPage />} />
+                <Route path="/pecuaria/procesos" element={<ProcesosPage />} />
                 {/* La dirección vieja (antes de las pestañas, 20/11) sigue andando. */}
                 <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
                 <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />

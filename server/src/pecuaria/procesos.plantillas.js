@@ -37,6 +37,9 @@ export const PLANTILLAS = {
       // toros que entran o salen (uno por uno). No toman lotes del proceso.
       { clave: 'TANDA', nombre: 'Tanda', tipos: ['ENTORE', 'INSEMINACION'], unica: false, linea: false, toma: [], mueve: true },
       { clave: 'TOROS', nombre: 'Toros', tipos: ['ENTORE'], unica: false, linea: false, toma: [], mueve: true },
+      // Fase 8: una baja (muerte de vacas o de terneros) en cualquier etapa,
+      // de cualquier lote que esté hoy en el proceso.
+      { clave: 'BAJA', nombre: 'Baja', tipos: ['MUERTE'], unica: false, linea: false, toma: ['VIENTRES', 'SIN_SERVIR', 'PRENADAS', 'VACIAS', 'PARIDAS', 'CRIAS'], mueve: true },
     ],
   },
 };

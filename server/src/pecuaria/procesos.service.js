@@ -486,7 +486,7 @@ const cronogramaDe = (p, anclas, roles, parametros, hoy) =>
       return meses.length ? { fecha: fechaISO(s.fechaInicio), meses } : fechaISO(s.fechaInicio);
     }),
   });
-const incluirSiguientes = { siguientes: { where: { estado: { not: 'ANULADO' } }, select: { fechaInicio: true, datos: true } } };
+const incluirSiguientes = { siguientes: { where: { estado: { not: 'ANULADO' } }, select: { id: true, nombre: true, estado: true, fechaInicio: true, datos: true }, orderBy: { fechaInicio: 'asc' } } };
 
 async function procesoParaCargar(tx, id) {
   const procesoId = parseId(id);
@@ -1252,6 +1252,36 @@ async function abortoAVacias(ctx, lote, cabezas, registro) {
   }
 }
 
+// --- Bajas (fase 8) ---
+
+// Una baja por lote: la muerte de unas cabezas (vacas o crías, según el rol
+// del lote), con su causa. Sale del stock como cualquier muerte (el
+// movimiento cuelga del ancla y se anula con la carga). Si mueren todas, el
+// lote se cierra y deja el proceso.
+async function cargaBaja(ctx, body) {
+  if (!body.lineas?.length) throw badRequest('Elegí el lote y cuántas murieron');
+  const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
+  const tipo = await tipoPorClave(ctx.tx, 'MUERTE');
+  for (const { lote, linea, pl } of elegidos) {
+    const cabezas = Number.parseInt(String(linea.cabezas ?? '').trim(), 10);
+    if (!Number.isInteger(cabezas) || cabezas < 1) throw badRequest(`Escribí cuántas murieron (lote ${lote.nombre})`);
+    if (cabezas > lote.cabezas) throw badRequest(`El lote ${lote.nombre} tiene ${lote.cabezas} cabezas`);
+    const causaId = linea.causaId ?? body.causaId ?? null;
+    if (!causaId) throw badRequest(`Elegí la causa de la muerte (lote ${lote.nombre})`);
+    const causa = await ctx.tx.causaMovimiento.findUnique({ where: { id: Number(causaId) } });
+    const quien = pl.rol === 'CRIAS' ? 'CRIA' : 'MADRE';
+    const registro = await crearAncla(ctx, tipo, lote, cabezas, { quien, ...(causa && { causa: `${causa.codigo} ${causa.nombre}` }) });
+    await aplicarEntradaSalida(
+      ctx.tx,
+      { tipoId: tipo.id, loteId: lote.id, cabezas, fecha: ctx.dia, causaId: Number(causaId), nota: ctx.nota },
+      ctx.usuarioId,
+      await extraDe(ctx, registro),
+    );
+    ctx.pasos.push({ texto: `${plural(cabezas, quien === 'CRIA' ? 'cría muerta' : 'vaca muerta', quien === 'CRIA' ? 'crías muertas' : 'vacas muertas')} en ${lote.nombre}${causa ? ` (${causa.nombre})` : ''}` });
+    if (cabezas === lote.cabezas) await guardarRol(ctx, lote.id, { rol: pl.rol, mes: pl.mes, destino: pl.destino, hasta: ctx.dia }, registro);
+  }
+}
+
 // --- Destete (diseño §10) ---
 
 const aNumero = (v) => (v == null || v === '' ? null : Number(String(v).trim().replace(',', '.')));
@@ -1472,6 +1502,7 @@ const CARGAS = {
   FIN_SERVICIO: cargaFinServicio,
   TANDA: cargaTanda,
   TOROS: cargaToros,
+  BAJA: cargaBaja,
   ABORTO: cargaSimple,
   DIAGNOSTICO: cargaDiagnostico,
   REVISION: cargaRevision,
@@ -1527,6 +1558,7 @@ function oracionEtapa(ctx) {
   }
   if (ctx.etapa === 'FIN_PARICION') return `Vas a anotar el fin de la parición: ${plural(cabezas, 'no parió', 'no parieron')} (pasan a vacías) el ${fechaUY(ctx.dia)}`;
   if (ctx.etapa === 'DESTETE') return `Vas a anotar el destete de ${plural(cabezas, 'ternero', 'terneros')} el ${fechaUY(ctx.dia)}`;
+  if (ctx.etapa === 'BAJA') return `Vas a anotar la baja (muerte) de ${plural(cabezas, 'cabeza', 'cabezas')} el ${fechaUY(ctx.dia)}`;
   if (ctx.etapa === 'DECISION') return `Vas a decidir qué se hace con ${plural(cabezas, 'vacía', 'vacías')} el ${fechaUY(ctx.dia)}`;
   if (ctx.etapa === 'TANDA') return `Vas a anotar otra tanda: ${plural(ctx.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')}) entran al servicio el ${fechaUY(ctx.dia)}`;
   if (ctx.etapa === 'TOROS') return `Vas a anotar los toros${textoToros(ctx.lineas[0]?.datos)} el ${fechaUY(ctx.dia)}`;
@@ -1618,6 +1650,7 @@ const incluirFicha = {
     orderBy: { id: 'asc' },
   },
   registros: { include: { lote: { select: { id: true, nombre: true } } }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] },
+  procesoAnterior: { select: { id: true, nombre: true, estado: true } },
   toros: {
     include: { toro: { select: { id: true, identificacion: true, raza: true, genetica: true } }, potrero: { select: { id: true, nombre: true } } },
     orderBy: [{ desde: 'asc' }, { id: 'asc' }],
@@ -1773,6 +1806,12 @@ export async function ficha(id) {
     })),
     etapas,
     pendientes: lotes.filter((l) => l.rol === 'VACIAS' && !l.destino && l.activo).map((l) => ({ tipo: 'DECIDIR_VACIAS', loteId: l.loteId, lote: l.nombre, cabezas: l.cabezas })),
+    // Procesos enganchados (fase 8): de cuál viene y cuáles siguieron (las
+    // vacías que volvieron a servirse, las paridas que entraron a otro entore).
+    anterior: p.procesoAnterior ?? null,
+    siguientes: (p.siguientes ?? []).map((s) => ({ id: s.id, nombre: s.nombre, estado: s.estado, fechaInicio: fechaISO(s.fechaInicio) })),
+    // Las vacías que quedaron para volver a servir: se ofrece empezar con ellas.
+    paraEnganchar: lotes.filter((l) => l.rol === 'VACIAS' && l.destino === 'REENTORE' && l.activo).map((l) => ({ loteId: l.loteId, lote: l.nombre, cabezas: l.cabezas })),
   };
 }
 

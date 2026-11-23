@@ -196,3 +196,23 @@ describe('nuevo entore con ternero al pie (fase 7)', () => {
     expect(api.vistaPreviaProceso.mock.calls[0][0].lineas).toEqual([{ loteId: 1 }]);
   });
 });
+
+describe('procesos enganchados (fase 8)', () => {
+  it('con ?desde=, las vacías para volver a servir de ese proceso también vienen elegidas', async () => {
+    api.getProcesos.mockResolvedValue({ data: [{ id: 3, nombre: 'Entore viejo', loteIds: [], reentoreIds: [2], conCriaIds: [] }] });
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/pecuaria/procesos/nuevo?desde=3']}>
+          <NuevoProcesoPage />
+        </MemoryRouter>,
+      ),
+    );
+    await act(async () => {});
+    await click(boton('IATF'));
+    await click(boton('Seguir'));
+    const filas = [...contenedor.querySelectorAll('section[aria-label="A quién"] li')];
+    expect(filas[0].textContent).toContain('Lote R');
+    expect(filas[0].textContent).toContain('para volver a servir');
+    expect(filas[0].querySelector('input[type="checkbox"]').checked).toBe(true);
+  });
+});

@@ -20,11 +20,12 @@ const BOTON_ETAPA = {
   DESTETE: 'Registrar destete',
   TOROS: 'Toros: sacar o traer',
   TANDA: 'Sumar otra tanda',
+  BAJA: 'Registrar una baja (muerte)',
 };
 export const textoBotonEtapa = (clave) => BOTON_ETAPA[clave] ?? 'Registrar';
 
 // Las etapas que ya tienen su pantalla (las demás llegan en los pasos siguientes).
-export const ETAPAS_CON_PANTALLA = new Set(['INSEMINACION', 'FIN_INSEMINACION', 'FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE', 'TOROS']);
+export const ETAPAS_CON_PANTALLA = new Set(['INSEMINACION', 'FIN_INSEMINACION', 'FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE', 'TOROS', 'BAJA']);
 
 // La campaña de una fecha (de julio a junio), como en el servidor.
 export function campaniaDe(iso) {

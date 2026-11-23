@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ getProceso: vi.fn(), getCategorias: vi.fn(), vistaPreviaEtapa: vi.fn(), registrarEtapa: vi.fn(), getToros: vi.fn() }));
+const api = vi.hoisted(() => ({ getProceso: vi.fn(), getCategorias: vi.fn(), vistaPreviaEtapa: vi.fn(), registrarEtapa: vi.fn(), getToros: vi.fn(), getCausas: vi.fn() }));
 vi.mock('../../api/pecuaria', () => api);
 vi.mock('../../hooks/usePotreros', () => ({
   default: () => ({ potreros: [{ id: 8, nombre: 'P8' }, { id: 12, nombre: 'P12' }], errors: [] }),
@@ -222,14 +222,24 @@ describe('la parición', () => {
     });
   });
 
-  it('un aborto puede pasarlas a vacías', async () => {
+  it('en un aborto la vaca vuelve a vacía (arranca marcado, fase 8); se puede destildar', async () => {
+    api.getProceso.mockResolvedValue({ data: ficha([{ ...LOTE_V, nombre: 'Lote P', cabezas: 18, rol: 'PRENADAS' }]) });
+    await montar('ABORTO');
+    await click(boton('Seguir'));
+    await escribir(contenedor.querySelector('input[inputmode="numeric"]'), '2');
+    expect(contenedor.querySelector('[data-testid="a-vacias"] input').checked).toBe(true);
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'ABORTO', { fecha: expect.any(String), aVacias: true, lineas: [{ loteId: 1, cabezas: '2' }] });
+  });
+
+  it('un aborto sin pasarlas a vacías', async () => {
     api.getProceso.mockResolvedValue({ data: ficha([{ ...LOTE_V, nombre: 'Lote P', cabezas: 18, rol: 'PRENADAS' }]) });
     await montar('ABORTO');
     await click(boton('Seguir'));
     await escribir(contenedor.querySelector('input[inputmode="numeric"]'), '2');
     await click(contenedor.querySelector('[data-testid="a-vacias"] input'));
     await click(boton('Revisar'));
-    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'ABORTO', { fecha: expect.any(String), aVacias: true, lineas: [{ loteId: 1, cabezas: '2' }] });
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'ABORTO', { fecha: expect.any(String), lineas: [{ loteId: 1, cabezas: '2' }] });
   });
 });
 
@@ -298,5 +308,35 @@ describe('los toros (fase 6)', () => {
     expect(select('Potrero del toro T-030').value).toBe('8');
     await click(boton('Revisar'));
     expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'TOROS', expect.objectContaining({ salen: [{ toroId: 22, potreroId: 12 }], entran: [{ toroId: 30, potreroId: 8 }] }));
+  });
+});
+
+describe('la baja (fase 8)', () => {
+  it('se elige el lote (ninguno de entrada), cuántas murieron y la causa (solo las de Muerte)', async () => {
+    api.getProceso.mockResolvedValue({
+      data: ficha([
+        { ...LOTE_V, nombre: 'Vacas', cabezas: 165, rol: 'PRENADAS' },
+        { ...LOTE_V, loteId: 9, nombre: 'Terneros may-2026', cabezas: 21, rol: 'CRIAS' },
+      ]),
+    });
+    api.getCausas.mockResolvedValue({
+      data: [
+        { id: 1, codigo: 'CA-001', nombre: 'Enfermedad', activo: true, tipos: [{ id: 3, clave: 'MUERTE' }] },
+        { id: 2, codigo: 'VE-001', nombre: 'Venta', activo: true, tipos: [{ id: 4, clave: 'VENTA' }] },
+      ],
+    });
+    api.vistaPreviaEtapa.mockResolvedValue({ data: { oracion: 'Vas a anotar la baja', pasos: [], avisos: [] } });
+    await montar('BAJA');
+    const casillas = [...contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')];
+    expect(casillas.map((c) => c.checked)).toEqual([false, false]);
+    expect(boton('Seguir').disabled).toBe(true);
+    await click(casillas[1]);
+    await click(boton('Seguir'));
+    expect([...select('Causa de la muerte').options].map((o) => o.textContent)).toEqual(['Elegí la causa…', 'CA-001 · Enfermedad']);
+    expect(boton('Revisar').disabled).toBe(true);
+    await escribir(input('Terneros may-2026: cuántas murieron'), '1');
+    await elegir(select('Causa de la muerte'), '1');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'BAJA', { fecha: expect.any(String), lineas: [{ loteId: 9, cabezas: '1', causaId: 1 }] });
   });
 });

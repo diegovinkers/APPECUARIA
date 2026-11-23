@@ -171,6 +171,12 @@ export function embudo(anclas, movimientos = []) {
       movimientos.filter((m) => m.tipo === 'MUERTE' && m.rol === 'CRIAS' && !m.revertido),
       (m) => m.cabezas,
     ),
+    // Fase 8: las bajas de vacas cargadas desde el proceso (las de las crías
+    // ya cuentan en muertesCrias, por su movimiento).
+    muertesMadres: suma(
+      de(a, 'BAJA').filter((x) => x.datos?.quien !== 'CRIA'),
+      (x) => num(x.cabezas),
+    ),
     destetados,
     kgDestetados,
     porcentajes: { prenez: porcentaje(prenadas, servidas), paricion: porcentaje(ternerosVivos, servidas), destete: porcentaje(destetados, servidas) },

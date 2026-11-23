@@ -267,3 +267,43 @@ describe('toros y tandas en la ficha (fase 6)', () => {
     expect(enlaces['Toros: sacar o traer']).toBe('/pecuaria/procesos/7/etapa/TOROS');
   });
 });
+
+describe('bajas y procesos enganchados (fase 8)', () => {
+  it('"Registrar una baja (muerte)" y los abortos van primero en Más opciones', async () => {
+    await montar();
+    abrirMenu();
+    const enlaces = [...contenedor.querySelectorAll('[role="menu"] a')].map((a) => [a.textContent, a.getAttribute('href')]);
+    expect(enlaces.slice(0, 2)).toEqual([
+      ['Registrar una baja (muerte)', '/pecuaria/procesos/7/etapa/BAJA'],
+      ['Registrar abortos', '/pecuaria/procesos/7/etapa/ABORTO'],
+    ]);
+  });
+
+  it('las bajas salen debajo del embudo, solo si hubo', async () => {
+    await montar();
+    expect(contenedor.querySelector('[data-testid="bajas"]')).toBeNull();
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    await montar({ ...FICHA, embudo: { ...FICHA.embudo, muertesMadres: 2, muertesCrias: 1 } });
+    expect(contenedor.querySelector('[data-testid="bajas"]').textContent).toBe('Bajas: 2 vacas muertas · 1 cría muerta');
+  });
+
+  it('de dónde viene y qué procesos siguen, con su enlace', async () => {
+    await montar({
+      ...FICHA,
+      anterior: { id: 3, nombre: 'Entore 2025-26 EJ', estado: 'CERRADO' },
+      siguientes: [{ id: 9, nombre: 'Inseminación vacías EJ', estado: 'ABIERTO', fechaInicio: '2027-04-10' }],
+    });
+    const caja = contenedor.querySelector('section[aria-label="Procesos enganchados"]');
+    expect(caja.textContent).toContain('Viene de Entore 2025-26 EJ');
+    expect([...caja.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual(['/pecuaria/procesos/3', '/pecuaria/procesos/9']);
+    expect(caja.textContent).toContain('desde el 10/04/2027');
+  });
+
+  it('las vacías para volver a servir: "Empezar con ellas" lleva a Nuevo proceso con este de origen', async () => {
+    await montar({ ...FICHA, paraEnganchar: [{ loteId: 5, lote: 'Vacas · vacías', cabezas: 35 }] });
+    const aviso = contenedor.querySelector('[data-testid="para-enganchar"]');
+    expect(aviso.textContent).toContain('35 vacías para volver a servir (Vacas · vacías)');
+    expect(aviso.querySelector('a').getAttribute('href')).toBe('/pecuaria/procesos/nuevo?desde=7');
+  });
+});

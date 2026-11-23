@@ -21,7 +21,8 @@ import {
 const MARCA = { HECHA: '✓', PENDIENTE: '○', ATRASADA: '!' };
 const COLOR_MARCA = { HECHA: 'bg-campo-600 text-white', PENDIENTE: 'bg-suelo-200 text-suelo-500', ATRASADA: 'bg-amber-500 text-white' };
 // Las etapas que se pueden cargar además de la que sigue (menú ⋯).
-const OTRAS_ETAPAS = ['REPASO', 'REVISION', 'ABORTO', 'FIN_PARICION'];
+// Fase 8: las bajas (muerte de vacas o terneros) en cualquier etapa.
+const OTRAS_ETAPAS = ['BAJA', 'ABORTO', 'REPASO', 'REVISION', 'FIN_PARICION'];
 
 // La ficha de un proceso (fase 5, docs/PECUARIA.md §9; primero el celular):
 // - la tarjeta "Próximo evento", del color de su estado, con Registrar;
@@ -152,7 +153,7 @@ export default function ProcesoPage() {
     );
   }
 
-  const { proceso, embudo, etapas, lotes, proxima, pendientes, cronograma = [], estados = {}, toros = [] } = datos;
+  const { proceso, embudo, etapas, lotes, proxima, pendientes, cronograma = [], estados = {}, toros = [], anterior = null, siguientes = [], paraEnganchar = [] } = datos;
   const esEntore = !['IATF', 'IA'].includes(proceso.datos?.modalidad);
   const abierto = proceso.estado === 'ABIERTO';
   const registra = abierto && puedo('pecuaria:CREAR');
@@ -289,7 +290,21 @@ export default function ProcesoPage() {
         </p>
       ))}
 
+      {/* Fase 8: las vacías que quedaron para volver a servir empiezan un proceso enganchado a este. */}
+      {paraEnganchar.length > 0 && puedo('pecuaria:CREAR') && (
+        <p className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-campo-500/10 px-3 py-2 text-sm text-campo-900" data-testid="para-enganchar">
+          <span>
+            {formatNumero(paraEnganchar.reduce((s, l) => s + l.cabezas, 0))} vacías para volver a servir ({paraEnganchar.map((l) => l.lote).join(', ')}).
+          </span>
+          <Link to={`/pecuaria/procesos/nuevo?desde=${proceso.id}`} className="min-h-11 rounded-md bg-campo-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-campo-700">
+            Empezar con ellas
+          </Link>
+        </p>
+      )}
+
       <Cronograma items={cronograma} registra={registra} onDescartar={descartar} />
+
+      <Enganchados anterior={anterior} siguientes={siguientes} />
 
       <StockProceso lotes={lotes} estados={estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} />
 
@@ -503,6 +518,39 @@ function StockProceso({ lotes, estados, total }) {
   );
 }
 
+// Los procesos enganchados (fase 8): de cuál viene este y cuáles siguieron
+// (las vacías que volvieron a servirse, las paridas que entraron a otro entore).
+function Enganchados({ anterior, siguientes }) {
+  if (!anterior && !siguientes.length) return null;
+  return (
+    <section aria-label="Procesos enganchados" className="mt-4 rounded-lg border border-suelo-200 bg-white p-3 text-sm">
+      {anterior && (
+        <p>
+          Viene de{' '}
+          <Link to={`/pecuaria/procesos/${anterior.id}`} className="font-medium text-campo-700 hover:underline">
+            {anterior.nombre}
+          </Link>
+        </p>
+      )}
+      {siguientes.length > 0 && (
+        <div className={anterior ? 'mt-2' : ''}>
+          <p className="text-suelo-600">Siguen en</p>
+          <ul className="mt-1 space-y-1">
+            {siguientes.map((s) => (
+              <li key={s.id}>
+                <Link to={`/pecuaria/procesos/${s.id}`} className="font-medium text-campo-700 hover:underline">
+                  {s.nombre}
+                </Link>
+                <span className="text-xs text-suelo-500"> · desde el {formatFecha(s.fechaInicio)}{s.estado !== 'ABIERTO' ? ` · ${s.estado === 'CERRADO' ? 'cerrado' : 'anulado'}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // El embudo: servidas → preñadas → paridas → destetados, con el porcentaje
 // sobre las servidas y una barra.
 function Embudo({ embudo: e }) {
@@ -512,6 +560,8 @@ function Embudo({ embudo: e }) {
     ['Paridas', e.paridas, e.porcentajes.paricion, e.ternerosVivos != null ? `${formatNumero(e.ternerosVivos)} terneros vivos` : null],
     ['Destetados', e.destetados, e.porcentajes.destete, e.kgDestetados != null ? `${formatNumero(e.kgDestetados)} kg` : null],
   ];
+  // Fase 8: las bajas, debajo (solo si hubo).
+  const bajas = [e.muertesMadres ? `${formatNumero(e.muertesMadres)} ${e.muertesMadres === 1 ? 'vaca muerta' : 'vacas muertas'}` : null, e.muertesCrias ? `${formatNumero(e.muertesCrias)} ${e.muertesCrias === 1 ? 'cría muerta' : 'crías muertas'}` : null].filter(Boolean);
   return (
     <section aria-label="Embudo" className="mt-4 rounded-lg border border-suelo-200 bg-white p-3">
       <dl className="space-y-1.5">
@@ -533,6 +583,7 @@ function Embudo({ embudo: e }) {
           </div>
         ))}
       </dl>
+      {bajas.length > 0 && <p className="mt-2 text-xs text-suelo-600" data-testid="bajas">Bajas: {bajas.join(' · ')}</p>}
     </section>
   );
 }

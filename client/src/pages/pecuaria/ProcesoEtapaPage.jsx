@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getCategorias, getProceso, getToros, registrarEtapa, vistaPreviaEtapa } from '../../api/pecuaria';
+import { getCategorias, getCausas, getProceso, getToros, registrarEtapa, vistaPreviaEtapa } from '../../api/pecuaria';
 import { ListaToros, faltaPotrero, listaParaApi, torosLibres } from '../../components/TorosProceso';
 import { getErrorMessages } from '../../api/axios';
 import usePotreros from '../../hooks/usePotreros';
@@ -41,6 +41,9 @@ const ETAPAS = {
   DESTETE: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['CRIAS'], unica: true },
   // Toros que salen o entran (fase 6): no toma lotes del proceso.
   TOROS: { pasos: ['Toros', 'Revisar'], toma: [], sinLotes: true },
+  // Fase 8: una baja (muerte) de cualquier lote del proceso; no arranca con
+  // ninguno elegido.
+  BAJA: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VIENTRES', 'SIN_SERVIR', 'PRENADAS', 'VACIAS', 'PARIDAS', 'CRIAS'], ninguno: true },
 };
 
 // Los datos de la parición de cada lote (diseño §9).
@@ -72,7 +75,10 @@ export default function ProcesoEtapaPage() {
   const [destinos, setDestinos] = useState({}); // { [loteId]: { [clave]: destino } }
   const [revision, setRevision] = useState({}); // { [loteId]: { cambian, aLoteId } }
   const [paricion, setParicion] = useState({}); // { [loteId]: { madres, machos, ..., categoriaId } }
-  const [aVacias, setAVacias] = useState(false);
+  // En un aborto, la vaca vuelve a vacía (fase 8): arranca marcado.
+  const [aVacias, setAVacias] = useState(true);
+  const [causas, setCausas] = useState([]);
+  const [causaId, setCausaId] = useState('');
   const [destete, setDestete] = useState({}); // { [loteId]: { potreroId, categoriaId, peso } }
   const [iatf, setIatf] = useState({}); // { [loteId]: { cabezas, potreroId, destino } }
   const ponerIatf = (l, cambios) => setIatf((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...cambios } }));
@@ -93,6 +99,14 @@ export default function ProcesoEtapaPage() {
       .then(({ data }) => setCategorias(data.filter((c) => c.activo !== false)))
       .catch(() => setCategorias([]));
   }, [id]);
+
+  // La baja pide la causa (las de Muerte).
+  useEffect(() => {
+    if (etapa !== 'BAJA') return;
+    getCausas()
+      .then(({ data }) => setCausas(data.filter((c) => c.activo !== false && c.tipos.some((t) => t.clave === 'MUERTE'))))
+      .catch(() => setCausas([]));
+  }, [etapa]);
 
   // La etapa Toros ofrece traer toros de la estancia que no están en otro proceso.
   const campoDelProceso = ficha?.proceso.campoId ?? null;
@@ -115,7 +129,7 @@ export default function ProcesoEtapaPage() {
   const torosDentro = (ficha?.toros ?? []).filter((t) => !t.hasta).map((t) => ({ ...t, id: t.toroId, donde: `en ${t.potrero.nombre}` }));
   const salenDe = salen ?? (etapa === 'FIN_SERVICIO' ? Object.fromEntries(torosDentro.map((t) => [t.toroId, ''])) : {});
   const potreroDeLasVacas = ficha?.lotes.find((l) => l.activo && l.rol === 'VIENTRES')?.potrero?.id ?? '';
-  const elegidosIds = elegidos ?? posibles.map((l) => l.loteId);
+  const elegidosIds = elegidos ?? (cfg?.ninguno ? [] : posibles.map((l) => l.loteId));
   const lotes = posibles.filter((l) => elegidosIds.includes(l.loteId));
   const nombrePaso = cfg?.pasos[paso];
 
@@ -158,6 +172,7 @@ export default function ProcesoEtapaPage() {
       };
     }
     if (etapa === 'TOROS') return { ...base, salen: listaParaApi(salenDe), entran: listaParaApi(entran) };
+    if (etapa === 'BAJA') return { ...base, lineas: lotes.map((l) => ({ loteId: l.loteId, cabezas: texto(cabezas[l.loteId]), causaId: Number(causaId) })) };
     if (etapa === 'DESTETE') {
       return {
         ...base,
@@ -222,7 +237,8 @@ export default function ProcesoEtapaPage() {
   const iatfOk =
     (etapa !== 'INSEMINACION' || lotes.every((l) => Number.parseInt(texto(iatf[l.loteId]?.cabezas), 10) > 0)) &&
     (etapa !== 'FIN_INSEMINACION' || lotes.every((l) => iatf[l.loteId]?.destino));
-  const datosOk = desteteOk && iatfOk && (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
+  const bajaOk = etapa !== 'BAJA' || (causaId && lotes.every((l) => Number.parseInt(texto(cabezas[l.loteId]), 10) > 0));
+  const datosOk = desteteOk && iatfOk && bajaOk && (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
   const destinoOk = etapa !== 'DECISION' || lotes.every((l) => destinoDe(l, 'vacias').tipo);
   const torosOk = !faltaPotrero(salenDe) && !faltaPotrero(entran);
   const cuantosToros = Object.keys(salenDe).length + Object.keys(entran).length;
@@ -576,6 +592,35 @@ export default function ProcesoEtapaPage() {
                 <input inputMode="numeric" value={cabezas[l.loteId] ?? ''} onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`} />
               </label>
             ))}
+          {etapa === 'BAJA' && (
+            <>
+              {lotes.map((l) => (
+                <label key={l.loteId} className={etiqueta}>
+                  ¿Cuántas murieron? ({l.nombre}, {formatNumero(l.cabezas)} cab)
+                  <input
+                    inputMode="numeric"
+                    aria-label={`${l.nombre}: cuántas murieron`}
+                    value={cabezas[l.loteId] ?? ''}
+                    onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))}
+                    className={`${inputChico} mt-1`}
+                  />
+                </label>
+              ))}
+              <label className={etiqueta}>
+                Causa
+                <select aria-label="Causa de la muerte" value={causaId} onChange={(e) => setCausaId(e.target.value)} className={`${inputChico} mt-1`}>
+                  <option value="">Elegí la causa…</option>
+                  {causas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.codigo} · {c.nombre}
+                    </option>
+                  ))}
+                </select>
+                {!causas.length && <span className="mt-1 block text-xs text-amber-800">No hay causas de muerte: cargalas en Configuración.</span>}
+              </label>
+              <p className="text-xs text-suelo-500">Salen del stock como una muerte. Si mueren todas las de un lote, el lote se cierra.</p>
+            </>
+          )}
           {etapa === 'ABORTO' && (
             <label data-testid="a-vacias" className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-suelo-200 bg-white px-3 text-sm">
               <input type="checkbox" checked={aVacias} onChange={(e) => setAVacias(e.target.checked)} className="h-5 w-5 accent-campo-600" />

@@ -34,6 +34,7 @@ describe('plantilla del reproductivo', () => {
       'DESTETE',
       'TANDA',
       'TOROS',
+      'BAJA',
     ]);
     // El diagnóstico ya no es único: la ecografía va por partes (fase 6).
     expect([...ETAPAS_UNICAS].sort()).toEqual(['DESTETE', 'FIN_PARICION', 'FIN_SERVICIO', 'INICIO', 'REPASO', 'REVISION']);

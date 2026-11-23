@@ -152,6 +152,8 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
       return `Otra tanda · ${fmt(cabezas)} cab.${textoToros(d)}`;
     case 'TOROS':
       return textoToros(d).replace(/^ · /, '') || 'toros';
+    case 'BAJA':
+      return `${fmt(cabezas)} ${d.quien === 'CRIA' ? (cabezas === 1 ? 'cría muerta' : 'crías muertas') : cabezas === 1 ? 'vaca muerta' : 'vacas muertas'}${d.causa ? ` · ${d.causa}` : ''}`;
     default:
       // El fin del servicio (y otras) con los toros que salieron.
       return `${fmt(cabezas)} cab.${textoToros(d)}`;

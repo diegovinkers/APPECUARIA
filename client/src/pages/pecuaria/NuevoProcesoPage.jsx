@@ -100,9 +100,11 @@ export default function NuevoProcesoPage() {
         setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? [])));
         setParaServir(new Set(data.flatMap((p) => p.reentoreIds ?? [])));
         setConCria(new Map(data.flatMap((p) => (p.conCriaIds ?? []).map((id) => [id, p.nombre]))));
-        // Desde la sugerencia "Nuevo entore": las paridas de ese proceso, ya elegidas.
+        // Desde la sugerencia "Nuevo entore" (las paridas) o "Empezar con ellas"
+        // (las vacías para volver a servir): los lotes de ese proceso, ya elegidos.
         const origen = desde && data.find((p) => String(p.id) === String(desde));
-        if (origen?.conCriaIds?.length) setElegidos((e) => (e.length ? e : origen.conCriaIds));
+        const deOrigen = [...(origen?.conCriaIds ?? []), ...(origen?.reentoreIds ?? [])];
+        if (deOrigen.length) setElegidos((e) => (e.length ? e : deOrigen));
       })
       .catch(() => setEnProceso(new Set()));
   }, [campoId, desde]);

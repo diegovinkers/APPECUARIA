@@ -116,7 +116,7 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
     case 'INICIO':
       return `${MODALIDAD[d.modalidad] ?? 'Servicio'} · ${fmt(cabezas)} cab.${
         d.reparto?.length ? ` · repartidas: ${d.reparto.map((r) => `${r.potrero} ${fmt(r.cabezas)}${r.toros ? ` (${fmt(r.toros)} ${r.toros === 1 ? 'toro' : 'toros'})` : ''}`).join(', ')}` : ''
-      }`;
+      }${textoToros(d)}`;
     case 'DIAGNOSTICO': {
       const p = d.prenadas;
       const total = typeof p === 'object' && p ? Object.values(p).reduce((s, n) => s + Number(n || 0), 0) : Number(p || 0);
@@ -145,7 +145,45 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
       return d.falladas ? `${fmt(d.falladas)} no parieron` : 'parieron todas';
     case 'DESTETE':
       return `${fmt(d.destetados ?? cabezas)} destetados${d.pesoPromedioKg ? ` · ${fmt(d.pesoPromedioKg)} kg` : ''}`;
+    case 'TANDA':
+      return `Otra tanda · ${fmt(cabezas)} cab.${textoToros(d)}`;
+    case 'TOROS':
+      return textoToros(d).replace(/^ · /, '') || 'toros';
     default:
-      return `${fmt(cabezas)} cab.`;
+      // El fin del servicio (y otras) con los toros que salieron.
+      return `${fmt(cabezas)} cab.${textoToros(d)}`;
   }
+}
+
+// Los toros de una carga (datos.toros: [{ identificacion, accion: ENTRA | SALE }]):
+// " · entran T-014 y T-022 · sale T-009".
+export function textoToros(d = {}) {
+  const lista = d?.toros ?? [];
+  const de = (accion) => lista.filter((t) => t.accion === accion).map((t) => t.identificacion);
+  const y = (nombres) => (nombres.length > 1 ? `${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)}` : nombres[0]);
+  const partes = [];
+  const entran = de('ENTRA');
+  const salen = de('SALE');
+  if (entran.length) partes.push(`${entran.length === 1 ? 'entra el toro' : 'entran los toros'} ${y(entran)}`);
+  if (salen.length) partes.push(`${salen.length === 1 ? 'sale el toro' : 'salen los toros'} ${y(salen)}`);
+  return partes.length ? ` · ${partes.join(' · ')}` : '';
+}
+
+// Los toros que entran o salen en una carga: [{ toroId, potreroId? }].
+export const torosSchema = z
+  .array(
+    z.object({
+      toroId: z.int({ error: 'El toro no es válido' }).positive('El toro no es válido'),
+      potreroId: z.int({ error: 'El potrero del toro no es válido' }).positive('El potrero del toro no es válido').optional(),
+    }),
+    { error: 'Los toros tienen que ser una lista' },
+  )
+  .max(50, 'Demasiados toros juntos')
+  .refine((lista) => new Set(lista.map((t) => t.toroId)).size === lista.length, 'Hay un toro elegido dos veces');
+
+// Valida una lista de toros ({ lista } o { error }).
+export function listaToros(valor) {
+  if (valor == null) return { lista: [] };
+  const r = torosSchema.safeParse(valor);
+  return r.success ? { lista: r.data } : { error: r.error.issues[0].message };
 }

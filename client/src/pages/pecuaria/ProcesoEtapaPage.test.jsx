@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ getProceso: vi.fn(), getCategorias: vi.fn(), vistaPreviaEtapa: vi.fn(), registrarEtapa: vi.fn() }));
+const api = vi.hoisted(() => ({ getProceso: vi.fn(), getCategorias: vi.fn(), vistaPreviaEtapa: vi.fn(), registrarEtapa: vi.fn(), getToros: vi.fn() }));
 vi.mock('../../api/pecuaria', () => api);
 vi.mock('../../hooks/usePotreros', () => ({
   default: () => ({ potreros: [{ id: 8, nombre: 'P8' }, { id: 12, nombre: 'P12' }], errors: [] }),
@@ -101,7 +101,8 @@ describe('el diagnóstico', () => {
     const grupos = [...contenedor.querySelectorAll('[data-grupo]')].map((g) => g.getAttribute('data-grupo'));
     expect(grupos).toEqual(['2027-10', '2027-11', 'vacias']);
     expect(select('Lote V · Vacías: qué se hace').value).toBe('DESPUES');
-    expect(select('Lote V · Preñadas oct: categoría').value).toBe('4');
+    // La categoría de las preñadas no se elige: no cambia (fase 6).
+    expect(select('Lote V · Preñadas oct: categoría')).toBeNull();
     await elegir(select('Lote V · Preñadas oct: a dónde'), 'POTRERO:12');
     await click(boton('Revisar'));
 
@@ -113,8 +114,8 @@ describe('el diagnóstico', () => {
         {
           loteId: 1,
           grupos: [
-            { clave: '2027-10', destino: { potreroId: 12 }, categoriaId: 4 },
-            { clave: '2027-11', destino: { potreroId: 8 }, categoriaId: 4 },
+            { clave: '2027-10', destino: { potreroId: 12 }, categoriaId: 3 },
+            { clave: '2027-11', destino: { potreroId: 8 }, categoriaId: 3 },
             { clave: 'vacias', destino: { despues: true } },
           ],
         },
@@ -229,5 +230,56 @@ describe('el destete', () => {
       fecha: expect.any(String),
       lineas: [{ loteId: 9, destinoPotreroId: 12, categoriaId: 8, pesoPromedioKg: '180' }],
     });
+  });
+});
+
+describe('los toros (fase 6)', () => {
+  const DENTRO = [
+    { id: 1, toroId: 14, identificacion: 'T-014', potrero: { id: 8, nombre: 'P8' }, desde: '2026-08-01', hasta: null },
+    { id: 2, toroId: 22, identificacion: 'T-022', potrero: { id: 8, nombre: 'P8' }, desde: '2026-08-01', hasta: null },
+  ];
+  const conToros = (extra = {}) => ({ ...ficha([{ ...LOTE_V, rol: 'VIENTRES' }]), etapas: [{ clave: 'FIN_SERVICIO', cargas: [] }], toros: DENTRO, ...extra });
+
+  it('fin del entore: salen todos los toros (todos a un potrero) y van en salenToros', async () => {
+    api.getProceso.mockResolvedValue({ data: conToros() });
+    await montar('FIN_SERVICIO');
+    await click(boton('Seguir'));
+    const lista = contenedor.querySelector('fieldset[aria-label="Salen los toros"]');
+    expect([...lista.querySelectorAll('input[type="checkbox"]')].every((c) => c.checked)).toBe(true);
+    // Sin el potrero no se puede seguir.
+    expect(boton('Revisar').disabled).toBe(true);
+    await elegir(select('Salen los toros: todos al potrero'), '12');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'FIN_SERVICIO', expect.objectContaining({
+      salenToros: [
+        { toroId: 14, potreroId: 12 },
+        { toroId: 22, potreroId: 12 },
+      ],
+    }));
+  });
+
+  it('la etapa Toros: sacar uno y traer otro de la estancia, cada uno a su potrero', async () => {
+    api.getProceso.mockResolvedValue({ data: conToros() });
+    api.getToros.mockResolvedValue({
+      data: [
+        { id: 30, identificacion: 'T-030', activo: true, lote: { potrero: { nombre: 'P3' } }, enProceso: null },
+        { id: 14, identificacion: 'T-014', activo: true, lote: null, enProceso: { proceso: { id: 7, nombre: 'Este' } } },
+      ],
+    });
+    api.vistaPreviaEtapa.mockResolvedValue({ data: { oracion: 'Vas a anotar los toros', pasos: [], avisos: [] } });
+    await montar('TOROS');
+    expect(api.getToros).toHaveBeenCalledWith(1);
+    const sacar = contenedor.querySelector('fieldset[aria-label="Sacar del proceso"]');
+    const traer = contenedor.querySelector('fieldset[aria-label="Traer (el mismo u otro)"]');
+    // No arranca con nada elegido; los que están en un proceso no se ofrecen para traer.
+    expect(boton('Revisar').disabled).toBe(true);
+    expect([...traer.querySelectorAll('[data-toro]')].map((li) => li.getAttribute('data-toro'))).toEqual(['T-030']);
+    await click(sacar.querySelector('[data-toro="T-022"] input'));
+    await elegir(select('Potrero del toro T-022'), '12');
+    await click(traer.querySelector('[data-toro="T-030"] input'));
+    // Al traer, arranca en el potrero de las vacas.
+    expect(select('Potrero del toro T-030').value).toBe('8');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'TOROS', expect.objectContaining({ salen: [{ toroId: 22, potreroId: 12 }], entran: [{ toroId: 30, potreroId: 8 }] }));
   });
 });

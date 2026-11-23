@@ -18,11 +18,13 @@ const BOTON_ETAPA = {
   PARICION: 'Registrar parición',
   FIN_PARICION: 'Terminó la parición',
   DESTETE: 'Registrar destete',
+  TOROS: 'Toros: sacar o traer',
+  TANDA: 'Sumar otra tanda',
 };
 export const textoBotonEtapa = (clave) => BOTON_ETAPA[clave] ?? 'Registrar';
 
 // Las etapas que ya tienen su pantalla (las demás llegan en los pasos siguientes).
-export const ETAPAS_CON_PANTALLA = new Set(['INSEMINACION', 'FIN_INSEMINACION', 'FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE']);
+export const ETAPAS_CON_PANTALLA = new Set(['INSEMINACION', 'FIN_INSEMINACION', 'FIN_SERVICIO', 'REPASO', 'ABORTO', 'DIAGNOSTICO', 'REVISION', 'DECISION', 'PARICION', 'FIN_PARICION', 'DESTETE', 'TOROS']);
 
 // La campaña de una fecha (de julio a junio), como en el servidor.
 export function campaniaDe(iso) {
@@ -56,7 +58,8 @@ const sinIndefinidos = (o) => Object.fromEntries(Object.entries(o).filter(([, v]
 //     reparto: { [loteId]: [{ potreroId, cabezas, toros }] } (repartirlas en potreros).
 //     destinos: { [loteId]: potreroId } (IATF: a dónde van las inseminadas).
 //   Uno en curso: los números de antes (enCurso) y el rol de cada lote (roles).
-export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {} }) {
+//   toroIds: los toros uno por uno (fase 6), van al potrero de las vacas.
+export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {}, toroIds = [] }) {
   const base = sinIndefinidos({ campoId, modalidad, nombre: texto(nombre), nota: texto(nota) });
   if (enCurso) {
     return {
@@ -75,7 +78,8 @@ export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fech
   return sinIndefinidos({
     ...base,
     fecha,
-    toros: modalidad === 'TOROS' ? entero(toros) : undefined,
+    toros: modalidad === 'TOROS' && !toroIds.length ? entero(toros) : undefined,
+    asignarToros: modalidad === 'TOROS' && toroIds.length ? toroIds.map((toroId) => ({ toroId })) : undefined,
     lineas: elegidos.map((l) => {
       const n = entero(cabezas[l.loteId]);
       const filas = (reparto[l.loteId] ?? [])
@@ -115,7 +119,8 @@ export const totalDiagnostico = (d = {}) => Object.values(d.prenadas ?? {}).redu
 export function destinoPorDefecto(lote, clase) {
   return clase === 'VACIAS'
     ? { tipo: 'DESPUES', categoriaId: String(lote.sugeridas?.VACIA ?? lote.categoriaId ?? '') }
-    : { tipo: 'QUEDAN', categoriaId: String(lote.sugeridas?.PRENADA ?? lote.categoriaId ?? '') };
+    : // La preñez no cambia la categoría de la madre (fase 6, docs/PECUARIA.md §9).
+      { tipo: 'QUEDAN', categoriaId: String(lote.categoriaId ?? '') };
 }
 
 // Un destino de la pantalla → lo que va a la API ({ destino, categoriaId? }).

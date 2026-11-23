@@ -117,8 +117,8 @@ describe('diagnóstico (puro)', () => {
     expect(totalDiagnostico({ prenadas: { '2027-10': '18', sin: '2' }, vacias: '10' })).toBe(30);
   });
 
-  it('el destino por defecto: las preñadas se quedan con la categoría sugerida; las vacías, para decidir después', () => {
-    expect(destinoPorDefecto(lote, 'PRENADAS')).toEqual({ tipo: 'QUEDAN', categoriaId: '4' });
+  it('el destino por defecto: las preñadas se quedan con la categoría del lote (no cambia, fase 6); las vacías, para decidir después', () => {
+    expect(destinoPorDefecto(lote, 'PRENADAS')).toEqual({ tipo: 'QUEDAN', categoriaId: '3' });
     expect(destinoPorDefecto(lote, 'VACIAS')).toEqual({ tipo: 'DESPUES', categoriaId: '5' });
   });
 
@@ -139,7 +139,7 @@ describe('diagnóstico (puro)', () => {
           loteId: 1,
           grupos: [
             { clave: '2027-10', destino: { potreroId: 12 }, categoriaId: 4 },
-            { clave: '2027-11', destino: { potreroId: 8 }, categoriaId: 4 },
+            { clave: '2027-11', destino: { potreroId: 8 }, categoriaId: 3 },
             { clave: 'vacias', destino: { venta: { guia: 'G-1', precioVentaUsd: 900, precioVentaPor: 'CABEZA' } } },
           ],
         },

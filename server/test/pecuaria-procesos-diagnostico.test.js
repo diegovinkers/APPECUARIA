@@ -44,16 +44,19 @@ describe('diagnóstico', () => {
     const ancla = await prisma.eventoRegistro.findFirst({ where: { procesoId: proceso.id, etapa: 'DIAGNOSTICO' } });
     expect(ancla.datos).toEqual({ metodo: 'ECOGRAFIA', prenadas: PRENADAS, vacias: 10 });
     expect(ancla.cabezas).toBe(50);
+    // La categoría no cambia (fase 6): el lote se queda con el grupo más grande
+    // (las preñadas) y las vacías van a una parte aparte, en el mismo potrero.
     expect(await lineas(agent, P8)).toEqual([
-      ['Lote V · preñadas oct–dic', 'Vaquillonas preñadas', 40],
-      ['Lote V', 'Vaquillonas', 10],
+      ['Lote V · vacías', 'Vaquillonas', 10],
+      ['Lote V', 'Vaquillonas', 40],
     ]);
     const roles = (await lotesDelProceso(proceso.id)).map((pl) => [pl.lote.nombre, pl.rol, pl.destino]);
     expect(roles).toEqual([
-      ['Lote V', 'VACIAS', null],
-      ['Lote V · preñadas oct–dic', 'PRENADAS', null],
+      ['Lote V', 'PRENADAS', null],
+      ['Lote V · vacías', 'VACIAS', null],
     ]);
-    expect(r.ficha.pendientes).toEqual([{ tipo: 'DECIDIR_VACIAS', loteId: V.id, lote: 'Lote V', cabezas: 10 }]);
+    const vacias = await prisma.lote.findFirst({ where: { nombre: 'Lote V · vacías' } });
+    expect(r.ficha.pendientes).toEqual([{ tipo: 'DECIDIR_VACIAS', loteId: vacias.id, lote: 'Lote V · vacías', cabezas: 10 }]);
     expect(r.ficha.embudo).toMatchObject({ servidas: 50, prenadas: 40, vacias: 10 });
     expect(r.ficha.etapa).toBe('PRENEZ');
   });
@@ -63,7 +66,8 @@ describe('diagnóstico', () => {
     const f = (await agent.get(`${API}/procesos/${proceso.id}`).expect(200)).body;
     // Servicio del 01/11 al 10/11/2026 + 283 días: agosto de 2027.
     expect(f.meses).toEqual(['2027-08']);
-    expect(f.lotes.find((l) => l.loteId === V.id).sugeridas).toMatchObject({ PRENADA: cat['Vaquillonas preñadas'], VACIA: cat['Vaquillonas invernar'] });
+    // La preñez no cambia la categoría (fase 6); la invernada sí sugiere otra.
+    expect(f.lotes.find((l) => l.loteId === V.id).sugeridas).toMatchObject({ PRENADA: cat.Vaquillonas, VACIA: cat['Vaquillonas invernar'] });
   });
 
   it('con decisión: oct a P12, nov y dic se quedan, vacías después; los movimientos cuelgan del proceso', async () => {
@@ -130,7 +134,7 @@ describe('diagnóstico', () => {
     const { agent, proceso, V } = await preparar();
     const previa = (await agent.post(`${API}/procesos/${proceso.id}/etapas/DIAGNOSTICO/vista-previa`).send(diagnostico(V)).expect(200)).body;
     expect(previa.oracion).toMatch(/50 cabezas/);
-    expect(previa.pasos.map((p) => p.texto)).toEqual(['40 → P8, lote Lote V · preñadas oct–dic (Vaquillonas preñadas)', '10 vacías: las decidís después']);
+    expect(previa.pasos.map((p) => p.texto)).toEqual(['10 → P8, lote Lote V · vacías (Vaquillonas)', '10 vacías: las decidís después']);
     expect(await prisma.eventoRegistro.count({ where: { etapa: 'DIAGNOSTICO' } })).toBe(0);
     expect(await prisma.movimiento.count()).toBe(0);
   });
@@ -146,21 +150,24 @@ describe('diagnóstico', () => {
 
 describe('decidir lo de las vacías', () => {
   const decidir = async (agent, id, body, esperado = 201) => (await agent.post(`${API}/procesos/${id}/decision`).send(body).expect(esperado)).body;
+  // Las vacías del diagnóstico quedan en su propia parte (la categoría no cambia).
+  const vaciasDe = () => prisma.lote.findFirst({ where: { nombre: 'Lote V · vacías' } });
 
   it('venta: sale todo el lote y queda con destino venta', async () => {
     const { agent, proceso, V } = await preparar();
     await cargar(agent, proceso.id, 'DIAGNOSTICO', diagnostico(V));
-    const r = await decidir(agent, proceso.id, { fecha: '2026-11-19', lineas: [{ loteId: V.id, destino: { venta: { guia: 'G-100', precioVentaUsd: 900, precioVentaPor: 'CABEZA' } } }] });
+    const vacias = await vaciasDe();
+    const r = await decidir(agent, proceso.id, { fecha: '2026-11-19', lineas: [{ loteId: vacias.id, destino: { venta: { guia: 'G-100', precioVentaUsd: 900, precioVentaPor: 'CABEZA' } } }] });
     expect(r.ficha.pendientes).toEqual([]);
     expect(r.ficha.etapas.find((e) => e.clave === 'DECISION')).toMatchObject({ estado: 'HECHA' });
     // La decisión no aparece en la lista de eventos (es parte del proceso).
     const lista = (await agent.get(`${API}/movimientos`).query({ ver: 'eventos' }).expect(200)).body.eventos;
     expect(lista.some((e) => e.etapa === 'DECISION')).toBe(false);
     const venta = await prisma.movimiento.findFirst({ where: { procesoId: proceso.id, modo: 'SALIDA' }, include: { tipo: true } });
-    expect(venta).toMatchObject({ cabezas: 10, guia: 'G-100', loteOrigenId: V.id });
+    expect(venta).toMatchObject({ cabezas: 10, guia: 'G-100', loteOrigenId: vacias.id });
     expect(venta.tipo.clave).toBe('VENTA');
-    expect((await prisma.lote.findUnique({ where: { id: V.id } })).activo).toBe(false);
-    const pl = await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: V.id } });
+    expect((await prisma.lote.findUnique({ where: { id: vacias.id } })).activo).toBe(false);
+    const pl = await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: vacias.id } });
     expect(pl).toMatchObject({ destino: 'VENTA' });
     expect(pl.hasta).not.toBeNull();
   });
@@ -168,9 +175,10 @@ describe('decidir lo de las vacías', () => {
   it('invernada: cambian de categoría y salen del proceso', async () => {
     const { agent, proceso, V, cat } = await preparar();
     await cargar(agent, proceso.id, 'DIAGNOSTICO', diagnostico(V));
-    await decidir(agent, proceso.id, { fecha: '2026-11-19', lineas: [{ loteId: V.id, destino: { invernada: true }, categoriaId: cat['Vaquillonas invernar'] }] });
-    expect((await prisma.lote.findUnique({ where: { id: V.id }, include: { categoria: true } })).categoria.nombre).toBe('Vaquillonas invernar');
-    const pl = await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: V.id } });
+    const vacias = await vaciasDe();
+    await decidir(agent, proceso.id, { fecha: '2026-11-19', lineas: [{ loteId: vacias.id, destino: { invernada: true }, categoriaId: cat['Vaquillonas invernar'] }] });
+    expect((await prisma.lote.findUnique({ where: { id: vacias.id }, include: { categoria: true } })).categoria.nombre).toBe('Vaquillonas invernar');
+    const pl = await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: vacias.id } });
     expect(pl).toMatchObject({ rol: 'LIBRES', destino: 'INVERNADA' });
     expect(pl.hasta).not.toBeNull();
   });
@@ -178,11 +186,12 @@ describe('decidir lo de las vacías', () => {
   it('reentore: quedan para el próximo servicio, que se vincula con este', async () => {
     const { agent, proceso, V } = await preparar();
     await cargar(agent, proceso.id, 'DIAGNOSTICO', diagnostico(V));
-    await decidir(agent, proceso.id, { fecha: '2026-11-19', lineas: [{ loteId: V.id, destino: { reentore: true } }] });
-    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: V.id } })).toMatchObject({ rol: 'VACIAS', destino: 'REENTORE' });
-    const otro = (await agent.post(`${API}/procesos`).send({ fecha: '2026-11-19', modalidad: 'TOROS', nombre: 'Reentore otoño', lineas: [{ loteId: V.id }] }).expect(201)).body;
+    const vacias = await vaciasDe();
+    await decidir(agent, proceso.id, { fecha: '2026-11-19', lineas: [{ loteId: vacias.id, destino: { reentore: true } }] });
+    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: vacias.id } })).toMatchObject({ rol: 'VACIAS', destino: 'REENTORE' });
+    const otro = (await agent.post(`${API}/procesos`).send({ fecha: '2026-11-19', modalidad: 'TOROS', nombre: 'Reentore otoño', lineas: [{ loteId: vacias.id }] }).expect(201)).body;
     expect((await prisma.proceso.findUnique({ where: { id: otro.proceso.id } })).procesoAnteriorId).toBe(proceso.id);
-    expect((await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: V.id } })).hasta).not.toBeNull();
+    expect((await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: vacias.id } })).hasta).not.toBeNull();
   });
 
   it('un lote que no está para decidir da error', async () => {
@@ -196,12 +205,14 @@ describe('revisión del diagnóstico', () => {
   it('"de 10 vacías, 2 estaban preñadas": pasan al lote de preñadas y el embudo se corrige; una segunda revisión da error', async () => {
     const { agent, proceso, V } = await preparar();
     await cargar(agent, proceso.id, 'DIAGNOSTICO', diagnostico(V));
-    const prenadas = await prisma.lote.findFirst({ where: { nombre: 'Lote V · preñadas oct–dic' } });
-    const r = await cargar(agent, proceso.id, 'REVISION', { fecha: '2026-11-19', lineas: [{ loteId: V.id, aPrenadas: 2, aLoteId: prenadas.id }] });
+    // Las preñadas se quedaron en Lote V; las vacías, en su parte (fase 6).
+    const prenadas = V;
+    const vacias = await prisma.lote.findFirst({ where: { nombre: 'Lote V · vacías' } });
+    const r = await cargar(agent, proceso.id, 'REVISION', { fecha: '2026-11-19', lineas: [{ loteId: vacias.id, aPrenadas: 2, aLoteId: prenadas.id }] });
     expect(r.ficha.embudo).toMatchObject({ prenadas: 42, vacias: 8 });
     const lote = r.ficha.lotes.find((l) => l.loteId === prenadas.id);
     expect(lote.cabezas).toBe(42);
-    const segunda = await cargar(agent, proceso.id, 'REVISION', { fecha: '2026-11-19', lineas: [{ loteId: V.id, aPrenadas: 1, aLoteId: prenadas.id }] }, 409);
+    const segunda = await cargar(agent, proceso.id, 'REVISION', { fecha: '2026-11-19', lineas: [{ loteId: vacias.id, aPrenadas: 1, aLoteId: prenadas.id }] }, 409);
     expect(segunda.errors[0]).toMatch(/ya tiene su revisión del diagnóstico/);
   });
 });

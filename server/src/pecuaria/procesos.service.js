@@ -26,6 +26,7 @@ import { aplicarEntradaSalida } from './entradas-salidas.service.js';
 import { ETAPAS_UNICAS, PLANTILLAS, TIPOS_REPRODUCCION, etapaDe, etapaDePlantilla } from './procesos.plantillas.js';
 import { textoDatos } from './eventos.datos.js';
 import { estadosProceso, plazosProceso } from './procesos.configuracion.js';
+import { listaToros, textoToros } from './procesos.datos.js';
 import { MODALIDAD, lineaDiagnostico, lineaParicion, lineaRevision, lineaSimple, textoAncla } from './procesos.datos.js';
 
 const TX = { timeout: 60_000, maxWait: 10_000 };
@@ -147,38 +148,49 @@ async function planCrear(db, body) {
       throw badRequest(`Las preñadas y vacías (${prenadas + vacias}) no pueden ser más que las servidas (${enCurso.servidas})`);
     }
   } else {
-    // Los potreros del reparto y del IATF: que existan y sean de la estancia.
-    const ids = [...new Set(body.lineas.flatMap((l) => [...(l.reparto ?? []).map((r) => r.potreroId), ...(l.potreroId ? [l.potreroId] : [])]))];
-    const potreros = new Map((await db.potrero.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true, campoId: true } })).map((p) => [p.id, p]));
-    const potrero = (id) => {
-      const p = potreros.get(id);
-      if (!p || p.campoId !== campoId) throw badRequest('Hay un potrero elegido que no es de esta estancia');
-      return p;
-    };
-    lineas = body.lineas.map((linea) => {
-      const lote = lotes.find((l) => l.id === linea.loteId);
-      const cabezas = linea.cabezas ?? lote.cabezas;
-      if (cabezas > lote.cabezas) throw badRequest(`El lote ${lote.nombre} tiene ${lote.cabezas} cabezas`);
-      const reparto = (linea.reparto ?? []).map((r) => ({ ...r, potrero: potrero(r.potreroId) }));
-      const vistos = new Set();
-      for (const r of reparto) {
-        if (r.potreroId === lote.potreroId) throw badRequest(`Las de ${lote.nombre} ya están en ${r.potrero.nombre}: para repartirlas, elegí otro potrero`);
-        if (vistos.has(r.potreroId)) throw badRequest(`En el reparto de ${lote.nombre}, ${r.potrero.nombre} está dos veces`);
-        vistos.add(r.potreroId);
-      }
-      const repartidas = reparto.reduce((s, r) => s + r.cabezas, 0);
-      if (repartidas > cabezas) throw badRequest(`En el lote ${lote.nombre} se reparten ${repartidas} cabezas, pero entran al servicio ${cabezas}`);
-      const destino = linea.potreroId ? potrero(linea.potreroId) : null;
-      return { lote, cabezas, reparto, destino };
-    });
+    lineas = await lineasDeServicio(db, body.lineas, lotes, campoId);
   }
 
   const categorias = [...new Set(lotes.map((l) => l.categoria.nombre))];
   let nombre = body.nombre?.trim();
   if (nombre) await exigirNombreLibre(db, campoId, nombre);
   else nombre = await nombreLibreProceso(db, campoId, `Servicio ${campania} · ${categorias.join(' y ')}`.slice(0, 115));
-  return { campoId, lotes, anteriores, lineas, enCurso, dia, campania, nombre, modalidad: body.modalidad, toros: body.toros ?? null, nota: body.nota ?? null };
+  const toros = body.toros ?? (body.asignarToros?.length || null);
+  return { campoId, lotes, anteriores, lineas, enCurso, dia, campania, nombre, modalidad: body.modalidad, toros, asignarToros: body.asignarToros ?? [], nota: body.nota ?? null };
 }
+
+// Las líneas de un servicio (al crear o en una tanda): cuántas entran de cada
+// lote, el reparto en potreros y, en una IATF, a dónde van las inseminadas.
+async function lineasDeServicio(db, lineasBody, lotes, campoId) {
+  // Los potreros del reparto y del IATF: que existan y sean de la estancia.
+  const ids = [...new Set(lineasBody.flatMap((l) => [...(l.reparto ?? []).map((r) => r.potreroId), ...(l.potreroId ? [l.potreroId] : [])]))];
+  const potreros = new Map((await db.potrero.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true, campoId: true } })).map((p) => [p.id, p]));
+  const potrero = (id) => {
+    const p = potreros.get(id);
+    if (!p || p.campoId !== campoId) throw badRequest('Hay un potrero elegido que no es de esta estancia');
+    return p;
+  };
+  return lineasBody.map((linea) => {
+    const lote = lotes.find((l) => l.id === linea.loteId);
+    const cabezas = linea.cabezas ?? lote.cabezas;
+    if (cabezas > lote.cabezas) throw badRequest(`El lote ${lote.nombre} tiene ${lote.cabezas} cabezas`);
+    const reparto = (linea.reparto ?? []).map((r) => ({ ...r, potrero: potrero(r.potreroId) }));
+    const vistos = new Set();
+    for (const r of reparto) {
+      if (r.potreroId === lote.potreroId) throw badRequest(`Las de ${lote.nombre} ya están en ${r.potrero.nombre}: para repartirlas, elegí otro potrero`);
+      if (vistos.has(r.potreroId)) throw badRequest(`En el reparto de ${lote.nombre}, ${r.potrero.nombre} está dos veces`);
+      vistos.add(r.potreroId);
+    }
+    const repartidas = reparto.reduce((s, r) => s + r.cabezas, 0);
+    if (repartidas > cabezas) throw badRequest(`En el lote ${lote.nombre} se reparten ${repartidas} cabezas, pero entran al servicio ${cabezas}`);
+    const destino = linea.potreroId ? potrero(linea.potreroId) : null;
+    return { lote, cabezas, reparto, destino };
+  });
+}
+
+// El potrero al que van los toros si no se elige: a donde fueron las vacas de
+// la primera línea (el destino, el primer potrero del reparto o donde están).
+const potreroDeLasVacas = (linea) => linea?.destino?.id ?? linea?.reparto?.[0]?.potreroId ?? linea?.lote?.potreroId ?? null;
 
 const oracionCrear = (plan) => {
   if (plan.enCurso) {
@@ -293,7 +305,13 @@ async function crearEn(tx, body, usuarioId) {
         },
       });
       ctx.primerAncla ??= registro.id;
+      ctx.primerRegistro ??= registro;
       await acomodarAlEmpezar(ctx, linea, plan.modalidad, registro);
+    }
+    // Los toros, uno por uno (fase 6): al potrero de las vacas o al elegido.
+    if (plan.asignarToros.length) {
+      if (plan.modalidad !== 'TOROS') throw badRequest('Los toros van en un entore');
+      await entrarToros(ctx, plan.asignarToros, ctx.primerRegistro, potreroDeLasVacas(plan.lineas[0]));
     }
     if (ctx.primerAncla && ctx.rolesAntes.size) {
       await tx.eventoRegistro.update({ where: { id: ctx.primerAncla }, data: { rolesAntes: [...ctx.rolesAntes].map(([loteId, antes]) => ({ loteId, antes })) } });
@@ -577,7 +595,24 @@ async function ejecutarDecision(ctx, lote, grupos, registro) {
   const plan = planDecision({ lote, grupos });
   if (plan.error) throw badRequest(plan.error);
   const { tx, dia, usuarioId } = ctx;
-  const creados = new Map(); // grupos del bloque → lote creado
+  const creados = new Map(); // grupos del bloque → lote creado (o al que se sumó)
+  // Ecografía por partes (fase 6): si en el potrero ya hay una parte de este
+  // lote con el mismo estado y categoría (las preñadas del día anterior), lo
+  // de hoy se suma a ella en vez de formar otra parte.
+  const sumarA = new Map();
+  for (const b of plan.bloques) {
+    const parte = await parteConElMismoEstado(ctx, lote, b);
+    if (parte) sumarA.set(b.grupos, parte);
+  }
+  for (const paso of plan.pasos) {
+    const parte = (paso.tipo === 'PARTE' || paso.tipo === 'MOVER_ENTERO' || paso.tipo === 'CATEGORIA') && sumarA.get(paso.grupos);
+    if (parte) Object.assign(paso, { tipo: 'SUMAR', loteDestinoId: parte.id, potreroId: parte.potreroId });
+  }
+  const queda = plan.bloques.find((b) => b.queda);
+  if (queda && sumarA.has(queda.grupos) && !plan.pasos.some((p) => p.grupos === queda.grupos)) {
+    const parte = sumarA.get(queda.grupos);
+    plan.pasos.push({ tipo: 'SUMAR', grupos: queda.grupos, cabezas: queda.cabezas, loteDestinoId: parte.id, potreroId: parte.potreroId });
+  }
   for (const paso of plan.pasos) {
     try {
       if (paso.tipo === 'VENTA') {
@@ -603,6 +638,12 @@ async function ejecutarDecision(ctx, lote, grupos, registro) {
         continue;
       }
       const base = { loteOrigenId: lote.id, cabezas: paso.cabezas, fecha: dia, nota: ctx.nota };
+      if (paso.tipo === 'SUMAR') {
+        const p = await aplicar(tx, { ...base, destinoPotreroId: paso.potreroId, modo: 'SUMAR', loteDestinoId: paso.loteDestinoId }, usuarioId, await extraDe(ctx, registro));
+        creados.set(paso.grupos, paso.loteDestinoId);
+        ctx.pasos.push({ texto: textoDelPlan(p) });
+        continue;
+      }
       const cuerpo =
         paso.tipo === 'PARTE'
           ? { ...base, destinoPotreroId: paso.potreroId, modo: 'NUEVO', parteFamilia: { categoriaId: paso.categoriaId, sufijo: sufijoDe(plan.bloques.find((b) => b.grupos === paso.grupos)) } }
@@ -618,8 +659,13 @@ async function ejecutarDecision(ctx, lote, grupos, registro) {
     }
   }
 
+  // Si el lote se sumó entero a otra parte, queda cerrado: sale del proceso.
+  if (queda && creados.has(queda.grupos)) {
+    const pl = await tx.procesoLote.findUnique({ where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId: lote.id } } });
+    await guardarRol(ctx, lote.id, { rol: pl.rol, mes: pl.mes, destino: pl.destino, hasta: dia }, registro);
+  }
   for (const b of plan.bloques) {
-    const loteId = b.queda ? lote.id : creados.get(b.grupos);
+    const loteId = creados.get(b.grupos) ?? (b.queda ? lote.id : null);
     const meses = [...new Set(b.grupos.filter((c) => MES.test(c)))];
     const mes = meses.length === 1 && !b.grupos.includes('sin') ? meses[0] : null;
     const n = b.cabezas.toLocaleString('es-UY');
@@ -641,6 +687,218 @@ async function ejecutarDecision(ctx, lote, grupos, registro) {
   if (!plan.bloques.length) await guardarRol(ctx, lote.id, { rol: 'VACIAS', destino: 'VENTA', hasta: dia }, registro);
 }
 
+// --- Toros (uno por uno, fase 6) ---
+//
+// Un toro es una cabeza de su lote de toros: entrar a un proceso (o salir)
+// mueve esa cabeza al potrero, con el mismo mecanismo que mover. Si en el
+// potrero ya hay una parte de la misma familia y categoría, se suma a ella;
+// si no, forma una parte nueva (o, si es la última cabeza, va el lote entero).
+// Lo que pasó con cada toro queda en los datos del ancla (para anular).
+
+async function parteEnPotrero(tx, lote, potreroId) {
+  const raiz = lote.raizId ?? lote.id;
+  return tx.lote.findFirst({
+    where: { activo: true, potreroId, categoriaId: lote.categoriaId, id: { not: lote.id }, OR: [{ id: raiz }, { raizId: raiz }] },
+    orderBy: { id: 'asc' },
+  });
+}
+
+// Mueve la cabeza de un toro a un potrero. Devuelve el lote donde queda.
+async function moverUnToro(ctx, toro, potreroId, registro) {
+  const lote = await ctx.tx.lote.findUnique({ where: { id: toro.loteId } });
+  if (!lote?.activo) {
+    ctx.avisos.push(`El lote del toro ${toro.identificacion} está cerrado: se anota, pero el stock no cambia`);
+    return toro.loteId;
+  }
+  if (lote.potreroId === potreroId) return lote.id;
+  const cabezas = (await cabezasDeHoy(ctx.tx, [lote])).get(lote.id) ?? 0;
+  if (cabezas < 1) throw badRequest(`El lote ${lote.nombre} del toro ${toro.identificacion} no tiene cabezas`);
+  const destino = await parteEnPotrero(ctx.tx, lote, potreroId);
+  const base = { loteOrigenId: lote.id, cabezas: 1, destinoPotreroId: potreroId, fecha: ctx.dia, nota: ctx.nota };
+  const cuerpo = destino ? { ...base, modo: 'SUMAR', loteDestinoId: destino.id } : cabezas === 1 ? { ...base, modo: 'ENTERO' } : { ...base, modo: 'NUEVO', parteFamilia: {} };
+  const p = await aplicar(ctx.tx, cuerpo, ctx.usuarioId, await extraDe(ctx, registro));
+  ctx.pasos.push({ texto: `Toro ${toro.identificacion}: ${textoDelPlan(p)}` });
+  return p.loteDestino.id;
+}
+
+async function potreroDelProceso(ctx, potreroId, toro) {
+  if (!potreroId) throw badRequest(`Elegí a qué potrero va el toro ${toro.identificacion}`);
+  const p = await ctx.tx.potrero.findUnique({ where: { id: potreroId }, select: { id: true, nombre: true, campoId: true, activo: true } });
+  if (!p || p.campoId !== ctx.proceso.campoId) throw badRequest('El potrero de los toros no es de esta estancia');
+  return p;
+}
+
+// Anota en el ancla lo que pasó con cada toro (se suma a lo que ya tenía).
+async function anotarToros(ctx, registro, toros) {
+  const actual = await ctx.tx.eventoRegistro.findUnique({ where: { id: registro.id }, select: { datos: true } });
+  const datos = { ...(actual.datos ?? {}), toros: [...(actual.datos?.toros ?? []), ...toros] };
+  await ctx.tx.eventoRegistro.update({ where: { id: registro.id }, data: { datos } });
+  const linea = ctx.lineas.find((l) => l.registroId === registro.id);
+  if (linea) linea.datos = datos;
+}
+
+// Entran toros al proceso: cada uno, al potrero elegido (o al de las vacas).
+async function entrarToros(ctx, lista, registro, potreroDefecto) {
+  const { tx, proceso, dia } = ctx;
+  const anotados = [];
+  for (const t of lista) {
+    const toro = await tx.toro.findUnique({
+      where: { id: t.toroId },
+      include: { asignaciones: { where: { hasta: null }, include: { proceso: { select: { nombre: true } } } } },
+    });
+    if (!toro || toro.campoId !== proceso.campoId) throw badRequest('Hay un toro que no es de esta estancia');
+    if (!toro.activo) throw badRequest(`El toro ${toro.identificacion} está dado de baja`);
+    if (toro.asignaciones.length) throw conflict(`El toro ${toro.identificacion} ya está en el proceso "${toro.asignaciones[0].proceso.nombre}"`);
+    const potrero = await potreroDelProceso(ctx, t.potreroId ?? potreroDefecto, toro);
+    let loteDespues = toro.loteId;
+    if (toro.loteId) loteDespues = await moverUnToro(ctx, toro, potrero.id, registro);
+    else ctx.avisos.push(`El toro ${toro.identificacion} no está en ningún lote de toros: se anota en el proceso, pero el stock no cambia`);
+    await tx.toro.update({ where: { id: toro.id }, data: { loteId: loteDespues } });
+    await tx.procesoToro.create({ data: { procesoId: proceso.id, toroId: toro.id, potreroId: potrero.id, desde: aFecha(dia), registroId: registro.id } });
+    anotados.push({ toroId: toro.id, identificacion: toro.identificacion, accion: 'ENTRA', potrero: potrero.nombre, loteAntes: toro.loteId, loteDespues });
+  }
+  if (anotados.length) await anotarToros(ctx, registro, anotados);
+}
+
+// Salen toros del proceso: cada uno, al potrero elegido.
+async function sacarToros(ctx, lista, registro, potreroDefecto = null) {
+  const { tx, proceso, dia } = ctx;
+  const anotados = [];
+  for (const t of lista) {
+    const asig = await tx.procesoToro.findFirst({ where: { procesoId: proceso.id, toroId: t.toroId, hasta: null }, include: { toro: true } });
+    if (!asig) throw badRequest('Hay un toro elegido que no está en el proceso');
+    if (dia < fechaISO(asig.desde)) throw badRequest(`El toro ${asig.toro.identificacion} entró el ${fechaUY(fechaISO(asig.desde))}: no puede salir antes`);
+    const potrero = await potreroDelProceso(ctx, t.potreroId ?? potreroDefecto, asig.toro);
+    const loteDespues = asig.toro.loteId ? await moverUnToro(ctx, asig.toro, potrero.id, registro) : null;
+    await tx.toro.update({ where: { id: asig.toroId }, data: { loteId: loteDespues } });
+    await tx.procesoToro.update({ where: { id: asig.id }, data: { hasta: aFecha(dia), registroSalidaId: registro.id } });
+    anotados.push({ toroId: asig.toroId, identificacion: asig.toro.identificacion, accion: 'SALE', potrero: potrero.nombre, loteAntes: asig.toro.loteId, loteDespues });
+  }
+  if (anotados.length) await anotarToros(ctx, registro, anotados);
+}
+
+// Toros que entran o salen en cualquier momento del servicio (después de una
+// parte de la ecografía: sacarlos, volver a entorar con el mismo o traer otro).
+//   body: { entran?: [{ toroId, potreroId }], salen?: [{ toroId, potreroId }] }
+async function cargaToros(ctx, body) {
+  const entran = listaToros(body.entran);
+  const salen = listaToros(body.salen);
+  if (entran.error || salen.error) throw badRequest(entran.error ?? salen.error);
+  const total = entran.lista.length + salen.lista.length;
+  if (!total) throw badRequest('Elegí los toros que entran o salen');
+  const potreroId = entran.lista[0]?.potreroId ?? salen.lista[0]?.potreroId ?? null;
+  const tipo = await tipoPorClave(ctx.tx, 'ENTORE');
+  const registro = await ctx.tx.eventoRegistro.create({
+    data: {
+      tipoId: tipo.id,
+      fecha: aFecha(ctx.dia),
+      campoId: ctx.proceso.campoId,
+      potreroId,
+      nivel: 'POTRERO',
+      cabezas: total,
+      datos: {},
+      nota: ctx.nota,
+      grupoId: ctx.grupoId,
+      procesoId: ctx.proceso.id,
+      etapa: 'TOROS',
+      usuarioId: ctx.usuarioId,
+    },
+  });
+  ctx.primerAncla ??= registro.id;
+  ctx.lineas.push({ registroId: registro.id, lote: { id: null, nombre: null }, cabezas: total, datos: {} });
+  // Primero salen (así un toro puede salir y otro entrar al mismo potrero).
+  await sacarToros(ctx, salen.lista, registro);
+  await entrarToros(ctx, entran.lista, registro, null);
+}
+
+// Otra tanda de hembras que entra al servicio en otro día (fase 6): lotes
+// nuevos (o, en un entore, más cabezas de un lote que ya está servido), con
+// el mismo reparto que al empezar y, en un entore, sus toros.
+async function cargaTanda(ctx, body) {
+  const { tx, proceso } = ctx;
+  if (!body.lineas?.length) throw badRequest('Elegí los lotes de la tanda');
+  const modalidad = ['IATF', 'IA'].includes(proceso.datos?.modalidad) ? 'IATF' : 'TOROS';
+  const ids = body.lineas.map((l) => l.loteId);
+  if (new Set(ids).size !== ids.length) throw badRequest('Hay un lote elegido dos veces');
+  const propios = new Map((await tx.procesoLote.findMany({ where: { procesoId: proceso.id, loteId: { in: ids }, hasta: null } })).map((pl) => [pl.loteId, pl]));
+  for (const pl of propios.values()) {
+    const l = await tx.lote.findUnique({ where: { id: pl.loteId }, select: { nombre: true } });
+    if (modalidad === 'IATF') throw badRequest(`El lote ${l.nombre} ya está en el proceso: para inseminar más de ese lote, anotá otro día de inseminación`);
+    if (pl.rol !== 'VIENTRES') throw badRequest(`El lote ${l.nombre} ya está en el proceso y no está en servicio`);
+  }
+  const nuevos = ids.filter((id) => !propios.has(id));
+  const { anteriores } = nuevos.length ? await lotesParaEmpezar(tx, nuevos, proceso.campoId) : { anteriores: new Map() };
+  const filas = await tx.lote.findMany({ where: { id: { in: ids } }, include: { categoria: true } });
+  const cabezas = await cabezasDeHoy(tx, filas);
+  const lotes = filas.map((l) => ({ ...l, cabezas: cabezas.get(l.id) ?? 0 }));
+  for (const l of lotes) if (l.campoId !== proceso.campoId || !l.activo || !l.cabezas) throw badRequest(`El lote ${l.nombre} no tiene animales en esta estancia`);
+  const lineas = await lineasDeServicio(tx, body.lineas, lotes, proceso.campoId);
+  const toros = listaToros(body.toros);
+  if (toros.error) throw badRequest(toros.error);
+  if (toros.lista.length && modalidad !== 'TOROS') throw badRequest('Los toros van en un entore');
+  const tipo = await tipoPorClave(tx, modalidad === 'TOROS' ? 'ENTORE' : 'INSEMINACION');
+  let primero = null;
+  for (const linea of lineas) {
+    const anterior = anteriores.get(linea.lote.id);
+    // Las vacías para volver a servir dejan el proceso de antes.
+    if (anterior) await tx.procesoLote.update({ where: { procesoId_loteId: { procesoId: anterior, loteId: linea.lote.id } }, data: { hasta: aFecha(ctx.dia) } });
+    const datos = {
+      modalidad,
+      ...(linea.reparto.length && { reparto: linea.reparto.map((r) => ({ potrero: r.potrero.nombre, cabezas: r.cabezas, ...(r.toros != null && { toros: r.toros }) })) }),
+      ...(anterior && { anteriorProcesoId: anterior }),
+    };
+    const registro = await crearAncla(ctx, tipo, linea.lote, linea.cabezas, datos);
+    ctx.lineas.at(-1).registroId = registro.id;
+    primero ??= registro;
+    if (!propios.has(linea.lote.id)) await guardarRol(ctx, linea.lote.id, { rol: 'VIENTRES' }, registro);
+    await acomodarAlEmpezar(ctx, linea, modalidad, registro);
+  }
+  if (toros.lista.length) await entrarToros(ctx, toros.lista, primero, potreroDeLasVacas(lineas[0]));
+}
+
+// El fin del servicio (del entore): se anota por lote y, en la misma carga,
+// salen los toros (salenToros: [{ toroId, potreroId }]). Si quedan toros en
+// el proceso, avisa.
+async function cargaFinServicio(ctx, body) {
+  const salen = listaToros(body.salenToros);
+  if (salen.error) throw badRequest(salen.error);
+  await cargaSimple(ctx, body);
+  if (salen.lista.length) {
+    const registro = await ctx.tx.eventoRegistro.findUnique({ where: { id: ctx.primerAncla } });
+    if (!ctx.lineas.find((l) => l.registroId === registro.id) && ctx.lineas[0]) ctx.lineas[0].registroId = registro.id;
+    await sacarToros(ctx, salen.lista, registro);
+  }
+  const quedan = await ctx.tx.procesoToro.count({ where: { procesoId: ctx.proceso.id, hasta: null } });
+  if (quedan) ctx.avisos.push(`Quedan ${plural(quedan, 'toro', 'toros')} en el proceso`);
+}
+
+// Una parte del proceso, en el potrero del bloque, de la misma familia y
+// categoría y con el estado que va a tener el bloque (preñadas del mismo mes,
+// o vacías sin decidir / para volver a servir). null si no hay.
+async function parteConElMismoEstado(ctx, lote, bloque) {
+  if (bloque.clase === 'SIN') return null;
+  const meses = [...new Set(bloque.grupos.filter((c) => MES.test(c)))];
+  const mes = meses.length === 1 && !bloque.grupos.includes('sin') ? meses[0] : null;
+  const rol = bloque.clase === 'PRENADAS' ? 'PRENADAS' : 'VACIAS';
+  if (rol === 'VACIAS' && !['DESPUES', 'REENTORE', null].includes(bloque.destino)) return null;
+  const destino = rol === 'VACIAS' && bloque.destino === 'REENTORE' ? 'REENTORE' : null;
+  const raiz = lote.raizId ?? lote.id;
+  const pls = await ctx.tx.procesoLote.findMany({
+    where: {
+      procesoId: ctx.proceso.id,
+      hasta: null,
+      rol,
+      mes,
+      destino,
+      loteId: { not: lote.id },
+      lote: { activo: true, potreroId: bloque.potreroId, categoriaId: bloque.categoriaId, OR: [{ id: raiz }, { raizId: raiz }] },
+    },
+    include: { lote: true },
+    orderBy: { id: 'asc' },
+  });
+  return pls[0]?.lote ?? null;
+}
+
 // Las etapas que solo anotan: repaso, fin del servicio y aborto.
 async function cargaSimple(ctx, body) {
   const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
@@ -650,6 +908,7 @@ async function cargaSimple(ctx, body) {
     const r = lineaSimple(ctx.etapa, linea, lote);
     if (r.error) throw badRequest(r.error);
     const registro = await crearAncla(ctx, tipo, lote, r.cabezas, ctx.etapa === 'ABORTO' && body.aVacias ? { aVacias: true } : r.datos);
+    ctx.lineas.at(-1).registroId = registro.id;
     if (ctx.etapa === 'ABORTO' && body.aVacias) await abortoAVacias(ctx, lote, r.cabezas, registro);
   }
 }
@@ -676,7 +935,7 @@ async function cargaDiagnostico(ctx, body) {
   }
   for (const { lote, linea } of elegidos) {
     await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
-    await exigirDespuesDe(ctx, lote, ['INICIO', 'REPASO', 'FIN_SERVICIO']);
+    await exigirDespuesDe(ctx, lote, ['INICIO', 'TANDA', 'REPASO', 'FIN_SERVICIO']);
     const r = lineaDiagnostico(linea, lote, body.metodo);
     if (r.error) throw badRequest(r.error);
     const registro = await crearAncla(ctx, tipo, lote, r.cabezas, r.datos);
@@ -688,7 +947,8 @@ async function cargaDiagnostico(ctx, body) {
       const d = dec.find((x) => x.clave === g.clave);
       const vacia = g.clase === 'VACIAS';
       const destino = d?.destino ?? (vacia ? { despues: true } : { potreroId: lote.potreroId });
-      const categoriaId = d?.categoriaId ?? (vacia ? (destino.invernada ? sugerida('VACIA') : lote.categoriaId) : sugerida('PRENADA'));
+      // La categoría de la madre no cambia (docs/PECUARIA.md §9): el estado va en el rol.
+      const categoriaId = d?.categoriaId ?? (vacia && destino.invernada ? sugerida('VACIA') : lote.categoriaId);
       return { ...g, destino, categoriaId };
     });
     await ejecutarDecision(ctx, lote, finales, registro);
@@ -1058,6 +1318,18 @@ export async function anularCarga(id, grupoId, usuarioId) {
     const ev = await tx.eventoMovimiento.findFirst({ where: { procesoId: proceso.id, grupoId: anclas[0].grupoId, tipo: 'PROCESO' }, include: { revertidoPor: { select: { id: true } } } });
     let movimientos = 0;
     if (ev && !ev.revertidoPor) movimientos = (await revertirEventoEn(tx, ev.id, usuarioId, { desdeProceso: true })).pasos.length;
+    // Los toros vuelven a como estaban (su lote ya recuperó la cabeza al revertir).
+    for (const a of anclas) {
+      for (const t of a.datos?.toros ?? []) {
+        if (t.accion === 'ENTRA') await tx.procesoToro.deleteMany({ where: { registroId: a.id, toroId: t.toroId } });
+        else await tx.procesoToro.updateMany({ where: { registroSalidaId: a.id, toroId: t.toroId }, data: { hasta: null, registroSalidaId: null } });
+        await tx.toro.update({ where: { id: t.toroId }, data: { loteId: t.loteAntes ?? null } });
+      }
+      // Una tanda con vacías de otro proceso: vuelven a él.
+      if (a.datos?.anteriorProcesoId && a.loteId) {
+        await tx.procesoLote.updateMany({ where: { procesoId: a.datos.anteriorProcesoId, loteId: a.loteId }, data: { hasta: null } });
+      }
+    }
     for (const a of anclas) {
       for (const { loteId, antes } of a.rolesAntes ?? []) {
         if (!antes) await tx.procesoLote.deleteMany({ where: { procesoId: proceso.id, loteId } });
@@ -1119,7 +1391,9 @@ const CARGAS = {
   INSEMINACION: cargaInseminacion,
   FIN_INSEMINACION: cargaFinInseminacion,
   REPASO: cargaSimple,
-  FIN_SERVICIO: cargaSimple,
+  FIN_SERVICIO: cargaFinServicio,
+  TANDA: cargaTanda,
+  TOROS: cargaToros,
   ABORTO: cargaSimple,
   DIAGNOSTICO: cargaDiagnostico,
   REVISION: cargaRevision,
@@ -1176,6 +1450,8 @@ function oracionEtapa(ctx) {
   if (ctx.etapa === 'FIN_PARICION') return `Vas a anotar el fin de la parición: ${plural(cabezas, 'no parió', 'no parieron')} (pasan a vacías) el ${fechaUY(ctx.dia)}`;
   if (ctx.etapa === 'DESTETE') return `Vas a anotar el destete de ${plural(cabezas, 'ternero', 'terneros')} el ${fechaUY(ctx.dia)}`;
   if (ctx.etapa === 'DECISION') return `Vas a decidir qué se hace con ${plural(cabezas, 'vacía', 'vacías')} el ${fechaUY(ctx.dia)}`;
+  if (ctx.etapa === 'TANDA') return `Vas a anotar otra tanda: ${plural(ctx.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')}) entran al servicio el ${fechaUY(ctx.dia)}`;
+  if (ctx.etapa === 'TOROS') return `Vas a anotar los toros${textoToros(ctx.lineas[0]?.datos)} el ${fechaUY(ctx.dia)}`;
   return `Vas a anotar ${ctx.etapaDef.nombre.toLowerCase()} en ${plural(ctx.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')}) el ${fechaUY(ctx.dia)}`;
 }
 
@@ -1241,10 +1517,12 @@ export async function colgarDeProceso(db, tipo, registros) {
       continue;
     }
     const hechas = (await db.eventoRegistro.findMany({ where: { procesoId: proceso.id, loteId: r.lote.id, anulado: false }, select: { etapa: true } })).map((h) => h.etapa);
+    // Una ecografía suelta no separa preñadas y vacías: otra parte (o una
+    // revisión) se carga desde el proceso.
     if (tipo.clave === 'ECOGRAFIA' && hechas.includes('DIAGNOSTICO')) {
-      throw conflict(`El lote ${r.lote.nombre} ya tiene su diagnóstico en el proceso "${proceso.nombre}": una revisión se carga desde el proceso`);
+      throw conflict(`El lote ${r.lote.nombre} ya tiene su diagnóstico en el proceso "${proceso.nombre}": otra parte de la ecografía, o una revisión, se carga desde el proceso`);
     }
-    const etapa = etapaDe(tipo.clave, hechas);
+    const etapa = etapaDe(tipo.clave, hechas, proceso.rol);
     if (ETAPAS_UNICAS.has(etapa) && hechas.includes(etapa)) {
       throw conflict(`El lote ${r.lote.nombre} ya tiene su ${nombreEtapa(etapa)} en el proceso "${proceso.nombre}"`);
     }
@@ -1262,6 +1540,10 @@ const incluirFicha = {
     orderBy: { id: 'asc' },
   },
   registros: { include: { lote: { select: { id: true, nombre: true } } }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] },
+  toros: {
+    include: { toro: { select: { id: true, identificacion: true, raza: true, genetica: true } }, potrero: { select: { id: true, nombre: true } } },
+    orderBy: [{ desde: 'asc' }, { id: 'asc' }],
+  },
   ...incluirSiguientes,
 };
 
@@ -1363,8 +1645,11 @@ export async function ficha(id) {
   // La categoría que se sugiere en cada paso para cada lote (las pantallas la preeligen).
   const categorias = await prisma.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
   const PASOS_CATEGORIA = ['PRENADA', 'VACIA', 'PARIDA', 'DESTETE_MADRE', 'CRIA_MACHO', 'CRIA_HEMBRA'];
+  // La preñez no cambia la categoría de la madre (el estado va en el rol).
   const sugeridas = (pl) =>
-    Object.fromEntries(PASOS_CATEGORIA.map((paso) => [paso, sugerirCategoria(paso, { id: pl.lote.categoriaId, nombre: pl.lote.categoria.nombre }, categorias)?.id ?? null]));
+    Object.fromEntries(
+      PASOS_CATEGORIA.map((paso) => [paso, paso === 'PRENADA' ? pl.lote.categoriaId : (sugerirCategoria(paso, { id: pl.lote.categoriaId, nombre: pl.lote.categoria.nombre }, categorias)?.id ?? null)]),
+    );
   const servicio = fechasServicio(anclas);
 
   const lotes = p.lotes.map((pl) => ({
@@ -1395,6 +1680,17 @@ export async function ficha(id) {
     // Los meses en que se espera la parición (para repartir las preñadas en el diagnóstico).
     meses: servicio.inicio ? mesesEsperados(servicio, parametros.gestacionDias) : [],
     lotes,
+    // Los toros del proceso (uno por uno): los que están y los que salieron.
+    toros: p.toros.map((t) => ({
+      id: t.id,
+      toroId: t.toroId,
+      identificacion: t.toro.identificacion,
+      raza: t.toro.raza,
+      genetica: t.toro.genetica,
+      potrero: t.potrero,
+      desde: fechaISO(t.desde),
+      hasta: t.hasta ? fechaISO(t.hasta) : null,
+    })),
     etapas,
     pendientes: lotes.filter((l) => l.rol === 'VACIAS' && !l.destino && l.activo).map((l) => ({ tipo: 'DECIDIR_VACIAS', loteId: l.loteId, lote: l.nombre, cabezas: l.cabezas })),
   };
@@ -1528,6 +1824,11 @@ export async function asociar(id, { registroIds = [] }, usuarioId) {
       const hechas = (await tx.eventoRegistro.findMany({ where: { procesoId: proceso.id, loteId: f.loteId, anulado: false }, select: { etapa: true } })).map((h) => h.etapa);
       const etapa = etapaDeSuelto(f.tipo.clave, hechas);
       await exigirLibre(tx, proceso.id, etapa, f.lote);
+      // Una ecografía suelta no separa preñadas y vacías: si el lote ya tiene
+      // diagnóstico, no se suma (otra parte se carga desde el proceso).
+      if (etapa === 'DIAGNOSTICO' && hechas.includes('DIAGNOSTICO')) {
+        throw conflict(`El lote ${f.lote.nombre} ya tiene su diagnóstico (${fechaUY(fechaISO(f.fecha))}): otra parte de la ecografía se carga desde el proceso`);
+      }
       await tx.eventoRegistro.update({ where: { id: f.id }, data: { procesoId: proceso.id, etapa } });
       hechos.push({ id: f.id, tipo: f.tipo.nombre, lote: f.lote.nombre, etapa });
     }

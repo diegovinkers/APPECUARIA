@@ -244,3 +244,26 @@ describe('el menú "Más opciones"', () => {
     expect(api.asociarSueltos).toHaveBeenCalledWith(7, [31]);
   });
 });
+
+describe('toros y tandas en la ficha (fase 6)', () => {
+  const TOROS = [
+    { id: 1, toroId: 14, identificacion: 'T-014', raza: 'Angus', potrero: { id: 8, nombre: 'P8' }, desde: '2026-12-01', hasta: null },
+    { id: 2, toroId: 22, identificacion: 'T-022', raza: 'Angus', potrero: { id: 8, nombre: 'P8' }, desde: '2026-12-01', hasta: '2027-03-01' },
+  ];
+
+  it('los toros: los que están (dónde y desde cuándo) y los que salieron', async () => {
+    await montar({ ...FICHA, toros: TOROS });
+    const lista = contenedor.querySelector('[aria-label="Toros del proceso"]');
+    expect(lista.querySelector('[data-toro="T-014"]').textContent).toContain('en P8 desde 01/12/2026');
+    expect(lista.querySelector('[data-toro="T-022"]').textContent).toContain('salió el 01/03/2027');
+    expect(contenedor.textContent).toContain('1 en el proceso');
+  });
+
+  it('"Más opciones": sumar otra tanda y los toros', async () => {
+    await montar();
+    abrirMenu();
+    const enlaces = Object.fromEntries([...contenedor.querySelectorAll('[role="menu"] a')].map((a) => [a.textContent, a.getAttribute('href')]));
+    expect(enlaces['Sumar otra tanda']).toBe('/pecuaria/procesos/7/tanda');
+    expect(enlaces['Toros: sacar o traer']).toBe('/pecuaria/procesos/7/etapa/TOROS');
+  });
+});

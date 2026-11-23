@@ -110,9 +110,14 @@ export function etapaActual(anclas, lotes = []) {
   return 'SERVICIO';
 }
 
-// Los anclas que ponen animales en servicio: el inicio, cada día de IATF y
-// las sin inseminar que pasan al repaso con toro.
-const deServicio = (a) => [...de(a, 'INICIO'), ...de(a, 'INSEMINACION'), ...de(a, 'FIN_INSEMINACION').filter((x) => x.datos?.destino === 'REPASO')];
+// Los anclas que ponen animales en servicio: el inicio, cada tanda, cada día
+// de IATF y las sin inseminar que pasan al repaso con toro.
+const deServicio = (a) => [
+  ...de(a, 'INICIO'),
+  ...de(a, 'TANDA'),
+  ...de(a, 'INSEMINACION'),
+  ...de(a, 'FIN_INSEMINACION').filter((x) => x.datos?.destino === 'REPASO'),
+];
 
 // Las fechas del servicio: el primer inicio y el último fin (sin fin, el
 // último día que entraron animales).

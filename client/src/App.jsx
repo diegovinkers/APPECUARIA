@@ -69,6 +69,8 @@ export default function App() {
                 <Route path="/pecuaria/eventos/nuevo" element={<EventoPage />} />
                 <Route path="/pecuaria/procesos/nuevo" element={<NuevoProcesoPage />} />
                 <Route path="/pecuaria/procesos/:id/etapa/:etapa" element={<ProcesoEtapaPage />} />
+                {/* Otra tanda que entra al servicio (fase 6): la misma pantalla de empezar. */}
+                <Route path="/pecuaria/procesos/:id/tanda" element={<NuevoProcesoPage />} />
               </Route>
               <Route element={<ProtectedRoute permiso="pecuaria:EDITAR" />}>
                 <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />

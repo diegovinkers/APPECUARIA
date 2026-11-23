@@ -152,7 +152,8 @@ export default function ProcesoPage() {
     );
   }
 
-  const { proceso, embudo, etapas, lotes, proxima, pendientes, cronograma = [], estados = {} } = datos;
+  const { proceso, embudo, etapas, lotes, proxima, pendientes, cronograma = [], estados = {}, toros = [] } = datos;
+  const esEntore = !['IATF', 'IA'].includes(proceso.datos?.modalidad);
   const abierto = proceso.estado === 'ABIERTO';
   const registra = abierto && puedo('pecuaria:CREAR');
   const conAnular = puedo('pecuaria:ANULAR');
@@ -191,6 +192,15 @@ export default function ProcesoPage() {
                     {textoBotonEtapa(e)}
                   </Link>
                 ))}
+                {/* Fase 6: otra tanda que entra al servicio, y los toros (sacar, el mismo u otro). */}
+                <Link to={`/pecuaria/procesos/${proceso.id}/tanda`} className="flex min-h-11 items-center border-t border-suelo-100 px-4 text-sm hover:bg-suelo-100">
+                  {textoBotonEtapa('TANDA')}
+                </Link>
+                {(esEntore || toros.length > 0) && (
+                  <Link to={`/pecuaria/procesos/${proceso.id}/etapa/TOROS`} className="flex min-h-11 items-center px-4 text-sm hover:bg-suelo-100">
+                    {textoBotonEtapa('TOROS')}
+                  </Link>
+                )}
                 <button type="button" onClick={verSueltos} className="block min-h-11 w-full border-t border-suelo-100 px-4 text-left text-sm hover:bg-suelo-100">
                   Sumar eventos sueltos
                 </button>
@@ -282,6 +292,8 @@ export default function ProcesoPage() {
       <Cronograma items={cronograma} registra={registra} onDescartar={descartar} />
 
       <StockProceso lotes={lotes} estados={estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} />
+
+      <TorosDelProceso toros={toros} />
 
       <Embudo embudo={embudo} />
 
@@ -420,6 +432,34 @@ function Cronograma({ items, registra, onDescartar }) {
           );
         })}
       </ol>
+    </>
+  );
+}
+
+// Los toros del proceso, uno por uno: dónde están y desde cuándo; los que
+// salieron, abajo y más claros.
+function TorosDelProceso({ toros }) {
+  if (!toros.length) return null;
+  const dentro = toros.filter((t) => !t.hasta);
+  const orden = [...dentro, ...toros.filter((t) => t.hasta)];
+  return (
+    <>
+      <h2 className="mb-2 mt-6 flex items-baseline justify-between text-lg font-semibold">
+        Toros <span className="text-sm font-normal text-suelo-600">{dentro.length} en el proceso</span>
+      </h2>
+      <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white text-sm" aria-label="Toros del proceso">
+        {orden.map((t) => (
+          <li key={t.id} data-toro={t.identificacion} className={`flex items-baseline justify-between gap-3 px-3 py-2 ${t.hasta ? 'text-suelo-400' : ''}`}>
+            <span className="min-w-0">
+              <span className="font-medium">{t.identificacion}</span>
+              <span className="block text-xs text-suelo-500">{[t.raza, t.genetica].filter(Boolean).join(' · ') || 'Sin raza ni genética'}</span>
+            </span>
+            <span className="shrink-0 text-right text-xs">
+              {t.hasta ? `salió el ${formatFecha(t.hasta)}` : `en ${t.potrero.nombre} desde ${formatFecha(t.desde)}`}
+            </span>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

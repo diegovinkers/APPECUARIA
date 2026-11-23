@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { crearProceso, getProcesos, vistaPreviaProceso } from '../../api/pecuaria';
+import { useNavigate, useParams } from 'react-router-dom';
+import { crearProceso, getProceso, getProcesos, getToros, registrarEtapa, vistaPreviaEtapa, vistaPreviaProceso } from '../../api/pecuaria';
 import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
@@ -10,12 +10,15 @@ import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import { indexarLotes } from '../../components/eventos';
 import { cuerpoProceso } from '../../components/procesos';
 import { ElegirEstancia } from './comun';
+import { ListaToros, torosLibres } from '../../components/TorosProceso';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
 const inputChico = `${inputClass} min-h-11 px-3`;
 const PASOS = ['Qué', 'A quién', 'Datos', 'Dónde', 'Revisar'];
 const PASOS_EN_CURSO = ['Qué', 'A quién', 'Datos', 'Revisar'];
+// Otra tanda de un proceso que ya está (fase 6): sin elegir el tipo.
+const PASOS_TANDA = ['A quién', 'Datos', 'Dónde', 'Revisar'];
 // Solo entore e IATF (ajustes del 20/11: la inseminación "común" es lo mismo para ellos).
 const MODALIDADES = [
   ['TOROS', 'Entore con toros', 'Se echan los toros con las hembras'],
@@ -39,10 +42,18 @@ const ROLES = [
 //   4. Dónde (ajustes del 20/11): se quedan donde están, o repartirlas en
 //      potreros (cada fila: potrero, cabezas y toros). No va si ya está en curso.
 //   5. Revisar (con los movimientos que se harían) y confirmar.
+// En /pecuaria/procesos/:id/tanda (fase 6) es otra tanda de ese proceso: los
+// mismos pasos sin el tipo (sale del proceso), y se carga como etapa TANDA.
+// En un entore, los toros se eligen uno por uno (van al potrero de las vacas).
 export default function NuevoProcesoPage() {
   const navigate = useNavigate();
-  const { campoId, todas } = useEstancia();
+  const { id: tandaDe } = useParams();
+  const { campoId: campoElegido, todas } = useEstancia();
+  const [proceso, setProceso] = useState(null);
+  const campoId = tandaDe ? (proceso?.campoId ?? null) : campoElegido;
   const { potreros } = usePotreros(campoId);
+  const [toros, setToros] = useState([]);
+  const [toroIds, setToroIds] = useState({}); // { [toroId]: '' } (van al potrero de las vacas)
   const [paso, setPaso] = useState(0);
   const [modalidad, setModalidad] = useState('TOROS');
   const [conCurso, setConCurso] = useState(false);
@@ -58,6 +69,25 @@ export default function NuevoProcesoPage() {
   const [previa, setPrevia] = useState(null);
   const [errors, setErrors] = useState([]);
   const [ocupado, setOcupado] = useState(false);
+
+  // Otra tanda: el proceso dice la estancia y si es entore o inseminación.
+  useEffect(() => {
+    if (!tandaDe) return;
+    getProceso(tandaDe)
+      .then(({ data }) => {
+        setProceso(data.proceso);
+        setModalidad(['IATF', 'IA'].includes(data.proceso.datos?.modalidad) ? 'IATF' : 'TOROS');
+      })
+      .catch((error) => setErrors(getErrorMessages(error, 'No se pudo cargar el proceso')));
+  }, [tandaDe]);
+
+  // Los toros de la estancia, para elegirlos uno por uno.
+  useEffect(() => {
+    if (!campoId) return;
+    getToros(campoId)
+      .then(({ data }) => setToros(data))
+      .catch(() => setToros([]));
+  }, [campoId]);
 
   useEffect(() => {
     if (!campoId) return;
@@ -78,10 +108,27 @@ export default function NuevoProcesoPage() {
     [potreros, enProceso, paraServir],
   );
   const lotes = hembras.filter((l) => elegidos.includes(l.loteId));
-  const pasos = conCurso ? PASOS_EN_CURSO : PASOS;
+  const pasos = tandaDe ? PASOS_TANDA : conCurso ? PASOS_EN_CURSO : PASOS;
+  const libres = torosLibres(toros);
+  const elegidosToros = Object.keys(toroIds).map(Number);
   const nombrePaso = pasos[paso];
-  const cuerpo = () =>
-    cuerpoProceso({ modalidad, campoId, elegidos: lotes, cabezas, ...datos, ...(repartir && { reparto }), ...(conCurso && { enCurso: curso, roles }) });
+  const cuerpoCrear = () =>
+    cuerpoProceso({
+      modalidad,
+      campoId,
+      elegidos: lotes,
+      cabezas,
+      ...datos,
+      toroIds: elegidosToros,
+      ...(repartir && { reparto }),
+      ...(conCurso && { enCurso: curso, roles }),
+    });
+  // Otra tanda: las líneas y los toros, como etapa TANDA del proceso.
+  const cuerpo = () => {
+    const c = cuerpoCrear();
+    if (!tandaDe) return c;
+    return { fecha: c.fecha, ...(c.nota && { nota: c.nota }), lineas: c.lineas, ...(c.asignarToros && { toros: c.asignarToros }) };
+  };
   const poner = (set) => (campo) => (e) => set((d) => ({ ...d, [campo]: e.target.value }));
   const filasDe = (loteId) => reparto[loteId] ?? [{ potreroId: '', cabezas: '', toros: '' }];
   const ponerFila = (loteId, i, cambios) => setReparto((r) => ({ ...r, [loteId]: filasDe(loteId).map((f, k) => (k === i ? { ...f, ...cambios } : f)) }));
@@ -98,9 +145,12 @@ export default function NuevoProcesoPage() {
     setOcupado(true);
     try {
       if (nombrePaso !== 'Revisar') {
-        const { data } = await vistaPreviaProceso(cuerpo());
+        const { data } = tandaDe ? await vistaPreviaEtapa(tandaDe, 'TANDA', cuerpo()) : await vistaPreviaProceso(cuerpo());
         setPrevia(data);
         setPaso(paso + 1);
+      } else if (tandaDe) {
+        const { data } = await registrarEtapa(tandaDe, 'TANDA', cuerpo());
+        navigate(`/pecuaria/procesos/${tandaDe}`, { state: { aviso: `${data.oracion}.` } });
       } else {
         const { data } = await crearProceso(cuerpo());
         navigate(`/pecuaria/procesos/${data.proceso.id}`, { state: { aviso: `${data.oracion}.` } });
@@ -112,7 +162,7 @@ export default function NuevoProcesoPage() {
     }
   }
 
-  if (!campoId && todas) {
+  if (!tandaDe && !campoId && todas) {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="mb-3 text-xl font-bold">Nuevo proceso</h1>
@@ -124,7 +174,7 @@ export default function NuevoProcesoPage() {
   const opcion = (activa) => `flex min-h-11 w-full flex-col rounded-lg border px-4 py-3 text-left ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-white hover:border-campo-400'}`;
   return (
     <Camino
-      titulo="Nuevo proceso"
+      titulo={tandaDe ? `Otra tanda${proceso ? ` · ${proceso.nombre}` : ''}` : 'Nuevo proceso'}
       pasos={pasos}
       actual={paso}
       onIr={(i) => {
@@ -201,12 +251,25 @@ export default function NuevoProcesoPage() {
             <input type="date" value={datos.fecha} max={hoy()} onChange={poner(setDatos)('fecha')} className={`${inputChico} mt-1`} />
             <span className="mt-1 block text-xs text-suelo-500">Con esta fecha se calcula cuándo toca el diagnóstico y la parición.</span>
           </label>
-          {modalidad === 'TOROS' && (
-            <label className={etiqueta}>
-              Toros (opcional)
-              <input inputMode="numeric" value={datos.toros} onChange={poner(setDatos)('toros')} className={`${inputChico} mt-1`} />
-            </label>
-          )}
+          {modalidad === 'TOROS' &&
+            (libres.length ? (
+              <ListaToros
+                titulo="Toros (opcional)"
+                ayuda="Cada toro elegido pasa del lote de toros al potrero de las vacas."
+                toros={libres.map((t) => ({ ...t, donde: t.lote ? `en ${t.lote.potrero.nombre}` : 'sin lote' }))}
+                elegidos={toroIds}
+                onCambiar={setToroIds}
+                conPotrero={false}
+              />
+            ) : (
+              !tandaDe && (
+                <label className={etiqueta}>
+                  Toros (opcional)
+                  <input inputMode="numeric" value={datos.toros} onChange={poner(setDatos)('toros')} className={`${inputChico} mt-1`} />
+                  <span className="mt-1 block text-xs text-suelo-500">Para elegirlos uno por uno, cargalos en Configuración → Toros.</span>
+                </label>
+              )
+            ))}
           {lotes.map((l) => (
             <label key={l.loteId} className={etiqueta}>
               {modalidad === 'IATF' ? '¿Cuántas se inseminaron hoy?' : '¿Cuántas entran al servicio?'} ({l.lote}, tiene {formatNumero(l.cabezas)})
@@ -218,7 +281,14 @@ export default function NuevoProcesoPage() {
               </span>
             </label>
           ))}
-          <Nombre datos={datos} onCambiar={poner(setDatos)} />
+          {tandaDe ? (
+            <label className={etiqueta}>
+              Nota (opcional)
+              <input value={datos.nota} onChange={poner(setDatos)('nota')} maxLength={255} className={`${inputChico} mt-1`} />
+            </label>
+          ) : (
+            <Nombre datos={datos} onCambiar={poner(setDatos)} />
+          )}
         </section>
       )}
 

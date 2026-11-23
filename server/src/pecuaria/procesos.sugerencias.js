@@ -76,7 +76,7 @@ const diagnosticadas = (diags) => diags.reduce((s, d) => s + prenadasDe(d.datos)
 // Las tandas de servicio: cada fecha en que entraron animales (el inicio, cada
 // día de IATF y las que pasan al repaso con toro), con sus lotes y cabezas.
 function tandasDeServicio(a) {
-  const deServicio = [...de(a, 'INICIO'), ...de(a, 'INSEMINACION'), ...de(a, 'FIN_INSEMINACION').filter((x) => x.datos?.destino === 'REPASO')];
+  const deServicio = [...de(a, 'INICIO'), ...de(a, 'TANDA'), ...de(a, 'INSEMINACION'), ...de(a, 'FIN_INSEMINACION').filter((x) => x.datos?.destino === 'REPASO')];
   const porFecha = new Map();
   for (const x of deServicio) {
     const t = porFecha.get(x.fecha) ?? { fecha: x.fecha, loteIds: new Set(), cabezas: 0, repaso: false };

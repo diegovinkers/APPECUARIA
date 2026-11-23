@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getCategorias, getProceso, registrarEtapa, vistaPreviaEtapa } from '../../api/pecuaria';
+import { getCategorias, getProceso, getToros, registrarEtapa, vistaPreviaEtapa } from '../../api/pecuaria';
+import { ListaToros, faltaPotrero, listaParaApi, torosLibres } from '../../components/TorosProceso';
 import { getErrorMessages } from '../../api/axios';
 import usePotreros from '../../hooks/usePotreros';
 import Camino from '../../components/Camino';
@@ -31,12 +32,15 @@ const ETAPAS = {
   FIN_SERVICIO: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VIENTRES'], unica: true },
   REPASO: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VIENTRES'], unica: true, pideCabezas: true },
   ABORTO: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['PRENADAS', 'VIENTRES'], pideCabezas: true },
-  DIAGNOSTICO: { pasos: ['A quién', 'Datos', 'Destino', 'Revisar'], toma: ['VIENTRES'], unica: true },
+  // La ecografía va por partes, en varios días (fase 6): no es única.
+  DIAGNOSTICO: { pasos: ['A quién', 'Datos', 'Destino', 'Revisar'], toma: ['VIENTRES'] },
   REVISION: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VACIAS', 'PRENADAS'], unica: true },
   DECISION: { pasos: ['A quién', 'Destino', 'Revisar'], toma: ['VACIAS'], pendientes: true },
   PARICION: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['PRENADAS', 'VIENTRES'] },
   FIN_PARICION: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['PRENADAS', 'VIENTRES'], unica: true },
   DESTETE: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['CRIAS'], unica: true },
+  // Toros que salen o entran (fase 6): no toma lotes del proceso.
+  TOROS: { pasos: ['Toros', 'Revisar'], toma: [], sinLotes: true },
 };
 
 // Los datos de la parición de cada lote (diseño §9).
@@ -72,6 +76,10 @@ export default function ProcesoEtapaPage() {
   const [destete, setDestete] = useState({}); // { [loteId]: { potreroId, categoriaId, peso } }
   const [iatf, setIatf] = useState({}); // { [loteId]: { cabezas, potreroId, destino } }
   const ponerIatf = (l, cambios) => setIatf((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...cambios } }));
+  // Toros (fase 6): los de la estancia, los que salen y los que entran ({ [toroId]: potreroId }).
+  const [torosEstancia, setTorosEstancia] = useState([]);
+  const [salen, setSalen] = useState(null);
+  const [entran, setEntran] = useState({});
   const [previa, setPrevia] = useState(null);
   const [errors, setErrors] = useState([]);
   const [ocupado, setOcupado] = useState(false);
@@ -86,6 +94,15 @@ export default function ProcesoEtapaPage() {
       .catch(() => setCategorias([]));
   }, [id]);
 
+  // La etapa Toros ofrece traer toros de la estancia que no están en otro proceso.
+  const campoDelProceso = ficha?.proceso.campoId ?? null;
+  useEffect(() => {
+    if (etapa !== 'TOROS' || !campoDelProceso) return;
+    getToros(campoDelProceso)
+      .then(({ data }) => setTorosEstancia(data))
+      .catch(() => setTorosEstancia([]));
+  }, [etapa, campoDelProceso]);
+
   // Los lotes que la toman (y, si va una sola vez, que todavía no la tienen).
   const posibles = useMemo(() => {
     if (!ficha || !cfg) return [];
@@ -94,6 +111,10 @@ export default function ProcesoEtapaPage() {
     );
     return ficha.lotes.filter((l) => l.activo && l.cabezas > 0 && cfg.toma.includes(l.rol) && !(cfg.unica && ya.has(l.loteId)) && !(cfg.pendientes && l.destino));
   }, [ficha, etapa, cfg]);
+  // Los toros que están en el proceso; al terminar el entore salen todos (si no se destilda).
+  const torosDentro = (ficha?.toros ?? []).filter((t) => !t.hasta).map((t) => ({ ...t, id: t.toroId, donde: `en ${t.potrero.nombre}` }));
+  const salenDe = salen ?? (etapa === 'FIN_SERVICIO' ? Object.fromEntries(torosDentro.map((t) => [t.toroId, ''])) : {});
+  const potreroDeLasVacas = ficha?.lotes.find((l) => l.activo && l.rol === 'VIENTRES')?.potrero?.id ?? '';
   const elegidosIds = elegidos ?? posibles.map((l) => l.loteId);
   const lotes = posibles.filter((l) => elegidosIds.includes(l.loteId));
   const nombrePaso = cfg?.pasos[paso];
@@ -131,6 +152,7 @@ export default function ProcesoEtapaPage() {
         }),
       };
     }
+    if (etapa === 'TOROS') return { ...base, salen: listaParaApi(salenDe), entran: listaParaApi(entran) };
     if (etapa === 'DESTETE') {
       return {
         ...base,
@@ -158,6 +180,7 @@ export default function ProcesoEtapaPage() {
     return {
       ...base,
       ...(etapa === 'ABORTO' && aVacias && { aVacias: true }),
+      ...(etapa === 'FIN_SERVICIO' && Object.keys(salenDe).length && { salenToros: listaParaApi(salenDe) }),
       lineas: lotes.map((l) => (texto(cabezas[l.loteId]) ? { loteId: l.loteId, cabezas: texto(cabezas[l.loteId]) } : { loteId: l.loteId })),
     };
   }
@@ -196,7 +219,11 @@ export default function ProcesoEtapaPage() {
     (etapa !== 'FIN_INSEMINACION' || lotes.every((l) => iatf[l.loteId]?.destino));
   const datosOk = desteteOk && iatfOk && (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
   const destinoOk = etapa !== 'DECISION' || lotes.every((l) => destinoDe(l, 'vacias').tipo);
-  const puedeSeguir = lotes.length > 0 && (nombrePaso !== 'Datos' || datosOk) && (nombrePaso !== 'Destino' || destinoOk);
+  const torosOk = !faltaPotrero(salenDe) && !faltaPotrero(entran);
+  const cuantosToros = Object.keys(salenDe).length + Object.keys(entran).length;
+  const puedeSeguir = cfg.sinLotes
+    ? cuantosToros > 0 && torosOk
+    : lotes.length > 0 && (nombrePaso !== 'Datos' || (datosOk && torosOk)) && (nombrePaso !== 'Destino' || destinoOk);
   const otrosPotreros = (l) => (potreros ?? []).filter((p) => p.id !== l.potrero?.id);
   const titulo = textoBotonEtapa(etapa);
 
@@ -213,7 +240,15 @@ export default function ProcesoEtapaPage() {
       textoSeguir={nombrePaso === 'Revisar' ? 'Confirmar' : cfg.pasos[paso + 1] === 'Revisar' ? 'Revisar' : 'Seguir'}
       puedeSeguir={puedeSeguir}
       ocupado={ocupado}
-      ayuda={lotes.length ? `${lotes.length} ${lotes.length === 1 ? 'lote' : 'lotes'} · ${formatNumero(lotes.reduce((s, l) => s + l.cabezas, 0))} cab` : 'Elegí los lotes'}
+      ayuda={
+        cfg.sinLotes
+          ? cuantosToros
+            ? `${cuantosToros} ${cuantosToros === 1 ? 'toro' : 'toros'}`
+            : 'Elegí los toros'
+          : lotes.length
+            ? `${lotes.length} ${lotes.length === 1 ? 'lote' : 'lotes'} · ${formatNumero(lotes.reduce((s, l) => s + l.cabezas, 0))} cab`
+            : 'Elegí los lotes'
+      }
     >
       <div className="mt-2">
         <ErrorList errors={errors} />
@@ -247,12 +282,57 @@ export default function ProcesoEtapaPage() {
         </section>
       )}
 
+      {ficha && nombrePaso === 'Toros' && (
+        <section aria-label="Toros" className="space-y-5">
+          <label className={etiqueta}>
+            Fecha
+            <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
+          </label>
+          <ListaToros
+            titulo="Sacar del proceso"
+            toros={torosDentro}
+            elegidos={salenDe}
+            onCambiar={setSalen}
+            potreros={potreros ?? []}
+            vacio="No hay toros en el proceso."
+          />
+          <ListaToros
+            titulo="Traer (el mismo u otro)"
+            ayuda="Toros de la estancia que no están en otro proceso. Pasan de su lote al potrero elegido."
+            toros={torosLibres(torosEstancia).map((t) => ({ ...t, donde: t.lote ? `en ${t.lote.potrero.nombre}` : 'sin lote' }))}
+            elegidos={entran}
+            onCambiar={setEntran}
+            potreros={potreros ?? []}
+            potreroPorDefecto={potreroDeLasVacas}
+            vacio="No hay toros libres. Se cargan en Configuración → Toros."
+          />
+          <label className={etiqueta}>
+            Nota (opcional)
+            <input value={nota} onChange={(e) => setNota(e.target.value)} maxLength={255} className={`${inputChico} mt-1`} />
+          </label>
+        </section>
+      )}
+
       {ficha && nombrePaso === 'Datos' && (
         <section aria-label="Datos" className="space-y-4">
           <label className={etiqueta}>
             Fecha
             <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
           </label>
+
+          {etapa === 'FIN_SERVICIO' && torosDentro.length > 0 && (
+            <ListaToros
+              titulo="Salen los toros"
+              ayuda="Al terminar el entore, los toros salen. Destildá el que se quede."
+              toros={torosDentro}
+              elegidos={salenDe}
+              onCambiar={setSalen}
+              potreros={potreros ?? []}
+            />
+          )}
+          {etapa === 'DIAGNOSTICO' && (
+            <p className="text-xs text-suelo-500">Si hoy ecografiás una parte, poné solo esas: el resto queda para otro día.</p>
+          )}
 
           {etapa === 'DIAGNOSTICO' && (
             <>
@@ -569,7 +649,9 @@ function Grupo({ lote, grupo, destino, onCambiar, potreros, categorias, conDespu
     const categoria = vacias ? { categoriaId: tipo === 'SALEN' ? String(lote.categoriaId ?? '') : '' } : {};
     onCambiar({ tipo, potreroId: potreroId ?? null, ...categoria });
   };
-  const conCategoria = !vacias || destino.tipo === 'SALEN';
+  // La categoría de la madre no cambia (docs/PECUARIA.md §9): solo se elige
+  // para las vacías que salen del proceso.
+  const conCategoria = vacias && destino.tipo === 'SALEN';
   const conPotrero = vacias && (destino.tipo === 'REENTORE' || destino.tipo === 'SALEN');
   return (
     <div data-grupo={grupo.clave} className="rounded-md border border-suelo-100 bg-suelo-50 p-2">

@@ -32,8 +32,16 @@ describe('plantilla del reproductivo', () => {
       'PARICION',
       'FIN_PARICION',
       'DESTETE',
+      'TANDA',
+      'TOROS',
     ]);
-    expect([...ETAPAS_UNICAS].sort()).toEqual(['DESTETE', 'DIAGNOSTICO', 'FIN_PARICION', 'FIN_SERVICIO', 'INICIO', 'REPASO', 'REVISION']);
+    // El diagnóstico ya no es único: la ecografía va por partes (fase 6).
+    expect([...ETAPAS_UNICAS].sort()).toEqual(['DESTETE', 'FIN_PARICION', 'FIN_SERVICIO', 'INICIO', 'REPASO', 'REVISION']);
+  });
+
+  it('una ecografía de un lote que sigue servido (le falta una parte) es diagnóstico; si no, revisión', () => {
+    expect(etapaDe('ECOGRAFIA', ['INICIO', 'DIAGNOSTICO'], 'VIENTRES')).toBe('DIAGNOSTICO');
+    expect(etapaDe('ECOGRAFIA', ['INICIO', 'DIAGNOSTICO'], 'VACIAS')).toBe('REVISION');
   });
 
   it('un evento suelto de reproducción toma su etapa según lo que ya tiene el lote', () => {

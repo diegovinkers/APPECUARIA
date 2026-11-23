@@ -4,10 +4,18 @@
 // vacías para volver a servir van primero.
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ getProcesos: vi.fn(), vistaPreviaProceso: vi.fn(), crearProceso: vi.fn() }));
+const api = vi.hoisted(() => ({
+  getProcesos: vi.fn(),
+  vistaPreviaProceso: vi.fn(),
+  crearProceso: vi.fn(),
+  getToros: vi.fn(),
+  getProceso: vi.fn(),
+  vistaPreviaEtapa: vi.fn(),
+  registrarEtapa: vi.fn(),
+}));
 vi.mock('../../api/pecuaria', () => api);
 vi.mock('../../context/EstanciaContext', () => ({ useEstancia: () => ({ campoId: 1, todas: false }) }));
 const POTREROS = [
@@ -29,6 +37,7 @@ beforeEach(() => {
   // Lote R: vacías que quedaron para volver a servir en otro proceso.
   api.getProcesos.mockResolvedValue({ data: [{ id: 3, loteIds: [], reentoreIds: [2] }] });
   api.vistaPreviaProceso.mockResolvedValue({ data: { oracion: 'Vas a empezar "Servicio"', pasos: [{ texto: '20 → P13, lote Lote V · P13 (Vaquillonas)' }] } });
+  api.getToros.mockResolvedValue({ data: [] });
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -102,5 +111,62 @@ describe('nuevo proceso', () => {
     await click(boton('Seguir'));
     expect(contenedor.textContent).toContain('¿Cuántas se inseminaron hoy? (Lote V, tiene 50)');
     expect(contenedor.textContent).toContain('quedan aparte como "sin inseminar"');
+  });
+});
+
+describe('toros uno por uno y otra tanda (fase 6)', () => {
+  const TOROS = [
+    { id: 14, identificacion: 'T-014', raza: 'Angus', activo: true, lote: { id: 4, nombre: 'Toros', potrero: { nombre: 'P3' } }, enProceso: null },
+    { id: 22, identificacion: 'T-022', raza: 'Angus', activo: true, lote: { id: 4, nombre: 'Toros', potrero: { nombre: 'P3' } }, enProceso: null },
+    { id: 30, identificacion: 'T-030', activo: true, lote: null, enProceso: { proceso: { id: 9, nombre: 'Otro' } } },
+  ];
+
+  it('en un entore con toros cargados, se eligen uno por uno (no el número) y van en asignarToros', async () => {
+    api.getToros.mockResolvedValue({ data: TOROS });
+    await montar();
+    await click(boton('Seguir'));
+    await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]);
+    await click(boton('Seguir'));
+    const lista = contenedor.querySelector('fieldset[aria-label="Toros (opcional)"]');
+    // T-030 está en otro proceso: no se ofrece.
+    expect([...lista.querySelectorAll('[data-toro]')].map((li) => li.getAttribute('data-toro'))).toEqual(['T-014', 'T-022']);
+    await click(lista.querySelector('[data-toro="T-022"] input[type="checkbox"]'));
+    await click(boton('Seguir'));
+    await click(boton('Revisar'));
+    const cuerpo = api.vistaPreviaProceso.mock.calls[0][0];
+    expect(cuerpo.asignarToros).toEqual([{ toroId: 22 }]);
+    expect(cuerpo.toros).toBeUndefined();
+  });
+
+  it('otra tanda: sin elegir el tipo, y se carga como etapa TANDA del proceso', async () => {
+    api.getProceso.mockResolvedValue({ data: { proceso: { id: 7, nombre: 'Entore EJ', campoId: 1, datos: { modalidad: 'TOROS' } } } });
+    api.vistaPreviaEtapa.mockResolvedValue({ data: { oracion: 'Vas a anotar otra tanda', pasos: [] } });
+    api.registrarEtapa.mockResolvedValue({ data: { oracion: 'Anotaste otra tanda' } });
+    function Donde() {
+      const l = useLocation();
+      return <p data-testid="donde">{l.pathname}</p>;
+    }
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/pecuaria/procesos/7/tanda']}>
+          <Routes>
+            <Route path="/pecuaria/procesos/:id/tanda" element={<NuevoProcesoPage />} />
+            <Route path="*" element={<Donde />} />
+          </Routes>
+        </MemoryRouter>,
+      ),
+    );
+    await act(async () => {});
+    expect(contenedor.textContent).toContain('Otra tanda · Entore EJ');
+    expect(contenedor.querySelector('section[aria-label="Qué"]')).toBeNull();
+    await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]);
+    await click(boton('Seguir'));
+    await click(boton('Seguir'));
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'TANDA', expect.objectContaining({ lineas: [{ loteId: 1 }] }));
+    expect(api.vistaPreviaProceso).not.toHaveBeenCalled();
+    await click(boton('Confirmar'));
+    expect(api.registrarEtapa).toHaveBeenCalledWith('7', 'TANDA', expect.objectContaining({ lineas: [{ loteId: 1 }] }));
+    expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/procesos/7');
   });
 });

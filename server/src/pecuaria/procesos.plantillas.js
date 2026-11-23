@@ -24,7 +24,8 @@ export const PLANTILLAS = {
       { clave: 'FIN_INSEMINACION', nombre: 'Fin de la inseminación', tipos: ['INSEMINACION'], unica: false, linea: true, toma: ['SIN_SERVIR'], mueve: true, soloIatf: true },
       { clave: 'REPASO', nombre: 'Repaso', tipos: ['ENTORE'], unica: true, linea: false, toma: ['VIENTRES'] },
       { clave: 'FIN_SERVICIO', nombre: 'Fin del servicio', tipos: ['FIN_SERVICIO'], unica: true, linea: true, toma: ['VIENTRES'] },
-      { clave: 'DIAGNOSTICO', nombre: 'Diagnóstico', tipos: ['ECOGRAFIA'], unica: true, linea: true, toma: ['VIENTRES'], mueve: true },
+      // La ecografía va por partes, en varios días (fase 6, docs/PECUARIA.md §9).
+      { clave: 'DIAGNOSTICO', nombre: 'Diagnóstico', tipos: ['ECOGRAFIA'], unica: false, linea: true, toma: ['VIENTRES'], mueve: true },
       { clave: 'REVISION', nombre: 'Revisión del diagnóstico', tipos: ['ECOGRAFIA'], unica: true, linea: false, toma: ['VACIAS', 'PRENADAS'], mueve: true },
       // Lo que se decidió después con las vacías (venta, invernada, reentore).
       { clave: 'DECISION', nombre: 'Decisión', tipos: ['ECOGRAFIA'], unica: false, linea: false, toma: ['VACIAS'], mueve: true },
@@ -32,14 +33,17 @@ export const PLANTILLAS = {
       { clave: 'PARICION', nombre: 'Parición', tipos: ['PARICION'], unica: false, linea: true, toma: ['PRENADAS', 'VIENTRES'], mueve: true },
       { clave: 'FIN_PARICION', nombre: 'Fin de la parición', tipos: ['PARICION'], unica: true, linea: false, toma: ['PRENADAS', 'VIENTRES'], mueve: true },
       { clave: 'DESTETE', nombre: 'Destete', tipos: ['DESTETE'], unica: true, linea: true, toma: ['CRIAS'], mueve: true },
+      // Fase 6: otra tanda de hembras que entra al servicio en otro día, y los
+      // toros que entran o salen (uno por uno). No toman lotes del proceso.
+      { clave: 'TANDA', nombre: 'Tanda', tipos: ['ENTORE', 'INSEMINACION'], unica: false, linea: false, toma: [], mueve: true },
+      { clave: 'TOROS', nombre: 'Toros', tipos: ['ENTORE'], unica: false, linea: false, toma: [], mueve: true },
     ],
   },
 };
 
-// Las etapas que van una sola vez por proceso y lote: las del índice
-// evento_registro_proceso_etapa_unica, más el diagnóstico. Desde la migración
-// `plazos_y_toros` el índice ya no incluye el diagnóstico (la ecografía va por
-// partes, docs/PECUARIA.md §9); el código lo sigue controlando hasta la fase 6.
+// Las etapas que van una sola vez por proceso y lote: las mismas del índice
+// evento_registro_proceso_etapa_unica (desde `plazos_y_toros`, sin el
+// diagnóstico: la ecografía va por partes).
 export const ETAPAS_UNICAS = new Set(PLANTILLAS.REPRODUCTIVO.etapas.filter((e) => e.unica).map((e) => e.clave));
 
 export const etapaDePlantilla = (clave, tipo = 'REPRODUCTIVO') => PLANTILLAS[tipo].etapas.find((e) => e.clave === clave) ?? null;
@@ -48,9 +52,10 @@ export const etapaDePlantilla = (clave, tipo = 'REPRODUCTIVO') => PLANTILLAS[tip
 export const TIPOS_REPRODUCCION = new Set(['ENTORE', 'INSEMINACION', 'FIN_SERVICIO', 'ECOGRAFIA', 'ABORTO']);
 
 // Qué etapa le toca a un evento de reproducción de un lote que ya tiene
-// `hechas` (las etapas vigentes de ese lote en el proceso). null si el tipo
-// no es de reproducción.
-export function etapaDe(tipoClave, hechas = []) {
+// `hechas` (las etapas vigentes de ese lote en el proceso) y está con `rol`.
+// null si el tipo no es de reproducción. Una ecografía de un lote que sigue
+// servido (le falta ecografiar una parte) es otra parte del diagnóstico.
+export function etapaDe(tipoClave, hechas = [], rol = null) {
   const ya = new Set(hechas);
   switch (tipoClave) {
     case 'ENTORE':
@@ -60,7 +65,7 @@ export function etapaDe(tipoClave, hechas = []) {
     case 'FIN_SERVICIO':
       return 'FIN_SERVICIO';
     case 'ECOGRAFIA':
-      return ya.has('DIAGNOSTICO') ? 'REVISION' : 'DIAGNOSTICO';
+      return ya.has('DIAGNOSTICO') && rol !== 'VIENTRES' ? 'REVISION' : 'DIAGNOSTICO';
     case 'ABORTO':
       return 'ABORTO';
     default:

@@ -531,6 +531,17 @@ export const procesoSchema = z
     // La inseminación "común" se sacó (ajustes del 20/11): entore o IATF.
     modalidad: z.enum(['TOROS', 'IATF'], { error: 'Elegí cómo es el servicio: entore con toros o IATF' }),
     toros: enteroCero('Los toros tienen que ser un número entero').optional(),
+    // Los toros uno por uno (fase 6): cada uno, al potrero elegido o al de las vacas.
+    asignarToros: z
+      .array(
+        z.object({
+          toroId: idPositivo('El toro no es válido'),
+          potreroId: idPositivo('El potrero del toro no es válido').optional(),
+        }),
+        { error: 'Los toros tienen que ser una lista' },
+      )
+      .max(50, 'Demasiados toros juntos')
+      .optional(),
     nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
     lineas: z
       .array(

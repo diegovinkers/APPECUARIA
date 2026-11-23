@@ -95,7 +95,8 @@ function tandasDeServicio(a) {
 //   plazos      los de Configuración (procesos.configuracion.js); si falta, los iniciales
 //   hoy         AAAA-MM-DD
 //   descartadas las claves que el usuario descartó (proceso.datos.descartadas)
-//   siguientes  las fechas de inicio de los procesos enganchados a este (nuevo entore)
+//   siguientes  los procesos enganchados a este (nuevo entore): su fecha de inicio, o
+//               { fecha, meses } si dicen de qué meses de parto son las paridas
 // Devuelve { items, proxima }. Cada item:
 //   { clave, etapa, nombre, fecha, hasta?, real, estado, dias, texto, titulo, avance? }
 //   clave: la etapa, o etapa:fecha / etapa:mes si se repite (por tanda o por mes de parto).
@@ -185,7 +186,9 @@ export function sugerencias({ proceso = {}, anclas = [], lotes = [], plazos = PL
   const destetes = de(a, 'DESTETE');
   const criasConMes = lotes.filter((l) => l.rol === 'CRIAS' && l.mes);
   for (const [mes, parto] of [...primerParto.entries()].sort()) {
-    const nuevo = minimo(siguientes.filter((f) => f >= parto));
+    // Un enganchado que dice de qué meses se llevó las paridas cuenta solo
+    // para esos meses (fase 7); uno sin meses (datos viejos), para todos.
+    const nuevo = minimo(siguientes.filter((x) => (typeof x === 'string' ? true : !x.meses?.length || x.meses.includes(mes))).map((x) => (typeof x === 'string' ? x : x.fecha)).filter((f) => f >= parto));
     agregar({ clave: `NUEVO_ENTORE:${mes}`, etapa: 'NUEVO_ENTORE', nombre: `${p.NUEVO_ENTORE.nombre} (paridas de ${nombreMes(mes)})`, fecha: fechaPlazo(parto, p.NUEVO_ENTORE), real: nuevo });
     const criasDelMes = new Set(criasConMes.filter((l) => l.mes === mes).map((l) => l.loteId));
     // Sin el mes en los lotes (datos viejos), cualquier destete cuenta.

@@ -230,7 +230,7 @@ export async function descartarImportacion(req, res) {
 // Los procesos abiertos de unos lotes, sin repetir: [{ id, nombre, rol, etapa, textoEtapa }].
 async function procesosDe(loteIds) {
   const porLote = await procesos.procesosDeLotes(loteIds);
-  return [...new Map([...porLote.values()].map((p) => [p.id, p])).values()];
+  return [...new Map([...porLote.values()].flat().map((p) => [p.id, p])).values()];
 }
 
 export async function getPotrero(req, res) {

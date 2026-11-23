@@ -272,9 +272,17 @@ export async function aplicar(tx, body, usuarioId, { entreCampos = false, evento
     for (const l of plan.lineasDestino) if (l.loteId === null) l.loteId = nuevo.id;
     // Procesos: una parte que "sigue siendo el mismo lote", apartada con el +,
     // sigue en el proceso del lote con el mismo rol.
-    if (body.mismoLote && !body.parteFamilia) {
-      const pl = await tx.procesoLote.findFirst({ where: { loteId: lote.id, hasta: null, proceso: { estado: 'ABIERTO' } } });
-      if (pl) await tx.procesoLote.create({ data: { procesoId: pl.procesoId, loteId: nuevo.id, rol: pl.rol, mes: pl.mes, destino: pl.destino, desde: fecha } });
+    // Una parte apartada por un proceso (parteFamilia) sigue en los OTROS
+    // procesos del lote con el mismo rol (fase 7: una parida con cría al pie
+    // está en el proceso viejo y en el entore nuevo); en el suyo, el rol lo
+    // pone el proceso.
+    if (body.mismoLote || body.parteFamilia) {
+      const pls = await tx.procesoLote.findMany({
+        where: { loteId: lote.id, hasta: null, proceso: { estado: 'ABIERTO' }, ...(body.parteFamilia && procesoId != null && { procesoId: { not: procesoId } }) },
+      });
+      for (const pl of pls) {
+        await tx.procesoLote.create({ data: { procesoId: pl.procesoId, loteId: nuevo.id, rol: pl.rol, mes: pl.mes, destino: pl.destino, desde: fecha } });
+      }
     }
   }
   await entradaAlCorral(tx, plan, { entreCampos });

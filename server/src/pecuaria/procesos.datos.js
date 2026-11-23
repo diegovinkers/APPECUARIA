@@ -100,7 +100,10 @@ export function lineaParicion(linea, lote) {
   const nacidos = machos + hembras + muertos;
   if (nacidos < madres) return { error: `En el lote ${lote.nombre} parieron ${madres} madres, pero nacieron ${nacidos} (vivos y muertos)` };
   const avisos = nacidos > madres + madresMuertas ? [`En el lote ${lote.nombre} nacieron más terneros que madres: ¿mellizos?`] : [];
-  return { datos, avisos };
+  // La caravana de los terneros: dato opcional, texto libre (fase 7).
+  const caravanas = linea?.caravanas == null ? '' : String(linea.caravanas).trim();
+  if (caravanas.length > 2000) return { error: `Las caravanas son demasiado largas (máximo 2000 letras)${en}` };
+  return { datos, avisos, ...(caravanas && { caravanas }) };
 }
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('es-UY');
@@ -140,7 +143,7 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
     case 'FIN_INSEMINACION':
       return `${fmt(cabezas)} sin inseminar: ${d.destino === 'REPASO' ? 'al repaso con toro' : 'salen del proceso'}`;
     case 'PARICION':
-      return `${fmt(d.madres)} paridas · ${fmt(d.machos)} machos y ${fmt(d.hembras)} hembras${d.muertos ? ` · ${fmt(d.muertos)} nacidos muertos` : ''}`;
+      return `${fmt(d.madres)} paridas · ${fmt(d.machos)} machos y ${fmt(d.hembras)} hembras${d.muertos ? ` · ${fmt(d.muertos)} nacidos muertos` : ''}${d.potrero ? ` · a ${d.potrero}` : ''}${d.caravanas ? ` · caravanas: ${d.caravanas}` : ''}`;
     case 'FIN_PARICION':
       return d.falladas ? `${fmt(d.falladas)} no parieron` : 'parieron todas';
     case 'DESTETE':

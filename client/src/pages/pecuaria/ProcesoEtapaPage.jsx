@@ -133,8 +133,13 @@ export default function ProcesoEtapaPage() {
         lineas: lotes.map((l) => {
           const d = paricion[l.loteId] ?? {};
           const numeros = Object.fromEntries(CAMPOS_PARICION.map(([campo]) => [campo, texto(d[campo])]).filter(([, v]) => v));
-          const categoria = d.categoriaId ?? l.sugeridas?.PARIDA;
-          return { loteId: l.loteId, ...numeros, ...(categoria && { categoriaMadresId: Number(categoria) }) };
+          // La madre no cambia de categoría (fase 7): su estado pasa a parida.
+          return {
+            loteId: l.loteId,
+            ...numeros,
+            ...(d.potreroId && { potreroId: Number(d.potreroId) }),
+            ...(texto(d.caravanas) && { caravanas: texto(d.caravanas) }),
+          };
         }),
       };
     }
@@ -449,21 +454,23 @@ export default function ProcesoEtapaPage() {
                     ))}
                   </div>
                   <label className="block text-xs text-suelo-600">
-                    Las madres pasan a
-                    <select
-                      aria-label={`${l.nombre}: las madres pasan a`}
-                      value={d.categoriaId ?? String(l.sugeridas?.PARIDA ?? '')}
-                      onChange={(e) => poner('categoriaId', e.target.value)}
-                      className={`${inputChico} mt-1`}
-                    >
-                      {categorias.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
+                    Las paridas y sus crías
+                    <select aria-label={`${l.nombre}: a qué potrero van las paridas`} value={d.potreroId ?? ''} onChange={(e) => poner('potreroId', e.target.value)} className={`${inputChico} mt-1`}>
+                      <option value="">Se quedan en {l.potrero?.nombre}</option>
+                      {otrosPotreros(l).map((p) => (
+                        <option key={p.id} value={p.id}>
+                          Van a {opcionPotrero(p)}
                         </option>
                       ))}
                     </select>
                   </label>
-                  <p className="text-xs text-suelo-500">Los terneros quedan con las madres en {l.potrero?.nombre}, en los lotes del mes (se crean o se suman). Para abortos: ⋯ → Registrar abortos.</p>
+                  <label className="block text-xs text-suelo-600">
+                    Caravanas de los terneros (opcional)
+                    <input aria-label={`${l.nombre}: caravanas`} value={d.caravanas ?? ''} onChange={(e) => poner('caravanas', e.target.value)} placeholder="Ej.: 1001 a 1040" className={`${inputChico} mt-1`} />
+                  </label>
+                  <p className="text-xs text-suelo-500">
+                    Los terneros van al lote del mes en que nacieron (por ejemplo, &quot;Terneros sep-2027&quot; y &quot;Terneras sep-2027&quot;; se crean o se suman). La madre sigue en su categoría: pasa a estar parida. Para abortos: ⋯ → Registrar abortos.
+                  </p>
                 </fieldset>
               );
             })}
@@ -508,7 +515,7 @@ export default function ProcesoEtapaPage() {
                 </fieldset>
               );
             })}
-          {etapa === 'DESTETE' && <p className="text-xs text-suelo-500">Cuando a las madres ya no les quedan crías al pie, vuelven a ser vacas de cría.</p>}
+          {etapa === 'DESTETE' && <p className="text-xs text-suelo-500">Cuando a las madres ya no les quedan crías al pie, dejan este proceso (siguen en su categoría y en el entore nuevo, si entraron).</p>}
 
           {(etapa === 'INSEMINACION' || etapa === 'FIN_INSEMINACION') &&
             lotes.map((l) => {

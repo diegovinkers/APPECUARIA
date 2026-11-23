@@ -30,8 +30,8 @@ async function preparar({ parir = true } = {}) {
   if (parir) {
     await base.agent.post(`${API}/procesos/${proceso.id}/etapas/PARICION`).send({ fecha: '2026-10-12', lineas: [{ loteId: Q.id, madres: 20, machos: 10, hembras: 10 }] }).expect(201);
   }
-  const terneros = await prisma.lote.findFirst({ where: { nombre: 'Lote Q · terneros oct' } });
-  const terneras = await prisma.lote.findFirst({ where: { nombre: 'Lote Q · terneras oct' } });
+  const terneros = await prisma.lote.findFirst({ where: { nombre: 'Terneros oct-2026' } });
+  const terneras = await prisma.lote.findFirst({ where: { nombre: 'Terneras oct-2026' } });
   return { ...base, proceso, Q, terneros, terneras, P12: p12.potrero, P9: p9.potrero };
 }
 
@@ -42,19 +42,21 @@ const lineas = async (agent, potrero) =>
   ((await agent.get(`${API}/potreros/${potrero.id}`).expect(200)).body.stock?.lineas ?? []).map((l) => [l.lote, l.categoria, l.cabezas]).sort((a, b) => a[0].localeCompare(b[0]));
 
 describe('destete', () => {
-  it('los terneros se van con el destete; las madres vuelven a ser de cría cuando se destetan todas sus crías', async () => {
+  // Fase 7: la categoría de la madre no cambia; al destetar todas sus crías deja el proceso.
+  it('los terneros se van con el destete; las madres dejan el proceso cuando se destetan todas sus crías', async () => {
     const { agent, proceso, terneros, terneras, P12, P9, cat } = await preparar();
     await cargar(agent, proceso.id, 'DESTETE', { fecha: '2026-11-15', lineas: [{ loteId: terneros.id, destinoPotreroId: P9.id, categoriaId: cat.Terneros, pesoPromedioKg: 180 }] });
     const m = await prisma.movimiento.findFirst({ where: { procesoId: proceso.id, loteOrigenId: terneros.id }, include: { tipo: true } });
     expect(m.tipo.clave).toBe('DESTETE');
     const madres = await prisma.lote.findFirst({ where: { nombre: 'Lote Q' } });
     expect(m.loteMadresId).toBe(madres.id);
-    expect(await lineas(agent, P9)).toEqual([['Lote Q · terneros oct', 'Terneros', 10]]);
+    expect(await lineas(agent, P9)).toEqual([['Terneros oct-2026', 'Terneros', 10]]);
     // Todavía quedan las terneras: las madres siguen paridas.
-    expect((await lineas(agent, P12)).find((l) => l[0] === 'Lote Q')).toEqual(['Lote Q', 'Vaquillonas paridas', 20]);
+    expect((await lineas(agent, P12)).find((l) => l[0] === 'Lote Q')).toEqual(['Lote Q', 'Vaquillonas preñadas', 20]);
+    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: madres.id } })).toMatchObject({ rol: 'PARIDAS', hasta: null });
 
     const r = await cargar(agent, proceso.id, 'DESTETE', { fecha: '2026-11-16', lineas: [{ loteId: terneras.id, destinoPotreroId: P9.id, pesoPromedioKg: 170 }] });
-    expect((await lineas(agent, P12)).find((l) => l[0] === 'Lote Q')).toEqual(['Lote Q', 'Vacas de cría', 20]);
+    expect((await lineas(agent, P12)).find((l) => l[0] === 'Lote Q')).toEqual(['Lote Q', 'Vaquillonas preñadas', 20]);
     expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: madres.id } })).toMatchObject({ rol: 'LIBRES' });
     expect(r.ficha.embudo).toMatchObject({ destetados: 20, kgDestetados: 3500 });
   });
@@ -115,7 +117,7 @@ describe('anular', () => {
   it('si después hubo otros cambios en esos potreros, no se anula (y no queda nada a medias)', async () => {
     const { agent, proceso, Q, P12, P9 } = await preparar({ parir: false });
     const r = await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-12', lineas: [{ loteId: Q.id, madres: 5, machos: 3, hembras: 2 }] });
-    const terneros = await prisma.lote.findFirst({ where: { nombre: 'Lote Q · terneros oct' } });
+    const terneros = await prisma.lote.findFirst({ where: { nombre: 'Terneros oct-2026' } });
     await cargar(agent, proceso.id, 'DESTETE', { fecha: '2026-11-15', lineas: [{ loteId: terneros.id, destinoPotreroId: P9.id }] });
     expect((await anularCarga(agent, proceso.id, r.grupoId, 409)).body.errors[0]).toMatch(/otros cambios en P12/);
     expect(await prisma.eventoRegistro.count({ where: { grupoId: r.grupoId, anulado: true } })).toBe(0);

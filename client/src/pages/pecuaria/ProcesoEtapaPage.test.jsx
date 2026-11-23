@@ -186,9 +186,9 @@ describe('IATF por días', () => {
 });
 
 describe('la parición', () => {
-  it('por lote: madres, terneros, terneras, nacidos muertos y madres muertas; la categoría de las madres', async () => {
+  it('por lote: madres, terneros, terneras, nacidos muertos y madres muertas; la madre no cambia de categoría (fase 7)', async () => {
     api.getProceso.mockResolvedValue({
-      data: ficha([{ ...LOTE_V, nombre: 'Lote P', cabezas: 18, rol: 'PRENADAS', sugeridas: { PARIDA: 6 } }]),
+      data: ficha([{ ...LOTE_V, nombre: 'Lote P', cabezas: 18, rol: 'PRENADAS', sugeridas: { PARIDA: 3 } }]),
     });
     api.getCategorias.mockResolvedValue({ data: [{ id: 3, nombre: 'Vaquillonas preñadas' }, { id: 6, nombre: 'Vaquillonas paridas' }] });
     await montar('PARICION');
@@ -197,11 +197,28 @@ describe('la parición', () => {
     await escribir(input('Lote P: terneros (machos) vivos'), '3');
     await escribir(input('Lote P: terneras (hembras) vivas'), '2');
     await escribir(input('Lote P: nacidos muertos'), '1');
-    expect(select('Lote P: las madres pasan a').value).toBe('6');
+    // No se elige la categoría de las madres: sigue la del lote.
+    expect(select('Lote P: las madres pasan a')).toBeNull();
     await click(boton('Revisar'));
     expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'PARICION', {
       fecha: expect.any(String),
-      lineas: [{ loteId: 1, madres: '6', machos: '3', hembras: '2', muertos: '1', categoriaMadresId: 6 }],
+      lineas: [{ loteId: 1, madres: '6', machos: '3', hembras: '2', muertos: '1' }],
+    });
+  });
+
+  it('las paridas y sus crías pueden ir a otro potrero; la caravana es opcional (fase 7)', async () => {
+    api.getProceso.mockResolvedValue({ data: ficha([{ ...LOTE_V, nombre: 'Lote P', cabezas: 18, rol: 'PRENADAS' }]) });
+    await montar('PARICION');
+    await click(boton('Seguir'));
+    expect(select('Lote P: a qué potrero van las paridas').value).toBe('');
+    await escribir(input('Lote P: madres que parieron'), '4');
+    await escribir(input('Lote P: terneros (machos) vivos'), '4');
+    await elegir(select('Lote P: a qué potrero van las paridas'), '12');
+    await escribir(input('Lote P: caravanas'), '1001 a 1004');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaEtapa).toHaveBeenCalledWith('7', 'PARICION', {
+      fecha: expect.any(String),
+      lineas: [{ loteId: 1, madres: '4', machos: '4', potreroId: 12, caravanas: '1001 a 1004' }],
     });
   });
 

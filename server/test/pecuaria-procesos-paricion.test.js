@@ -38,15 +38,17 @@ const lineas = async (agent, potrero) =>
 const parto = (lote, extra = {}) => ({ loteId: lote.id, madres: 6, machos: 3, hembras: 2, muertos: 1, ...extra });
 
 describe('parición', () => {
+  // Fase 7: la madre no cambia de categoría (el estado va en el rol) y los
+  // terneros van al lote del mes en que nacieron ("Terneros oct-2026").
   it('una carga: las madres pasan a paridas del mes y los terneros entran con ellas', async () => {
     const { agent, proceso, P, P12 } = await preparar();
     const r = await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-12', lineas: [parto(P)] });
     expect(await lineas(agent, P12)).toEqual([
       ['Lote P', 'Vaquillonas preñadas', 12],
-      ['Lote P · paridas oct', 'Vaquillonas paridas', 6],
-      ['Lote P · terneras oct', 'Terneras chicas', 2],
-      ['Lote P · terneros oct', 'Terneros chicos', 3],
+      ['Lote P · paridas oct', 'Vaquillonas preñadas', 6],
       ['Lote Q', 'Vaquillonas preñadas', 20],
+      ['Terneras oct-2026', 'Terneras chicas', 2],
+      ['Terneros oct-2026', 'Terneros chicos', 3],
     ]);
     const paridas = await prisma.lote.findFirst({ where: { nombre: 'Lote P · paridas oct' } });
     expect(paridas.raizId).toBe(P.id);
@@ -60,8 +62,8 @@ describe('parición', () => {
       ['Lote P', 'PRENADAS', null],
       ['Lote Q', 'PRENADAS', null],
       ['Lote P · paridas oct', 'PARIDAS', '2026-10'],
-      ['Lote P · terneros oct', 'CRIAS', '2026-10'],
-      ['Lote P · terneras oct', 'CRIAS', '2026-10'],
+      ['Terneros oct-2026', 'CRIAS', '2026-10'],
+      ['Terneras oct-2026', 'CRIAS', '2026-10'],
     ]);
     expect(r.ficha.embudo).toMatchObject({ paridas: 6, ternerosVivos: 5, nacidosMuertos: 1 });
     expect(r.ficha.etapa).toBe('PARICION');
@@ -74,13 +76,13 @@ describe('parición', () => {
     await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-11-05', lineas: [parto(P, { madres: 2, machos: 1, hembras: 1, muertos: 0 })] });
     expect(await lineas(agent, P12)).toEqual([
       ['Lote P', 'Vaquillonas preñadas', 6],
-      ['Lote P · paridas nov', 'Vaquillonas paridas', 2],
-      ['Lote P · paridas oct', 'Vaquillonas paridas', 10],
-      ['Lote P · terneras nov', 'Terneras chicas', 1],
-      ['Lote P · terneras oct', 'Terneras chicas', 4],
-      ['Lote P · terneros nov', 'Terneros chicos', 1],
-      ['Lote P · terneros oct', 'Terneros chicos', 5],
+      ['Lote P · paridas nov', 'Vaquillonas preñadas', 2],
+      ['Lote P · paridas oct', 'Vaquillonas preñadas', 10],
       ['Lote Q', 'Vaquillonas preñadas', 20],
+      ['Terneras nov-2026', 'Terneras chicas', 1],
+      ['Terneras oct-2026', 'Terneras chicas', 4],
+      ['Terneros nov-2026', 'Terneros chicos', 1],
+      ['Terneros oct-2026', 'Terneros chicos', 5],
     ]);
   });
 
@@ -99,14 +101,14 @@ describe('parición', () => {
     expect((await lineas(agent, P12)).find((l) => l[0] === 'Lote P')).toEqual(['Lote P', 'Vaquillonas preñadas', 12]);
   });
 
-  it('si parieron todas en una sola carga y no hay paridas del mes, el lote cambia de categoría (no se crea otro)', async () => {
+  it('si parieron todas en una sola carga y no hay paridas del mes, el lote mismo pasa a paridas (no se crea otro ni cambia la categoría)', async () => {
     const { agent, proceso, Q, P12 } = await preparar();
     await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-12', lineas: [{ loteId: Q.id, madres: 20, machos: 10, hembras: 10 }] });
-    const lq = (await lineas(agent, P12)).filter((l) => l[0].startsWith('Lote Q'));
+    const lq = (await lineas(agent, P12)).filter((l) => l[0] !== 'Lote P');
     expect(lq).toEqual([
-      ['Lote Q', 'Vaquillonas paridas', 20],
-      ['Lote Q · terneras oct', 'Terneras chicas', 10],
-      ['Lote Q · terneros oct', 'Terneros chicos', 10],
+      ['Lote Q', 'Vaquillonas preñadas', 20],
+      ['Terneras oct-2026', 'Terneras chicas', 10],
+      ['Terneros oct-2026', 'Terneros chicos', 10],
     ]);
     expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: Q.id } })).toMatchObject({ rol: 'PARIDAS', mes: '2026-10' });
   });

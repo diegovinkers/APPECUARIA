@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { crearProceso, getProceso, getProcesos, getToros, registrarEtapa, vistaPreviaEtapa, vistaPreviaProceso } from '../../api/pecuaria';
 import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
@@ -48,6 +48,9 @@ const ROLES = [
 export default function NuevoProcesoPage() {
   const navigate = useNavigate();
   const { id: tandaDe } = useParams();
+  // Nuevo entore de las paridas de un proceso (fase 7): ?desde=<id del proceso>.
+  const [params] = useSearchParams();
+  const desde = tandaDe ? null : params.get('desde');
   const { campoId: campoElegido, todas } = useEstancia();
   const [proceso, setProceso] = useState(null);
   const campoId = tandaDe ? (proceso?.campoId ?? null) : campoElegido;
@@ -60,6 +63,7 @@ export default function NuevoProcesoPage() {
   const [elegidos, setElegidos] = useState([]);
   const [enProceso, setEnProceso] = useState(() => new Set());
   const [paraServir, setParaServir] = useState(() => new Set());
+  const [conCria, setConCria] = useState(() => new Map()); // loteId → nombre del proceso
   const [repartir, setRepartir] = useState(false);
   const [reparto, setReparto] = useState({}); // { [loteId]: [{ potreroId, cabezas, toros }] }
   const [datos, setDatos] = useState({ fecha: hoy(), toros: '', nombre: '', nota: '' });
@@ -95,17 +99,21 @@ export default function NuevoProcesoPage() {
       .then(({ data }) => {
         setEnProceso(new Set(data.flatMap((p) => p.loteIds ?? [])));
         setParaServir(new Set(data.flatMap((p) => p.reentoreIds ?? [])));
+        setConCria(new Map(data.flatMap((p) => (p.conCriaIds ?? []).map((id) => [id, p.nombre]))));
+        // Desde la sugerencia "Nuevo entore": las paridas de ese proceso, ya elegidas.
+        const origen = desde && data.find((p) => String(p.id) === String(desde));
+        if (origen?.conCriaIds?.length) setElegidos((e) => (e.length ? e : origen.conCriaIds));
       })
       .catch(() => setEnProceso(new Set()));
-  }, [campoId]);
+  }, [campoId, desde]);
 
-  // Las vacías que quedaron para volver a servir, primero.
+  // Las vacías que quedaron para volver a servir y las paridas, primero.
   const hembras = useMemo(
     () =>
       indexarLotes(potreros ?? [])
         .filter((l) => l.sexo !== 'MACHO' && !enProceso.has(l.loteId))
-        .sort((a, b) => Number(paraServir.has(b.loteId)) - Number(paraServir.has(a.loteId))),
-    [potreros, enProceso, paraServir],
+        .sort((a, b) => Number(paraServir.has(b.loteId) || conCria.has(b.loteId)) - Number(paraServir.has(a.loteId) || conCria.has(a.loteId))),
+    [potreros, enProceso, paraServir, conCria],
   );
   const lotes = hembras.filter((l) => elegidos.includes(l.loteId));
   const pasos = tandaDe ? PASOS_TANDA : conCurso ? PASOS_EN_CURSO : PASOS;
@@ -234,6 +242,11 @@ export default function NuevoProcesoPage() {
                     <span className="block text-xs text-suelo-500">
                       {l.potrero} · {l.categoria}
                       {paraServir.has(l.loteId) && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-800">para volver a servir</span>}
+                      {conCria.has(l.loteId) && (
+                        <span className="ml-1 rounded bg-campo-500/15 px-1.5 py-0.5 text-[11px] text-campo-800" title={`Sigue en "${conCria.get(l.loteId)}" hasta el destete`}>
+                          con cría al pie
+                        </span>
+                      )}
                     </span>
                   </span>
                   <span className="shrink-0 text-suelo-600">{formatNumero(l.cabezas)} cab</span>

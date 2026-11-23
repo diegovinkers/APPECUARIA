@@ -170,3 +170,29 @@ describe('toros uno por uno y otra tanda (fase 6)', () => {
     expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/procesos/7');
   });
 });
+
+describe('nuevo entore con ternero al pie (fase 7)', () => {
+  it('con ?desde=, las paridas de ese proceso ya vienen elegidas y marcadas', async () => {
+    // Lote V: paridas con cría al pie en el proceso 5.
+    api.getProcesos.mockResolvedValue({ data: [{ id: 5, nombre: 'Entore viejo', loteIds: [], reentoreIds: [], conCriaIds: [1] }] });
+    act(() =>
+      root.render(
+        <MemoryRouter initialEntries={['/pecuaria/procesos/nuevo?desde=5']}>
+          <NuevoProcesoPage />
+        </MemoryRouter>,
+      ),
+    );
+    await act(async () => {});
+    await click(boton('Seguir'));
+    const filas = [...contenedor.querySelectorAll('section[aria-label="A quién"] li')];
+    // Primero las paridas, elegidas y con la marca.
+    expect(filas[0].textContent).toContain('Lote V');
+    expect(filas[0].textContent).toContain('con cría al pie');
+    expect(filas[0].querySelector('input[type="checkbox"]').checked).toBe(true);
+    expect(filas[1].querySelector('input[type="checkbox"]').checked).toBe(false);
+    await click(boton('Seguir'));
+    await click(boton('Seguir'));
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaProceso.mock.calls[0][0].lineas).toEqual([{ loteId: 1 }]);
+  });
+});

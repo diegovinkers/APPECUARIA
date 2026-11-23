@@ -181,7 +181,7 @@ export default function NuevoProcesoPage() {
     );
   }
 
-  const opcion = (activa) => `flex min-h-11 w-full flex-col rounded-lg border px-4 py-3 text-left ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-white hover:border-campo-400'}`;
+  const opcion = (activa) => `flex min-h-11 w-full flex-col rounded-lg border px-4 py-3 text-left ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie hover:border-campo-400'}`;
   return (
     <Camino
       titulo={tandaDe ? `Otra tanda${proceso ? ` · ${proceso.nombre}` : ''}` : 'Nuevo proceso'}
@@ -229,7 +229,7 @@ export default function NuevoProcesoPage() {
         <section aria-label="A quién" className="space-y-2">
           {!potreros && <p className="text-suelo-600">Cargando…</p>}
           {potreros && hembras.length === 0 && <p className="text-suelo-600">No hay lotes de hembras libres (sin otro proceso abierto) en esta estancia.</p>}
-          <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white">
+          <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie">
             {hembras.map((l) => (
               <li key={l.loteId}>
                 <label className="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-1.5 text-sm">
@@ -375,7 +375,7 @@ export default function NuevoProcesoPage() {
               const repartidas = filas.reduce((s, f) => s + (Number.parseInt(f.cabezas, 10) || 0), 0);
               const otros = (potreros ?? []).filter((p) => p.id !== l.potreroId);
               return (
-                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3" data-reparto={l.loteId}>
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3" data-reparto={l.loteId}>
                   <legend className="px-1 text-sm font-semibold">
                     {l.lote} ({l.potrero}) · entran {formatNumero(entran(l))}
                   </legend>
@@ -427,7 +427,7 @@ export default function NuevoProcesoPage() {
             {previa.oracion}.
           </p>
           {previa.pasos?.length > 0 && (
-            <ol className="list-decimal space-y-1 rounded-lg border border-suelo-200 bg-white py-2 pl-8 pr-3 text-sm">
+            <ol className="list-decimal space-y-1 rounded-lg border border-suelo-200 bg-superficie py-2 pl-8 pr-3 text-sm">
               {previa.pasos.map((p) => (
                 <li key={p.texto}>{p.texto}</li>
               ))}

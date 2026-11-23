@@ -39,6 +39,79 @@
   --color-tierra-100: #efe4da;
   --color-tierra-600: #7a5232;
   --color-tierra-700: #61401f;
+
+  /* Colores con nombre de uso (23/11, modo oscuro): en el claro valen lo
+     mismo que antes; en el oscuro cambian aparte del verde de los textos.
+     - superficie: tarjetas, hojas y la barra de abajo (antes bg-white).
+     - boton / boton-hover: los botones verdes con letra blanca.
+     - barra: la barra de arriba. */
+  --color-superficie: #ffffff;
+  --color-boton: #2e5e3a;
+  --color-boton-hover: #254c2f;
+  --color-barra: #2e5e3a;
+}
+
+/* Modo oscuro "noche de campo" (23/11). Mismas familias que el claro, con la
+   escala dada vuelta: el fondo es suelo oscuro y cálido (no negro), el texto
+   es hueso, los verdes se aclaran para leerse sobre oscuro y la barra de
+   arriba pasa a un verde monte profundo. El trigo del "+" no cambia.
+   Se activa con <html data-tema="oscuro"> (src/tema.js). Contrastes
+   controlados: texto 13:1, texto secundario 7,7:1, links verdes ≥ 6:1,
+   letra blanca en los botones 4,6:1. */
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+
+  --color-suelo-50: #181d17;
+  --color-suelo-100: #121611;
+  --color-suelo-200: #2c3329;
+  --color-suelo-300: #3b4338;
+  --color-suelo-400: #6e7468;
+  --color-suelo-500: #959689;
+  --color-suelo-600: #b3b2a6;
+  --color-suelo-700: #cdcbbf;
+  --color-suelo-800: #dedbd0;
+  --color-suelo-900: #ece9df;
+  --color-suelo-950: #f6f3ec;
+
+  --color-campo-50: #18271c;
+  --color-campo-100: #1f3525;
+  --color-campo-200: #2b4a33;
+  --color-campo-300: #3e6a49;
+  --color-campo-400: #5a9168;
+  --color-campo-500: #4f9a63;
+  --color-campo-600: #74b482;
+  --color-campo-700: #8cc596;
+  --color-campo-800: #a9d4b1;
+  --color-campo-900: #cfe8d3;
+
+  --color-trigo-100: #33270f;
+  --color-trigo-400: #e0b866;
+  --color-trigo-600: #e0b866;
+
+  --color-tierra-100: #2e231a;
+  --color-tierra-600: #d2a77f;
+  --color-tierra-700: #e0bd9c;
+
+  --color-superficie: #1c211b;
+  --color-boton: #3a8350;
+  --color-boton-hover: #2f6e42;
+  --color-barra: #1d3a26;
+
+  /* Avisos, errores y estados: los tonos claros se leen sobre oscuro. */
+  --color-red-50: #2a1616;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+  --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #6ee7b7;
+  --color-emerald-900: #a7f3d0;
+  --color-sky-50: #13232d;
+  --color-sky-200: #1f4257;
+  --color-sky-800: #7dd3fc;
+  --color-sky-900: #bae6fd;
+  --color-violet-800: #c4b5fd;
+  --color-lime-800: #bef264;
 }
 
 body {

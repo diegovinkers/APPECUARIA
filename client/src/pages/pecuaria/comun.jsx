@@ -34,7 +34,7 @@ export function SinEstancia() {
   if (errors.length) return <ErrorList errors={errors} />;
   if (!campos) return <p className="text-suelo-600">Cargando…</p>;
   return (
-    <div className="rounded-lg border border-dashed border-suelo-300 bg-white p-8 text-center text-suelo-600">
+    <div className="rounded-lg border border-dashed border-suelo-300 bg-superficie p-8 text-center text-suelo-600">
       Todavía no hay datos.{' '}
       <Link to="/pecuaria/importar" className="text-campo-600 hover:underline">
         Empezá importando la planilla de cargas
@@ -50,7 +50,7 @@ export function ElegirEstancia({ texto }) {
   const { campos, camposDelGrupo, esFeedlot, setCampoId } = useEstancia();
   const lista = camposDelGrupo ?? campos;
   return (
-    <div className="rounded-lg border border-suelo-200 bg-white p-4">
+    <div className="rounded-lg border border-suelo-200 bg-superficie p-4">
       <p className="mb-3 text-suelo-700">{texto ?? (esFeedlot ? '¿De qué feedlot?' : '¿De qué estancia?')}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {lista.map((c) => (

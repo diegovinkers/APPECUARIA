@@ -90,7 +90,7 @@ export function Paginador({ pagina, total, onCambiar, desde, hasta, de }) {
               type="button"
               onClick={() => onCambiar(n)}
               aria-current={n === pagina ? 'page' : undefined}
-              className={`${boton} ${n === pagina ? 'bg-campo-600 font-semibold text-white' : 'text-suelo-700 hover:bg-suelo-100'}`}
+              className={`${boton} ${n === pagina ? 'bg-boton font-semibold text-white' : 'text-suelo-700 hover:bg-suelo-100'}`}
             >
               {n}
             </button>

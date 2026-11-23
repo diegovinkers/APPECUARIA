@@ -169,7 +169,7 @@ export default function PotreroPage() {
               <p>
                 <strong>{[g.queda, ...g.suman].map((l) => l.lote).join(' y ')}</strong> son del mismo lote y están juntas acá.
               </p>
-              <button type="button" onClick={() => unir(g)} className="mt-2 rounded-md bg-campo-600 px-3 py-1.5 font-medium text-white hover:bg-campo-700">
+              <button type="button" onClick={() => unir(g)} className="mt-2 rounded-md bg-boton px-3 py-1.5 font-medium text-white hover:bg-boton-hover">
                 Unirlas en {g.queda.lote}
               </button>
             </div>
@@ -335,7 +335,7 @@ function EditarStock({ potrero, onGuardar, onCancelar }) {
       </p>
       <div className="space-y-3">
         {filas.map((f, i) => (
-          <div key={f.loteId ?? `nuevo-${i}`} className="space-y-2 rounded-md bg-white p-3">
+          <div key={f.loteId ?? `nuevo-${i}`} className="space-y-2 rounded-md bg-superficie p-3">
             {f.loteId ? (
               <p className="text-sm font-semibold">{f.lote}</p>
             ) : (

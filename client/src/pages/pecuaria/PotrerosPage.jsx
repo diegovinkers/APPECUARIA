@@ -42,7 +42,7 @@ export default function PotrerosPage() {
       {nuevoCorral != null && (
         <form onSubmit={agregarCorral} className="mb-2 flex shrink-0 flex-wrap gap-2">
           <input value={nuevoCorral} onChange={(e) => setNuevoCorral(e.target.value)} aria-label="Nombre del corral" className={`${inputClass} max-w-xs`} />
-          <button type="submit" disabled={!nuevoCorral.trim()} className="rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          <button type="submit" disabled={!nuevoCorral.trim()} className="rounded-md bg-boton px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
             Agregar
           </button>
           <button type="button" onClick={() => setNuevoCorral(null)} className="px-3 py-2 text-sm text-suelo-600">

@@ -64,11 +64,11 @@ export default function PanelFiltros({ activos = 0, onLimpiar, compacto = false,
         type="button"
         onClick={() => setAbierto(true)}
         aria-label={compacto ? 'Filtros' : undefined}
-        className="flex items-center gap-1.5 rounded-md border border-suelo-300 bg-white px-2.5 py-1.5 text-sm font-medium text-suelo-800 hover:border-campo-400"
+        className="flex items-center gap-1.5 rounded-md border border-suelo-300 bg-superficie px-2.5 py-1.5 text-sm font-medium text-suelo-800 hover:border-campo-400"
       >
         <Icono nombre="configuracion" className="h-4 w-4" />
         <span className={compacto ? 'hidden sm:inline' : ''}>Filtros</span>
-        {activos > 0 && <span className="rounded-full bg-campo-600 px-2 text-xs text-white">{activos}</span>}
+        {activos > 0 && <span className="rounded-full bg-boton px-2 text-xs text-white">{activos}</span>}
       </button>
       {activos > 0 && onLimpiar && !compacto && (
         <button type="button" onClick={onLimpiar} className="text-sm text-campo-600 hover:underline">

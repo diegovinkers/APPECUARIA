@@ -221,7 +221,7 @@ export default function EventoPage() {
           {hecho.oracion}.
         </p>
         <div className="mx-auto mt-6 grid max-w-sm gap-2">
-          <button type="button" onClick={otroIgual} className="min-h-11 rounded-md bg-campo-600 px-4 font-semibold text-white hover:bg-campo-700">
+          <button type="button" onClick={otroIgual} className="min-h-11 rounded-md bg-boton px-4 font-semibold text-white hover:bg-boton-hover">
             Hacer otro igual
           </button>
           <button type="button" onClick={listo} className="min-h-11 rounded-md border border-suelo-300 px-4 font-medium text-suelo-800">
@@ -266,7 +266,7 @@ export default function EventoPage() {
               key={proceso.id}
               type="button"
               onClick={() => navigate(`/pecuaria/procesos/${proceso.id}/etapa/${etapa}`)}
-              className="flex min-h-11 w-full flex-col rounded-lg border border-suelo-300 bg-white px-4 py-3 text-left hover:border-campo-500 hover:bg-campo-50"
+              className="flex min-h-11 w-full flex-col rounded-lg border border-suelo-300 bg-superficie px-4 py-3 text-left hover:border-campo-500 hover:bg-campo-50"
             >
               <span className="font-semibold">{proceso.nombre}</span>
               <span className="text-xs text-suelo-500">
@@ -361,7 +361,7 @@ function Opcion({ activa, onClick, children, detalle }) {
       onClick={onClick}
       aria-pressed={activa}
       className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-sm ${
-        activa ? 'border-campo-500 bg-campo-50 font-semibold text-campo-800' : 'border-suelo-300 bg-white hover:border-suelo-400'
+        activa ? 'border-campo-500 bg-campo-50 font-semibold text-campo-800' : 'border-suelo-300 bg-superficie hover:border-suelo-400'
       }`}
     >
       <span>{children}</span>
@@ -426,7 +426,7 @@ export function PasoAQuien({ tipo, estancia, campo, sinCampo, onElegirEstancia, 
         </Opcion>
       )}
 
-      <label className="flex min-h-11 items-center gap-2 rounded-md border border-suelo-300 bg-white px-3">
+      <label className="flex min-h-11 items-center gap-2 rounded-md border border-suelo-300 bg-superficie px-3">
         <Icono nombre="buscar" className="h-4 w-4 text-suelo-500" />
         <input
           value={busqueda}
@@ -447,7 +447,7 @@ export function PasoAQuien({ tipo, estancia, campo, sinCampo, onElegirEstancia, 
                 type="button"
                 aria-pressed={r.activo}
                 onClick={() => onCambiar({ tipo: r.tipo, id: r.id })}
-                className={`min-h-11 rounded-full border px-3 text-sm ${r.activo ? 'border-campo-500 bg-campo-50 font-semibold text-campo-800' : 'border-suelo-300 bg-white'}`}
+                className={`min-h-11 rounded-full border px-3 text-sm ${r.activo ? 'border-campo-500 bg-campo-50 font-semibold text-campo-800' : 'border-suelo-300 bg-superficie'}`}
               >
                 {r.texto}
               </button>
@@ -469,7 +469,7 @@ export function PasoAQuien({ tipo, estancia, campo, sinCampo, onElegirEstancia, 
           const entero = potreroElegido(sel, lotes, p.potreroId);
           const conBoton = opciones.potrero || (opciones.lote && delPotrero.length > 1);
           return (
-            <li key={p.potreroId} className="rounded-lg border border-suelo-200 bg-white">
+            <li key={p.potreroId} className="rounded-lg border border-suelo-200 bg-superficie">
               <div className="flex items-center justify-between gap-2 px-3 py-1.5">
                 <span className="font-semibold">{p.potrero}</span>
                 {conBoton && (
@@ -477,7 +477,7 @@ export function PasoAQuien({ tipo, estancia, campo, sinCampo, onElegirEstancia, 
                     type="button"
                     aria-pressed={entero}
                     onClick={() => onCambiar({ tipo: 'potrero', id: p.potreroId })}
-                    className={`min-h-11 rounded-md px-3 text-xs font-medium ${entero ? 'bg-campo-600 text-white' : 'bg-suelo-100 text-suelo-700 hover:bg-suelo-200'}`}
+                    className={`min-h-11 rounded-md px-3 text-xs font-medium ${entero ? 'bg-boton text-white' : 'bg-suelo-100 text-suelo-700 hover:bg-suelo-200'}`}
                   >
                     {opciones.potrero ? 'Todo el potrero' : 'Todos sus lotes'} · {formatNumero(suma(delPotrero))} cab
                   </button>
@@ -567,7 +567,7 @@ function DatosLote({ formulario, lote: l, datos, onDato }) {
     </label>
   );
   return (
-    <li className="rounded-lg border border-suelo-200 bg-white p-3">
+    <li className="rounded-lg border border-suelo-200 bg-superficie p-3">
       <p className="text-sm">
         <strong>{l.lote}</strong> <span className="text-suelo-500">· {l.potrero} · {l.categoria} · {formatNumero(l.cabezas)} cab</span>
       </p>
@@ -625,7 +625,7 @@ export function PasoRevisar({ previa }) {
         </p>
       ))}
       {previa.cambiaStock ? (
-        <div className="overflow-hidden rounded-lg border border-suelo-200 bg-white">
+        <div className="overflow-hidden rounded-lg border border-suelo-200 bg-superficie">
           <table className="w-full text-sm">
             <thead className="bg-suelo-100 text-xs text-suelo-600">
               <tr>
@@ -653,7 +653,7 @@ export function PasoRevisar({ previa }) {
           </table>
         </div>
       ) : (
-        <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white text-sm">
+        <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie text-sm">
           {previa.lineas.map((l) => (
             <li key={l.loteId} className="flex items-baseline justify-between gap-3 px-3 py-2">
               <span className="min-w-0">

@@ -214,6 +214,32 @@ describe('la tabla de potreros', () => {
     expect(botonFiltros.textContent).toBe('Filtros2');
   });
 
+  it('filtro por uso de suelo (Sorgo, Raigrás…): con un grupo elegido, solo los usos de ese grupo', () => {
+    const verdeo = (nombre) => ({ grupo: 'VERDEO', nombre });
+    montar([
+      potrero(1, '1', 10, 5),
+      potrero(2, '2', 10, 5, { usoActual: verdeo('Sorgo') }),
+      potrero(3, '3', 10, 5, { usoActual: verdeo('Raigrás') }),
+      potrero(4, '4', 10, 5, { usoActual: verdeo('Sorgo') }),
+    ]);
+    const selectUso = () => [...contenedor.querySelectorAll('label')].find((l) => l.textContent.startsWith('Uso')).querySelector('select');
+    expect([...selectUso().options].map((o) => o.textContent)).toEqual(['Todos', 'Campo natural', 'Raigrás', 'Sorgo']);
+    act(() => {
+      selectUso().value = 'Sorgo';
+      selectUso().dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(primeraColumna()).toEqual(['2', '4']);
+    expect(donde()).toBe('?uso=Sorgo');
+    // Elegir Verdeos deja el Sorgo; elegir CN lo saca (no es de ese grupo).
+    const chip = (t) => [...contenedor.querySelectorAll('[role="group"] button')].find((b) => b.textContent === t);
+    act(() => chip('Verdeos').click());
+    expect(donde()).toBe('?uso=Sorgo&grupo=VERDEO');
+    expect([...selectUso().options].map((o) => o.textContent)).toEqual(['Todos', 'Raigrás', 'Sorgo']);
+    act(() => chip('CN').click());
+    expect(donde()).toBe('?grupo=CN');
+    expect(primeraColumna()).toEqual(['1']);
+  });
+
   it('de a 50 por página; cambiar un filtro vuelve a la 1', () => {
     const muchos = Array.from({ length: 60 }, (_, i) => potrero(i + 1, String(i + 1), 1, 1));
     montar(muchos, '/pecuaria/potreros?pagina=2');

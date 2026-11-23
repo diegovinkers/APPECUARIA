@@ -92,7 +92,7 @@ function NuevoRol({ onCrear }) {
           setAbierto(false);
         }
       }}
-      className="mb-6 space-y-3 rounded-lg border border-suelo-200 bg-white p-4"
+      className="mb-6 space-y-3 rounded-lg border border-suelo-200 bg-superficie p-4"
     >
       <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre (por ejemplo: Veterinario)" aria-label="Nombre del rol" className={inputClass} />
       <input value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Para qué es (opcional)" aria-label="Descripción del rol" className={inputClass} />
@@ -140,7 +140,7 @@ function RolTarjeta({ rol, catalogo, puedeEditar, puedeBorrar, puedeMatriz, run 
   }
 
   return (
-    <li className="rounded-lg border border-suelo-200 bg-white p-4">
+    <li className="rounded-lg border border-suelo-200 bg-superficie p-4">
       {renombrando ? (
         <form
           onSubmit={async (e) => {

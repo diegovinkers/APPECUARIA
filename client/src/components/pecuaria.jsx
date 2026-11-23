@@ -97,7 +97,7 @@ export function Hectareas({ hectareas, aConfirmar }) {
 // Un número grande con su etiqueta, para los resúmenes.
 export function Dato({ valor, etiqueta }) {
   return (
-    <div className="rounded-lg border border-suelo-200 bg-white px-4 py-3">
+    <div className="rounded-lg border border-suelo-200 bg-superficie px-4 py-3">
       <p className="text-2xl font-bold">{valor}</p>
       <p className="text-xs text-suelo-600">{etiqueta}</p>
     </div>

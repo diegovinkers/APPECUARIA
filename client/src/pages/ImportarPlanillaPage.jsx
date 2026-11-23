@@ -76,7 +76,7 @@ export default function ImportarPlanillaPage() {
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
-            className="mb-4 block w-full text-sm text-suelo-700 file:mr-4 file:rounded-md file:border-0 file:bg-campo-600 file:px-4 file:py-2 file:text-white"
+            className="mb-4 block w-full text-sm text-suelo-700 file:mr-4 file:rounded-md file:border-0 file:bg-boton file:px-4 file:py-2 file:text-white"
           />
           <button type="button" disabled={!archivo || ocupado} onClick={() => leer()} className={buttonClass}>
             {ocupado ? 'Leyendo…' : 'Ver vista previa'}
@@ -87,7 +87,7 @@ export default function ImportarPlanillaPage() {
       {previa && <VistaPrevia previa={previa} ocupado={ocupado} onHoja={leer} />}
 
       {previa && (
-        <section className="sticky bottom-0 mt-6 space-y-3 border-t border-suelo-200 bg-white py-4">
+        <section className="sticky bottom-0 mt-6 space-y-3 border-t border-suelo-200 bg-superficie py-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm text-suelo-600">
               Fecha del dato
@@ -188,7 +188,7 @@ function VistaPrevia({ previa, ocupado, onHoja }) {
 
       <ul className="divide-y divide-suelo-200 overflow-hidden rounded-lg border border-suelo-200">
         {previa.potreros.map((p) => (
-          <li key={p.nombre} className="bg-white px-4 py-3">
+          <li key={p.nombre} className="bg-superficie px-4 py-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-medium">

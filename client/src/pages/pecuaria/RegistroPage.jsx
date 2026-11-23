@@ -63,7 +63,7 @@ export default function RegistroPage() {
               replace
               aria-current={ver === valor ? 'page' : undefined}
               className={`rounded-md px-3 py-1.5 text-sm font-semibold sm:px-4 sm:text-base ${
-                ver === valor ? 'bg-campo-600 text-white shadow-sm' : 'text-suelo-700 hover:bg-suelo-300/60'
+                ver === valor ? 'bg-boton text-white shadow-sm' : 'text-suelo-700 hover:bg-suelo-300/60'
               }`}
             >
               {texto}

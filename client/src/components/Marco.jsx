@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useEstancia } from '../context/EstanciaContext';
+import { useTema } from '../context/TemaContext';
 import { FEEDLOTS, TODAS, separarGrupos } from '../navegacion/grupos';
 import { menuPara } from '../navegacion/menu';
 import HojaRegistrar from './HojaRegistrar';
@@ -66,6 +67,40 @@ export function SelectorEstancia() {
   );
 }
 
+// Claro / Oscuro / Automático (23/11): se guarda en este celular o compu.
+const OPCIONES_TEMA = [
+  ['claro', 'Claro'],
+  ['oscuro', 'Oscuro'],
+  ['auto', 'Automático'],
+];
+
+export function SelectorTema() {
+  const { preferencia, elegir } = useTema();
+  return (
+    <div className="px-3 pb-2 pt-1">
+      <p id="titulo-tema" className="mb-1 text-xs text-suelo-500">
+        Pantalla
+      </p>
+      <div role="radiogroup" aria-labelledby="titulo-tema" className="grid grid-cols-3 gap-1 rounded-lg bg-suelo-200/70 p-1">
+        {OPCIONES_TEMA.map(([valor, texto]) => (
+          <button
+            key={valor}
+            type="button"
+            role="radio"
+            aria-checked={preferencia === valor}
+            onClick={() => elegir(valor)}
+            className={`rounded-md px-2 py-1.5 text-xs font-medium ${
+              preferencia === valor ? 'bg-superficie text-campo-700 shadow-sm' : 'text-suelo-600 hover:text-suelo-900'
+            }`}
+          >
+            {texto}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Es activo si la dirección empieza con la ruta (o con `activoEn`).
 const activo = (pathname, item) => pathname === item.ruta || pathname.startsWith(`${item.activoEn ?? item.ruta}/`) || pathname === item.activoEn;
 
@@ -116,6 +151,7 @@ export function ContenidoPanel({ menu, achicado = false, onCerrar, onSalir }) {
         ))}
       </div>
       <div className="mt-2 border-t border-suelo-200 pt-2">
+        {!achicado && <SelectorTema />}
         <Link
           to="/profile"
           onClick={onCerrar}
@@ -137,7 +173,7 @@ export function ContenidoPanel({ menu, achicado = false, onCerrar, onSalir }) {
 // Barra mínima: sin sesión o con la contraseña por cambiar (solo se puede salir).
 function BarraSimple({ onSalir }) {
   return (
-    <header className="flex items-center gap-2 bg-campo-600 px-4 py-3 text-white">
+    <header className="flex items-center gap-2 bg-barra px-4 py-3 text-white">
       <Logo />
       <span className="flex-1" />
       {onSalir && (
@@ -228,7 +264,7 @@ function MarcoInterno() {
   }
 
   const linkArriba = ({ isActive }) =>
-    `rounded-md px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-white/20 text-white' : 'text-campo-100 hover:bg-white/10 hover:text-white'}`;
+    `rounded-md px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`;
   const linkAbajo = ({ isActive }) =>
     `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${isActive ? 'font-semibold text-campo-600' : 'text-suelo-500'}`;
 
@@ -239,7 +275,7 @@ function MarcoInterno() {
     // Fijo a la pantalla (fixed inset-0): arrastrar de más no corre la barra de
     // abajo (pedido de Diego, 19/11).
     <div className="fixed inset-0 flex flex-col">
-      <header className="relative z-30 flex shrink-0 items-center gap-2 bg-campo-600 px-3 py-2.5 text-white lg:gap-3 lg:px-4">
+      <header className="relative z-30 flex shrink-0 items-center gap-2 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4">
         <Link to="/pecuaria/resumen" className="flex shrink-0 items-center" aria-label="SAPSA, ir al inicio">
           <Logo />
         </Link>
@@ -261,7 +297,7 @@ function MarcoInterno() {
             <Icono nombre="mas" className="h-4 w-4" /> Registrar
           </button>
         )}
-        <span className="hidden text-sm text-campo-100 lg:inline">{user.nombre}</span>
+        <span className="hidden text-sm text-white/80 lg:inline">{user.nombre}</span>
         <button
           type="button"
           onClick={() => setMenuAbierto((a) => !a)}
@@ -280,7 +316,7 @@ function MarcoInterno() {
           <div
             role="dialog"
             aria-label="Menú"
-            className="absolute right-2 top-[56px] flex max-h-[calc(100vh-72px)] w-[min(20rem,calc(100vw-1rem))] flex-col rounded-xl border border-suelo-200 bg-white p-3 shadow-xl"
+            className="absolute right-2 top-[56px] flex max-h-[calc(100vh-72px)] w-[min(20rem,calc(100vw-1rem))] flex-col rounded-xl border border-suelo-200 bg-superficie p-3 shadow-xl"
           >
             <ContenidoPanel menu={menu} onCerrar={() => setMenuAbierto(false)} onSalir={salir} />
           </div>
@@ -294,7 +330,7 @@ function MarcoInterno() {
         )}
         <aside
           aria-label="Filtros"
-          className={`${hayFiltros ? '' : 'hidden'} fixed inset-y-0 left-0 z-40 w-[85%] max-w-xs overflow-y-auto bg-white p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl transition-transform ${
+          className={`${hayFiltros ? '' : 'hidden'} fixed inset-y-0 left-0 z-40 w-[85%] max-w-xs overflow-y-auto bg-superficie p-4 pt-[max(1rem,env(safe-area-inset-top))] shadow-xl transition-transform ${
             filtros.abierto ? 'translate-x-0' : '-translate-x-full'
           } lg:static lg:z-0 lg:w-72 lg:max-w-none lg:shrink-0 lg:translate-x-0 lg:border-r lg:border-suelo-200 lg:shadow-none`}
         >
@@ -318,7 +354,7 @@ function MarcoInterno() {
           type="button"
           onClick={() => setFiltrosAbierto(true)}
           aria-label="Abrir los filtros"
-          className="fixed left-0 top-1/2 z-20 flex h-12 w-5 -translate-y-1/2 items-center justify-center rounded-r-lg bg-campo-600/90 text-white lg:hidden"
+          className="fixed left-0 top-1/2 z-20 flex h-12 w-5 -translate-y-1/2 items-center justify-center rounded-r-lg bg-boton/90 text-white lg:hidden"
         >
           <Icono nombre="derecha" className="h-4 w-4" />
         </button>
@@ -326,7 +362,7 @@ function MarcoInterno() {
 
       <nav
         aria-label="Barra de abajo"
-        className="relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-superficie pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         {menu.principal.slice(0, 2).map((item) => (
           <NavLink key={item.clave} to={item.ruta} className={linkAbajo}>
@@ -340,7 +376,7 @@ function MarcoInterno() {
               type="button"
               onClick={() => setRegistrarAbierto(true)}
               aria-label="Registrar"
-              className="-mt-5 mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-trigo-500 text-trigo-900 shadow-md ring-4 ring-white"
+              className="-mt-5 mb-1 flex h-14 w-14 items-center justify-center rounded-full bg-trigo-500 text-trigo-900 shadow-md ring-4 ring-superficie"
             >
               <Icono nombre="mas" className="h-7 w-7" />
             </button>

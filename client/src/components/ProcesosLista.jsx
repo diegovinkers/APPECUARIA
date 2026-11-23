@@ -24,7 +24,7 @@ const ETAPAS = [
   ['TERMINADO', 'Terminado'],
 ];
 const hoy = () => new Date().toLocaleDateString('sv-SE');
-const selector = 'mt-1 block w-full rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm';
+const selector = 'mt-1 block w-full rounded-md border border-suelo-300 bg-superficie px-2 py-2 text-sm';
 
 // La lista de la página Procesos (fase 5, docs/PECUARIA.md §9): una tarjeta
 // por proceso (primero el celular, sin tablas anchas) con el tipo, dónde
@@ -77,7 +77,7 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
               type="button"
               onClick={() => poner({ pestado: valor === 'ABIERTO' ? '' : valor })}
               aria-pressed={f.estado === valor}
-              className={`rounded-full px-3 py-1 text-sm ${f.estado === valor ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
+              className={`rounded-full px-3 py-1 text-sm ${f.estado === valor ? 'bg-boton text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
             >
               {texto}
             </button>
@@ -109,7 +109,7 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
 
       {puedo('pecuaria:CREAR') && (
         <div className="mb-2 flex shrink-0 justify-end">
-          <Link to="/pecuaria/procesos/nuevo" className="min-h-11 rounded-md bg-campo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-campo-700">
+          <Link to="/pecuaria/procesos/nuevo" className="min-h-11 rounded-md bg-boton px-4 py-2.5 text-sm font-semibold text-white hover:bg-boton-hover">
             + Nuevo proceso
           </Link>
         </div>
@@ -149,7 +149,7 @@ function TarjetaProceso({ p, todas }) {
     <Link
       to={`/pecuaria/procesos/${p.id}`}
       data-testid="proceso"
-      className="block rounded-lg border border-suelo-300 bg-white p-3 hover:border-campo-500 active:bg-campo-50"
+      className="block rounded-lg border border-suelo-300 bg-superficie p-3 hover:border-campo-500 active:bg-campo-50"
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
@@ -173,7 +173,7 @@ function TarjetaProceso({ p, todas }) {
           <span className={`shrink-0 font-semibold ${prox.estado === 'ATRASADA' ? 'text-red-700' : ''}`}>{diasCorto(prox) || prox.texto}</span>
         </div>
       )}
-      {p.pendientes > 0 && <p className="mt-1 text-xs font-medium text-amber-700">⚠ decidir {p.pendientes === 1 ? '1 grupo de vacías' : `${p.pendientes} grupos de vacías`}</p>}
+      {p.pendientes > 0 && <p className="mt-1 text-xs font-medium text-amber-800">⚠ decidir {p.pendientes === 1 ? '1 grupo de vacías' : `${p.pendientes} grupos de vacías`}</p>}
       <p className="mt-1 text-xs text-suelo-500">
         Desde {formatFecha(p.fechaInicio)} · {p.embudoCorto}
       </p>

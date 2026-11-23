@@ -206,7 +206,7 @@ export function TablaResumen({ resumen }) {
             {resumen.porGrupo
               .filter((g) => g.potreros > 0)
               .map((g) => (
-                <Link key={g.grupo} to={aPotreros({ grupo: g.grupo })} className="block rounded-lg border border-suelo-200 bg-white px-4 py-3 hover:border-campo-400">
+                <Link key={g.grupo} to={aPotreros({ grupo: g.grupo })} className="block rounded-lg border border-suelo-200 bg-superficie px-4 py-3 hover:border-campo-400">
                   <div className="flex items-baseline justify-between">
                     <p className="font-semibold">{NOMBRE_GRUPO[g.grupo]}</p>
                     <p className="text-xl font-bold">{formatNumero(g.cabezas)} cab</p>

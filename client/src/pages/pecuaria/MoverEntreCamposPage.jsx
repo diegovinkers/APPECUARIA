@@ -9,7 +9,7 @@ import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
-const seccion = 'space-y-3 rounded-lg border border-suelo-200 bg-white p-4';
+const seccion = 'space-y-3 rounded-lg border border-suelo-200 bg-superficie p-4';
 
 // Mover entre campos (paso 5 del rediseño, DECISIONES §11): animales de un
 // lote a un potrero de otra estancia. El campo de origen se elige acá (solo

@@ -51,7 +51,7 @@ export default function CamposPrecioVenta({ precio, por, peso, valor, onPrecio, 
                 type="button"
                 aria-pressed={por === valorPor}
                 onClick={() => onPor(valorPor)}
-                className={`rounded-full px-3 py-1 text-xs ${por === valorPor ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700'}`}
+                className={`rounded-full px-3 py-1 text-xs ${por === valorPor ? 'bg-boton text-white' : 'bg-suelo-200/70 text-suelo-700'}`}
               >
                 {texto}
               </button>

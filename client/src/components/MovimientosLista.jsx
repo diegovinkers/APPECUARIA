@@ -251,7 +251,7 @@ function Selector({ etiqueta, valor, onChange, children }) {
       <select
         value={valor}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 block w-full min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-800"
+        className="mt-1 block w-full min-w-0 rounded-md border border-suelo-300 bg-superficie px-2 py-2 text-sm text-suelo-800"
       >
         {children}
       </select>
@@ -397,7 +397,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
               type="button"
               onClick={() => poner({ periodo: valor, ...(valor !== 'rango' && { desde: '', hasta: '' }) })}
               aria-pressed={f.periodo === valor}
-              className={`rounded-full px-3 py-1 text-sm ${f.periodo === valor ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
+              className={`rounded-full px-3 py-1 text-sm ${f.periodo === valor ? 'bg-boton text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
             >
               {texto}
             </button>
@@ -407,11 +407,11 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
           <div className="grid grid-cols-2 gap-2">
             <label className="block min-w-0 text-xs text-suelo-500">
               Desde
-              <input type="date" value={f.desde} onChange={(e) => poner({ desde: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm" />
+              <input type="date" value={f.desde} onChange={(e) => poner({ desde: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-suelo-300 bg-superficie px-2 py-2 text-sm" />
             </label>
             <label className="block min-w-0 text-xs text-suelo-500">
               Hasta
-              <input type="date" value={f.hasta} onChange={(e) => poner({ hasta: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm" />
+              <input type="date" value={f.hasta} onChange={(e) => poner({ hasta: e.target.value })} className="mt-1 block w-full min-w-0 rounded-md border border-suelo-300 bg-superficie px-2 py-2 text-sm" />
             </label>
           </div>
         )}
@@ -458,7 +458,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
         </p>
       ) : (
         // Se achica para que entre en la pantalla; lo que no entra, scrollea adentro.
-        <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-movimientos">
+        <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-movimientos">
           <table className="w-full border-separate md:min-w-[56rem] border-spacing-0 text-left text-sm">
             <thead className="text-xs text-suelo-600">
               <tr>
@@ -528,7 +528,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
 function Fila({ fila, deEventos = false, par, abierto, onAlternar, conRevertir, onRevertir }) {
   const colorCabezas = fila.signo === '+' ? 'text-emerald-800' : fila.signo === '−' ? 'text-red-700' : '';
   // Filas alternadas, como en Excel.
-  const fondo = par ? '[&>td]:bg-suelo-50' : '[&>td]:bg-white';
+  const fondo = par ? '[&>td]:bg-suelo-50' : '[&>td]:bg-superficie';
   return (
     <tr className={`${fondo} ${fila.revertido ? 'text-suelo-400' : ''}`}>
       <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap font-medium`}>

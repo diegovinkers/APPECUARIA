@@ -42,7 +42,7 @@ export function ListaEventos({ tipos, onElegir }) {
                 key={t.id}
                 type="button"
                 onClick={() => onElegir(t)}
-                className="min-h-11 rounded-full border border-suelo-300 bg-white px-3.5 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500 hover:bg-campo-50"
+                className="min-h-11 rounded-full border border-suelo-300 bg-superficie px-3.5 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500 hover:bg-campo-50"
               >
                 {nombreCorto(t)}
               </button>
@@ -77,7 +77,7 @@ export default function HojaEventos({ onCerrar, contexto = {} }) {
       <div
         role="dialog"
         aria-label="Eventos"
-        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
+        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-superficie px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-suelo-300 lg:hidden" aria-hidden="true" />
         <div className="mb-3 flex items-center gap-2">

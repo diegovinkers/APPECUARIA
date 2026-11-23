@@ -5,7 +5,7 @@ import { useEstancia } from '../context/EstanciaContext';
 import { separarGrupos } from '../navegacion/grupos';
 import { ErrorList, Notice, inputClass } from './ui';
 
-const boton = 'min-h-11 rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white hover:bg-campo-700 disabled:opacity-50';
+const boton = 'min-h-11 rounded-md bg-boton px-4 py-2 text-sm font-medium text-white hover:bg-boton-hover disabled:opacity-50';
 const botonSecundario = 'min-h-11 rounded-md border border-suelo-300 px-3 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500';
 const corto = `${inputClass.replace('w-full', '')} w-20`;
 const entero = (texto) => (/^\d+$/.test(String(texto).trim()) ? Number(texto) : null);
@@ -75,7 +75,7 @@ export function ConfigProcesos() {
       <h3 className="mb-2 font-semibold">Plazos y avisos</h3>
       <ul className="space-y-3">
         {etapas.map((e) => (
-          <li key={e.clave} className="rounded-md border border-suelo-200 bg-white p-3" data-testid={`etapa-${e.clave}`}>
+          <li key={e.clave} className="rounded-md border border-suelo-200 bg-superficie p-3" data-testid={`etapa-${e.clave}`}>
             <input value={e.nombre} onChange={(x) => cambiarEtapa(e.clave, 'nombre', x.target.value)} aria-label={`Nombre de la etapa ${e.clave}`} className={`${inputClass} font-medium`} />
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
               <input inputMode="numeric" value={e.plazo} onChange={(x) => cambiarEtapa(e.clave, 'plazo', x.target.value)} aria-label={`Plazo de ${e.nombre}`} className={corto} />
@@ -105,7 +105,7 @@ export function ConfigProcesos() {
           </li>
         ))}
       </ul>
-      {problema && <p className="mt-3 text-sm text-amber-700">{problema}</p>}
+      {problema && <p className="mt-3 text-sm text-amber-800">{problema}</p>}
       <button type="submit" className={`${boton} mt-4 w-full sm:w-auto`} disabled={Boolean(problema)}>
         Guardar plazos y estados
       </button>
@@ -230,7 +230,7 @@ export function ConfigToros() {
               />
             </li>
           ) : (
-            <li key={t.id} className={`rounded-md border border-suelo-200 bg-white p-3 ${t.activo ? '' : 'opacity-60'}`} data-testid="toro">
+            <li key={t.id} className={`rounded-md border border-suelo-200 bg-superficie p-3 ${t.activo ? '' : 'opacity-60'}`} data-testid="toro">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">

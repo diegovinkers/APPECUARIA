@@ -29,8 +29,8 @@ const SEXOS = [
   ['MACHO', 'Machos'],
   ['HEMBRA', 'Hembras'],
 ];
-const boton = 'rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white hover:bg-campo-700 disabled:opacity-50';
-const selectClass = 'rounded-md border border-suelo-300 bg-white px-2 py-1.5 text-sm text-suelo-900';
+const boton = 'rounded-md bg-boton px-4 py-2 text-sm font-medium text-white hover:bg-boton-hover disabled:opacity-50';
+const selectClass = 'rounded-md border border-suelo-300 bg-superficie px-2 py-1.5 text-sm text-suelo-900';
 // "1,5" o "1.5" → 1.5 (vacío: null).
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).trim().replace(',', '.')));
 // Las etapas del encierre tienen que ir en orden: adaptación < engorde < ciclo.

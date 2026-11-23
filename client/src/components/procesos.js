@@ -215,11 +215,11 @@ export const textoTipo = (modalidad) => (modalidad === 'IATF' || modalidad === '
 // Cómo se ve cada estado de una sugerencia: la tarjeta, el punto del
 // cronograma y la etiqueta corta.
 export const ESTILO_SUGERENCIA = {
-  PENDIENTE: { tarjeta: 'border-suelo-300 bg-white', punto: 'bg-suelo-200 text-suelo-600', etiqueta: 'Pendiente', marca: '○' },
+  PENDIENTE: { tarjeta: 'border-suelo-300 bg-superficie', punto: 'bg-suelo-200 text-suelo-600', etiqueta: 'Pendiente', marca: '○' },
   PROXIMA: { tarjeta: 'border-trigo-500 bg-trigo-100', punto: 'bg-trigo-500 text-trigo-900', etiqueta: 'Se acerca', marca: '•' },
-  HOY: { tarjeta: 'border-campo-600 bg-campo-50', punto: 'bg-campo-600 text-white', etiqueta: 'Hoy', marca: '●' },
+  HOY: { tarjeta: 'border-campo-600 bg-campo-50', punto: 'bg-boton text-white', etiqueta: 'Hoy', marca: '●' },
   ATRASADA: { tarjeta: 'border-red-500 bg-red-50', punto: 'bg-red-600 text-white', etiqueta: 'Atrasada', marca: '!' },
-  HECHA: { tarjeta: 'border-campo-300 bg-white', punto: 'bg-campo-600 text-white', etiqueta: 'Hecha', marca: '✓' },
+  HECHA: { tarjeta: 'border-campo-300 bg-superficie', punto: 'bg-boton text-white', etiqueta: 'Hecha', marca: '✓' },
   DESCARTADA: { tarjeta: 'border-suelo-200 bg-suelo-50', punto: 'bg-suelo-200 text-suelo-400', etiqueta: 'Descartada', marca: '–' },
 };
 export const estiloSugerencia = (estado) => ESTILO_SUGERENCIA[estado] ?? ESTILO_SUGERENCIA.PENDIENTE;

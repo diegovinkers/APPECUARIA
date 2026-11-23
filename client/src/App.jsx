@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { EstanciaProvider } from './context/EstanciaContext';
+import { TemaProvider } from './context/TemaContext';
 import AvisosApp from './components/AvisosApp';
 import Marco from './components/Marco';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -32,62 +33,64 @@ import { RedirigirA, RedirigirPecuaria } from './pages/pecuaria/comun';
 // Marco pone las barras y el panel (docs/DECISIONES.md §11).
 export default function App() {
   return (
-    <AuthProvider>
-      <EstanciaProvider>
-        <BrowserRouter>
-          <AvisosApp />
-          <Routes>
-            <Route element={<Marco />}>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/login" element={<LoginPage />} />
+    <TemaProvider>
+      <AuthProvider>
+        <EstanciaProvider>
+          <BrowserRouter>
+            <AvisosApp />
+            <Routes>
+              <Route element={<Marco />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/login" element={<LoginPage />} />
 
-              {/* Cualquier usuario con sesión */}
-              <Route element={<ProtectedRoute />}>
-                <Route path="/profile" element={<ProfilePage />} />
-                <Route path="/cambiar-password" element={<CambiarPasswordPage />} />
-              </Route>
+                {/* Cualquier usuario con sesión */}
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/cambiar-password" element={<CambiarPasswordPage />} />
+                </Route>
 
-              {/* Cada grupo pide su permiso (el mismo que la API; docs/DECISIONES.md §11). */}
-              <Route element={<ProtectedRoute permiso="pecuaria:VER" />}>
-                <Route path="/pecuaria" element={<RedirigirPecuaria />} />
-                <Route path="/pecuaria/resumen" element={<ResumenPage />} />
-                <Route path="/pecuaria/potreros" element={<PotrerosPage />} />
-                <Route path="/pecuaria/registro" element={<RegistroPage />} />
-                <Route path="/pecuaria/procesos" element={<ProcesosPage />} />
-                {/* La dirección vieja (antes de las pestañas, 20/11) sigue andando. */}
-                <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
-                <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
-                <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
-                <Route path="/pecuaria/procesos/:id" element={<ProcesoPage />} />
-              </Route>
-              <Route element={<ProtectedRoute permiso="pecuaria:CREAR" />}>
-                <Route path="/pecuaria/mover" element={<MoverPage />} />
-                <Route path="/pecuaria/registrar" element={<RegistrarPage />} />
-                <Route path="/pecuaria/mover-entre-campos" element={<MoverEntreCamposPage />} />
-                <Route path="/pecuaria/movimiento-multiple" element={<MovimientoMultiplePage />} />
-                {/* Eventos (pesada, vacuna...): el camino de 4 pasos. */}
-                <Route path="/pecuaria/eventos/nuevo" element={<EventoPage />} />
-                <Route path="/pecuaria/procesos/nuevo" element={<NuevoProcesoPage />} />
-                <Route path="/pecuaria/procesos/:id/etapa/:etapa" element={<ProcesoEtapaPage />} />
-                {/* Otra tanda que entra al servicio (fase 6): la misma pantalla de empezar. */}
-                <Route path="/pecuaria/procesos/:id/tanda" element={<NuevoProcesoPage />} />
-              </Route>
-              <Route element={<ProtectedRoute permiso="pecuaria:EDITAR" />}>
-                <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />
-                <Route path="/pecuaria/configuracion" element={<ConfiguracionPecuariaPage />} />
-              </Route>
-              <Route element={<ProtectedRoute permiso="usuarios:VER" />}>
-                <Route path="/users" element={<UsersPage />} />
-              </Route>
-              <Route element={<ProtectedRoute permiso="roles:VER" />}>
-                <Route path="/roles" element={<RolesPage />} />
-              </Route>
+                {/* Cada grupo pide su permiso (el mismo que la API; docs/DECISIONES.md §11). */}
+                <Route element={<ProtectedRoute permiso="pecuaria:VER" />}>
+                  <Route path="/pecuaria" element={<RedirigirPecuaria />} />
+                  <Route path="/pecuaria/resumen" element={<ResumenPage />} />
+                  <Route path="/pecuaria/potreros" element={<PotrerosPage />} />
+                  <Route path="/pecuaria/registro" element={<RegistroPage />} />
+                  <Route path="/pecuaria/procesos" element={<ProcesosPage />} />
+                  {/* La dirección vieja (antes de las pestañas, 20/11) sigue andando. */}
+                  <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
+                  <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
+                  <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
+                  <Route path="/pecuaria/procesos/:id" element={<ProcesoPage />} />
+                </Route>
+                <Route element={<ProtectedRoute permiso="pecuaria:CREAR" />}>
+                  <Route path="/pecuaria/mover" element={<MoverPage />} />
+                  <Route path="/pecuaria/registrar" element={<RegistrarPage />} />
+                  <Route path="/pecuaria/mover-entre-campos" element={<MoverEntreCamposPage />} />
+                  <Route path="/pecuaria/movimiento-multiple" element={<MovimientoMultiplePage />} />
+                  {/* Eventos (pesada, vacuna...): el camino de 4 pasos. */}
+                  <Route path="/pecuaria/eventos/nuevo" element={<EventoPage />} />
+                  <Route path="/pecuaria/procesos/nuevo" element={<NuevoProcesoPage />} />
+                  <Route path="/pecuaria/procesos/:id/etapa/:etapa" element={<ProcesoEtapaPage />} />
+                  {/* Otra tanda que entra al servicio (fase 6): la misma pantalla de empezar. */}
+                  <Route path="/pecuaria/procesos/:id/tanda" element={<NuevoProcesoPage />} />
+                </Route>
+                <Route element={<ProtectedRoute permiso="pecuaria:EDITAR" />}>
+                  <Route path="/pecuaria/importar" element={<ImportarPlanillaPage />} />
+                  <Route path="/pecuaria/configuracion" element={<ConfiguracionPecuariaPage />} />
+                </Route>
+                <Route element={<ProtectedRoute permiso="usuarios:VER" />}>
+                  <Route path="/users" element={<UsersPage />} />
+                </Route>
+                <Route element={<ProtectedRoute permiso="roles:VER" />}>
+                  <Route path="/roles" element={<RolesPage />} />
+                </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </EstanciaProvider>
-    </AuthProvider>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </EstanciaProvider>
+      </AuthProvider>
+    </TemaProvider>
   );
 }

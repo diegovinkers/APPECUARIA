@@ -142,7 +142,7 @@ function ResumenTodas() {
           </div>
 
           <h2 className="mb-2 font-semibold">Por estancia</h2>
-          <ul className="mb-6 divide-y divide-suelo-200 overflow-hidden rounded-lg border border-suelo-200 bg-white">
+          <ul className="mb-6 divide-y divide-suelo-200 overflow-hidden rounded-lg border border-suelo-200 bg-superficie">
             {resumen.estancias.map((e) => (
               <li key={e.id}>
                 <button

@@ -44,7 +44,7 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
       </div>
 
       {todas && analisis.feedlots?.length > 0 && (
-        <ul className="divide-y divide-suelo-200 overflow-hidden rounded-lg border border-suelo-200 bg-white">
+        <ul className="divide-y divide-suelo-200 overflow-hidden rounded-lg border border-suelo-200 bg-superficie">
           {analisis.feedlots.map((f) => (
             <li key={f.id}>
               <button type="button" onClick={() => onElegir?.(f.id)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-campo-50">
@@ -68,7 +68,7 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
       {filas.length === 0 ? (
         <p className="text-suelo-600">Todavía no hay animales en los corrales.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-suelo-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-suelo-200 bg-superficie">
           <table className="w-full text-xs tabular-nums sm:text-sm" data-testid="tabla-feedlot">
             <thead className="bg-suelo-200/70 text-suelo-600">
               <tr>
@@ -139,7 +139,7 @@ function UltimasVentas({ ventas, todas, hoy }) {
       {ventas.length === 0 ? (
         <p className="text-sm text-suelo-600">No hubo ventas desde los corrales en los últimos 90 días.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-suelo-200 bg-white">
+        <div className="overflow-x-auto rounded-lg border border-suelo-200 bg-superficie">
           <table className="w-full text-xs tabular-nums sm:text-sm">
             <thead className="bg-suelo-200/70 text-suelo-600">
               <tr>

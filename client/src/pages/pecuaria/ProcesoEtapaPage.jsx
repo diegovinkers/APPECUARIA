@@ -279,7 +279,7 @@ export default function ProcesoEtapaPage() {
       {ficha && nombrePaso === 'A quién' && (
         <section aria-label="A quién" className="space-y-2">
           {posibles.length === 0 && <p className="text-suelo-600">No hay lotes del proceso para esto.</p>}
-          <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white">
+          <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie">
             {posibles.map((l) => (
               <li key={l.loteId}>
                 <label className="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-1.5 text-sm">
@@ -367,7 +367,7 @@ export default function ProcesoEtapaPage() {
                     type="button"
                     onClick={() => setMetodo(valor)}
                     aria-pressed={metodo === valor}
-                    className={`min-h-11 rounded-lg border px-3 text-sm font-medium ${metodo === valor ? 'border-campo-500 bg-campo-50 text-campo-900' : 'border-suelo-300 bg-white'}`}
+                    className={`min-h-11 rounded-lg border px-3 text-sm font-medium ${metodo === valor ? 'border-campo-500 bg-campo-50 text-campo-900' : 'border-suelo-300 bg-superficie'}`}
                   >
                     {t}
                   </button>
@@ -378,7 +378,7 @@ export default function ProcesoEtapaPage() {
                 const poner = (campo, valor) => setDatos((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...campo(valor, x[l.loteId] ?? {}) } }));
                 const total = totalDiagnostico(d);
                 return (
-                  <fieldset key={l.loteId} className="rounded-lg border border-suelo-200 bg-white p-3">
+                  <fieldset key={l.loteId} className="rounded-lg border border-suelo-200 bg-superficie p-3">
                     <legend className="px-1 text-sm font-semibold">{l.nombre}</legend>
                     <p className="mb-2 text-xs text-suelo-500">Preñadas según cuándo van a parir (si el ecografista lo dice); si no, en "sin mes".</p>
                     <div className="grid grid-cols-3 gap-2">
@@ -420,7 +420,7 @@ export default function ProcesoEtapaPage() {
               const opuesto = l.rol === 'VACIAS' ? 'PRENADAS' : 'VACIAS';
               const destinosPosibles = ficha.lotes.filter((x) => x.activo && x.rol === opuesto);
               return (
-                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
                   <legend className="px-1 text-sm font-semibold">{l.nombre}</legend>
                   <label className={etiqueta}>
                     {l.rol === 'VACIAS' ? '¿Cuántas estaban preñadas?' : '¿Cuántas estaban vacías?'}
@@ -457,7 +457,7 @@ export default function ProcesoEtapaPage() {
               const d = paricion[l.loteId] ?? {};
               const poner = (campo, valor) => setParicion((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], [campo]: valor } }));
               return (
-                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
                   <legend className="px-1 text-sm font-semibold">
                     {l.nombre} ({l.potrero?.nombre}) · quedan {formatNumero(l.cabezas)} sin parir
                   </legend>
@@ -496,7 +496,7 @@ export default function ProcesoEtapaPage() {
               const d = destete[l.loteId] ?? {};
               const poner = (campo, valor) => setDestete((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], [campo]: valor } }));
               return (
-                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
                   <legend className="px-1 text-sm font-semibold">
                     {l.nombre} · {formatNumero(l.cabezas)} cab (en {l.potrero?.nombre})
                   </legend>
@@ -537,7 +537,7 @@ export default function ProcesoEtapaPage() {
             lotes.map((l) => {
               const d = iatf[l.loteId] ?? {};
               return (
-                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
                   <legend className="px-1 text-sm font-semibold">
                     {l.nombre} ({l.potrero?.nombre}) · {formatNumero(l.cabezas)} sin inseminar
                   </legend>
@@ -557,7 +557,7 @@ export default function ProcesoEtapaPage() {
                           type="button"
                           onClick={() => ponerIatf(l, { destino: valor })}
                           aria-pressed={d.destino === valor}
-                          className={`flex min-h-11 flex-col rounded-lg border px-3 py-2 text-left text-sm ${d.destino === valor ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-white'}`}
+                          className={`flex min-h-11 flex-col rounded-lg border px-3 py-2 text-left text-sm ${d.destino === valor ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie'}`}
                         >
                           <span className="font-semibold">{titulo}</span>
                           <span className="text-xs text-suelo-500">{detalle}</span>
@@ -622,7 +622,7 @@ export default function ProcesoEtapaPage() {
             </>
           )}
           {etapa === 'ABORTO' && (
-            <label data-testid="a-vacias" className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-suelo-200 bg-white px-3 text-sm">
+            <label data-testid="a-vacias" className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-suelo-200 bg-superficie px-3 text-sm">
               <input type="checkbox" checked={aVacias} onChange={(e) => setAVacias(e.target.checked)} className="h-5 w-5 accent-campo-600" />
               Pasarlas a vacías (a un lote aparte, para decidir después)
             </label>
@@ -646,7 +646,7 @@ export default function ProcesoEtapaPage() {
           {lotes.map((l) => {
             const grupos = etapa === 'DECISION' ? [{ clave: 'vacias', cabezas: l.cabezas, nombre: 'Vacías' }] : gruposDiagnostico(datos[l.loteId]);
             return (
-              <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-white p-3">
+              <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
                 <legend className="px-1 text-sm font-semibold">
                   {l.nombre} ({l.potrero?.nombre}) · {formatNumero(l.cabezas)} cab
                 </legend>
@@ -674,7 +674,7 @@ export default function ProcesoEtapaPage() {
             {previa.oracion}.
           </p>
           {previa.pasos?.length > 0 && (
-            <ol className="list-decimal space-y-1 rounded-lg border border-suelo-200 bg-white py-2 pl-8 pr-3 text-sm">
+            <ol className="list-decimal space-y-1 rounded-lg border border-suelo-200 bg-superficie py-2 pl-8 pr-3 text-sm">
               {previa.pasos.map((p) => (
                 <li key={p.texto}>{p.texto}</li>
               ))}

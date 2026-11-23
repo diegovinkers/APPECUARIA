@@ -52,7 +52,7 @@ export function ListaToros({ titulo, ayuda, toros, elegidos, onCambiar, potreros
           </select>
         </label>
       )}
-      <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white">
+      <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie">
         {toros.map((t) => {
           const elegido = t.id in elegidos;
           return (

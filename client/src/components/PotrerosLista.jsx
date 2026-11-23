@@ -107,6 +107,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
   const f = {
     q: params.get('q') ?? '',
     grupo: params.get('grupo') ?? '',
+    uso: params.get('uso') ?? '',
     animales: params.get('animales') ?? '',
     categoria: params.get('categoria') ?? '',
     incompletos: params.get('incompletos') === '1',
@@ -129,7 +130,10 @@ export default function PotrerosLista({ potreros, todas = false }) {
     const dir = f.orden.col === c ? (f.orden.dir === 'asc' ? 'desc' : 'asc') : porDefecto;
     poner({ orden: c === 'potrero' ? '' : c, dir: dir === porDefecto ? '' : dir });
   };
-  const activos = [f.q, f.grupo, f.animales, f.categoria, f.incompletos].filter(Boolean).length;
+  // Al cambiar de grupo, el uso elegido sigue solo si es de ese grupo.
+  const usoDelGrupo = (grupo) =>
+    f.uso && (!grupo || potreros.some((p) => p.usoActual?.nombre === f.uso && grupoDe(p) === grupo)) ? f.uso : '';
+  const activos = [f.q, f.grupo, f.uso, f.animales, f.categoria, f.incompletos].filter(Boolean).length;
   const hayFiltros = activos > 0;
   const limpiar = () => setParams({}, { replace: true });
 
@@ -140,6 +144,13 @@ export default function PotrerosLista({ potreros, todas = false }) {
     return [...m].sort((a, b) => a[1].localeCompare(b[1]));
   }, [potreros]);
 
+  // Los usos de suelo que hay hoy (Sorgo, Raigrás, Avena…), para el filtro.
+  // Con un grupo elegido, solo los de ese grupo.
+  const usos = useMemo(() => {
+    const nombres = new Set(potreros.filter((p) => p.usoActual?.nombre && (!f.grupo || grupoDe(p) === f.grupo)).map((p) => p.usoActual.nombre));
+    return [...nombres].sort(ordenNatural.compare).map((n) => [n, n]);
+  }, [potreros, f.grupo]);
+
   const visibles = useMemo(() => {
     const q = sinTildes(f.q.trim());
     const lista = potreros.filter((p) => {
@@ -147,6 +158,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
       const cabezas = p.stock?.cabezas ?? 0;
       if (q && !sinTildes(nombreConSigla(p, todas)).includes(q) && !lotes.some((l) => sinTildes(l.lote).includes(q))) return false;
       if (f.grupo && grupoDe(p) !== f.grupo) return false;
+      if (f.uso && p.usoActual?.nombre !== f.uso) return false;
       if (f.animales === 'con' && cabezas === 0) return false;
       if (f.animales === 'vacios' && cabezas > 0) return false;
       if (f.categoria && !lotes.some((l) => String(l.categoriaId) === f.categoria)) return false;
@@ -154,7 +166,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
       return true;
     });
     return ordenarPotreros(lista, f.orden);
-  }, [potreros, todas, f.q, f.grupo, f.animales, f.categoria, f.incompletos, f.orden.col, f.orden.dir]);
+  }, [potreros, todas, f.q, f.grupo, f.uso, f.animales, f.categoria, f.incompletos, f.orden.col, f.orden.dir]);
 
   // Lo que suma lo filtrado. Con una categoría elegida, cuenta solo esa.
   const resumen = useMemo(() => {
@@ -201,17 +213,18 @@ export default function PotrerosLista({ potreros, todas = false }) {
           onChange={(e) => poner({ q: e.target.value })}
           placeholder="Buscar potrero o lote…"
           aria-label="Buscar potrero o lote"
-          className="w-full rounded-md border border-suelo-300 bg-white px-3 py-2 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
+          className="w-full rounded-md border border-suelo-300 bg-superficie px-3 py-2 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
         />
         {/* Los grupos bajan de renglón si no entran (nada de scroll de costado). */}
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Grupo de uso de suelo">
           {GRUPOS.map(([valor, texto]) => (
-            <Chip key={texto} activo={f.grupo === valor} onClick={() => poner({ grupo: valor })}>
+            <Chip key={texto} activo={f.grupo === valor} onClick={() => poner({ grupo: valor, uso: usoDelGrupo(valor) })}>
               {texto}
             </Chip>
           ))}
         </div>
         <div className="grid grid-cols-1 gap-2">
+          <Select etiqueta="Uso" valor={f.uso} onChange={(v) => poner({ uso: v })} opciones={[['', 'Todos'], ...usos]} />
           <Select etiqueta="Categoría" valor={f.categoria} onChange={(v) => poner({ categoria: v })} opciones={[['', 'Todas'], ...categorias]} />
           <Select etiqueta="Animales" valor={f.animales} onChange={(v) => poner({ animales: v })} opciones={ANIMALES} />
         </div>
@@ -227,7 +240,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
         // La caja ocupa el alto libre (tabla + paginador); la tabla mide lo que
         // sus filas, así el paginador queda pegado debajo.
         <div ref={setCaja} className="flex min-h-0 flex-1 flex-col" data-testid="caja-potreros">
-          <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white" data-testid="tabla-potreros">
+          <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-potreros">
             <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm md:min-w-[44rem] md:table-auto">
               <thead className="text-xs text-suelo-600">
                 <tr>
@@ -302,7 +315,7 @@ function Chip({ activo, onClick, children }) {
       type="button"
       onClick={onClick}
       aria-pressed={activo}
-      className={`shrink-0 rounded-full px-3 py-1 text-sm ${activo ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
+      className={`shrink-0 rounded-full px-3 py-1 text-sm ${activo ? 'bg-boton text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
     >
       {children}
     </button>
@@ -316,7 +329,7 @@ function Select({ etiqueta, valor, onChange, opciones }) {
       <select
         value={valor}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-0.5 block w-full min-w-0 rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm text-suelo-800"
+        className="mt-0.5 block w-full min-w-0 rounded-md border border-suelo-300 bg-superficie px-2 py-2 text-sm text-suelo-800"
       >
         {opciones.map(([v, t]) => (
           <option key={v} value={v}>
@@ -332,7 +345,7 @@ function Select({ etiqueta, valor, onChange, opciones }) {
 function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
   const cabezas = p.stock?.cabezas ?? 0;
   const vacio = cabezas === 0;
-  const fondo = par ? 'bg-suelo-50' : 'bg-white';
+  const fondo = par ? 'bg-suelo-50' : 'bg-superficie';
   const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
   const celda = celdaFila;
   return (

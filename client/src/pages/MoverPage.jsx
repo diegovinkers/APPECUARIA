@@ -421,7 +421,7 @@ function Impacto({ previa }) {
       <h2 className="mb-2 font-semibold">Cómo quedan</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {lados.map(([titulo, l]) => (
-          <div key={titulo} className="rounded-lg border border-suelo-200 bg-white p-4 text-sm">
+          <div key={titulo} className="rounded-lg border border-suelo-200 bg-superficie p-4 text-sm">
             <p className="text-xs uppercase text-suelo-600">{titulo}</p>
             <p className="mb-2 text-lg font-semibold">{l.potrero}</p>
             <p>Cabezas: <strong>{cambio(l.antes.cabezas, l.despues.cabezas)}</strong></p>

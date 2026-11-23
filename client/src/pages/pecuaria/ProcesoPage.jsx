@@ -19,7 +19,7 @@ import {
 
 // Caracteres simples (no emoji: en el celular el ✔ y el ⚠ salen de colores).
 const MARCA = { HECHA: '✓', PENDIENTE: '○', ATRASADA: '!' };
-const COLOR_MARCA = { HECHA: 'bg-campo-600 text-white', PENDIENTE: 'bg-suelo-200 text-suelo-500', ATRASADA: 'bg-amber-500 text-white' };
+const COLOR_MARCA = { HECHA: 'bg-boton text-white', PENDIENTE: 'bg-suelo-200 text-suelo-500', ATRASADA: 'bg-amber-500 text-white' };
 // Las etapas que se pueden cargar además de la que sigue (menú ⋯).
 // Fase 8: las bajas (muerte de vacas o terneros) en cualquier etapa.
 const OTRAS_ETAPAS = ['BAJA', 'ABORTO', 'REPASO', 'REVISION', 'FIN_PARICION'];
@@ -175,7 +175,7 @@ export default function ProcesoPage() {
               ⋯
             </button>
             {menu && (
-              <div className="absolute right-0 z-20 mt-1 w-60 rounded-lg border border-suelo-200 bg-white py-1 shadow-lg" role="menu" aria-label="Más opciones">
+              <div className="absolute right-0 z-20 mt-1 w-60 rounded-lg border border-suelo-200 bg-superficie py-1 shadow-lg" role="menu" aria-label="Más opciones">
                 <p className="px-4 pb-1 pt-2 text-xs text-suelo-500">Más opciones</p>
                 <button
                   type="button"
@@ -225,7 +225,7 @@ export default function ProcesoPage() {
       {renombrando && (
         <form onSubmit={renombrar} className="mt-3 flex flex-wrap gap-2">
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre del proceso" maxLength={120} className={`${inputClass} min-h-11 flex-1`} />
-          <button type="submit" disabled={!nombre.trim()} className="min-h-11 rounded-md bg-campo-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
+          <button type="submit" disabled={!nombre.trim()} className="min-h-11 rounded-md bg-boton px-4 text-sm font-semibold text-white disabled:opacity-50">
             Guardar
           </button>
           <button type="button" onClick={() => setRenombrando(false)} className="min-h-11 rounded-md border border-suelo-300 px-4 text-sm">
@@ -264,7 +264,7 @@ export default function ProcesoPage() {
           </ul>
           <div className="mt-2 flex gap-2">
             {sueltos.length > 0 && (
-              <button type="button" disabled={!elegidosSueltos.length} onClick={sumarSueltos} className="min-h-11 rounded-md bg-campo-600 px-4 text-sm font-semibold text-white disabled:opacity-50">
+              <button type="button" disabled={!elegidosSueltos.length} onClick={sumarSueltos} className="min-h-11 rounded-md bg-boton px-4 text-sm font-semibold text-white disabled:opacity-50">
                 Sumar al proceso
               </button>
             )}
@@ -296,7 +296,7 @@ export default function ProcesoPage() {
           <span>
             {formatNumero(paraEnganchar.reduce((s, l) => s + l.cabezas, 0))} vacías para volver a servir ({paraEnganchar.map((l) => l.lote).join(', ')}).
           </span>
-          <Link to={`/pecuaria/procesos/nuevo?desde=${proceso.id}`} className="min-h-11 rounded-md bg-campo-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-campo-700">
+          <Link to={`/pecuaria/procesos/nuevo?desde=${proceso.id}`} className="min-h-11 rounded-md bg-boton px-3 py-2.5 text-sm font-semibold text-white hover:bg-boton-hover">
             Empezar con ellas
           </Link>
         </p>
@@ -364,7 +364,7 @@ export default function ProcesoPage() {
 function ProximoEvento({ proceso, item, registra, onDescartar }) {
   if (!item) {
     return (
-      <section aria-label="Próximo evento" className="mt-4 rounded-xl border border-campo-300 bg-white p-4 text-suelo-700">
+      <section aria-label="Próximo evento" className="mt-4 rounded-xl border border-campo-300 bg-superficie p-4 text-suelo-700">
         No hay nada pendiente en el cronograma.
       </section>
     );
@@ -382,7 +382,7 @@ function ProximoEvento({ proceso, item, registra, onDescartar }) {
       {registra && (
         <div className="mt-3 flex flex-col gap-2">
           {ruta ? (
-            <Link data-testid="registrar" to={ruta} className="flex min-h-12 items-center justify-center rounded-lg bg-campo-600 px-4 text-lg font-semibold text-white hover:bg-campo-700">
+            <Link data-testid="registrar" to={ruta} className="flex min-h-12 items-center justify-center rounded-lg bg-boton px-4 text-lg font-semibold text-white hover:bg-boton-hover">
               Registrar
             </Link>
           ) : (
@@ -395,7 +395,7 @@ function ProximoEvento({ proceso, item, registra, onDescartar }) {
             <Link
               data-testid="terminar-inseminacion"
               to={`/pecuaria/procesos/${proceso.id}/etapa/FIN_INSEMINACION`}
-              className="flex min-h-11 items-center justify-center rounded-lg border border-campo-600 bg-white px-4 font-semibold text-campo-700 hover:bg-campo-50"
+              className="flex min-h-11 items-center justify-center rounded-lg border border-campo-600 bg-superficie px-4 font-semibold text-campo-700 hover:bg-campo-50"
             >
               {textoBotonEtapa('FIN_INSEMINACION')}
             </Link>
@@ -462,7 +462,7 @@ function TorosDelProceso({ toros }) {
       <h2 className="mb-2 mt-6 flex items-baseline justify-between text-lg font-semibold">
         Toros <span className="text-sm font-normal text-suelo-600">{dentro.length} en el proceso</span>
       </h2>
-      <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white text-sm" aria-label="Toros del proceso">
+      <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie text-sm" aria-label="Toros del proceso">
         {orden.map((t) => (
           <li key={t.id} data-toro={t.identificacion} className={`flex items-baseline justify-between gap-3 px-3 py-2 ${t.hasta ? 'text-suelo-400' : ''}`}>
             <span className="min-w-0">
@@ -490,7 +490,7 @@ function StockProceso({ lotes, estados, total }) {
       </h2>
       <div className="space-y-3" aria-label="Stock del proceso">
         {grupos.map((g) => (
-          <section key={g.rol} data-rol={g.rol} className={`rounded-lg border border-suelo-200 bg-white ${g.rol === 'LIBRES' ? 'opacity-70' : ''}`}>
+          <section key={g.rol} data-rol={g.rol} className={`rounded-lg border border-suelo-200 bg-superficie ${g.rol === 'LIBRES' ? 'opacity-70' : ''}`}>
             <p className="flex items-baseline justify-between border-b border-suelo-100 px-3 py-2">
               <span className="font-semibold">{g.nombre}</span>
               {g.rol !== 'LIBRES' && <span className="tabular-nums">{formatNumero(g.cabezas)} cab</span>}
@@ -523,7 +523,7 @@ function StockProceso({ lotes, estados, total }) {
 function Enganchados({ anterior, siguientes }) {
   if (!anterior && !siguientes.length) return null;
   return (
-    <section aria-label="Procesos enganchados" className="mt-4 rounded-lg border border-suelo-200 bg-white p-3 text-sm">
+    <section aria-label="Procesos enganchados" className="mt-4 rounded-lg border border-suelo-200 bg-superficie p-3 text-sm">
       {anterior && (
         <p>
           Viene de{' '}
@@ -563,7 +563,7 @@ function Embudo({ embudo: e }) {
   // Fase 8: las bajas, debajo (solo si hubo).
   const bajas = [e.muertesMadres ? `${formatNumero(e.muertesMadres)} ${e.muertesMadres === 1 ? 'vaca muerta' : 'vacas muertas'}` : null, e.muertesCrias ? `${formatNumero(e.muertesCrias)} ${e.muertesCrias === 1 ? 'cría muerta' : 'crías muertas'}` : null].filter(Boolean);
   return (
-    <section aria-label="Embudo" className="mt-4 rounded-lg border border-suelo-200 bg-white p-3">
+    <section aria-label="Embudo" className="mt-4 rounded-lg border border-suelo-200 bg-superficie p-3">
       <dl className="space-y-1.5">
         {filas.map(([titulo, n, porcentaje, detalle]) => (
           <div key={titulo} className="grid grid-cols-[6.5rem_3.5rem_1fr] items-center gap-2 text-sm">

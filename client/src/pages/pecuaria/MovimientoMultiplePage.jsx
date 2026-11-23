@@ -205,7 +205,7 @@ export default function MovimientoMultiplePage() {
             + Agregar otro movimiento
           </button>
 
-          <section className="grid gap-3 rounded-lg border border-suelo-200 bg-white p-4 sm:grid-cols-2">
+          <section className="grid gap-3 rounded-lg border border-suelo-200 bg-superficie p-4 sm:grid-cols-2">
             <label className={etiqueta}>
               Fecha
               <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} aria-label="Fecha" />
@@ -244,7 +244,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
   }
 
   return (
-    <li className="space-y-3 rounded-lg border border-suelo-200 bg-white p-4">
+    <li className="space-y-3 rounded-lg border border-suelo-200 bg-superficie p-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">Movimiento {n}</h2>
         {puedeQuitar && (

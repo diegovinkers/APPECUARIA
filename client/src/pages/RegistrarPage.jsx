@@ -244,7 +244,7 @@ export default function RegistrarPage() {
               type="button"
               aria-pressed={tipo?.id === t.id}
               onClick={() => elegirTipo(t)}
-              className={`rounded-full px-3 py-1.5 text-sm ${tipo?.id === t.id ? 'bg-campo-600 text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
+              className={`rounded-full px-3 py-1.5 text-sm ${tipo?.id === t.id ? 'bg-boton text-white' : 'bg-suelo-200/70 text-suelo-700 hover:bg-suelo-300/60'}`}
             >
               {t.nombre}
             </button>
@@ -436,7 +436,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
   const mismos = lotes.filter((x) => String(x.categoriaId) === l.categoriaId);
   const categoria = categorias.find((c) => String(c.id) === l.categoriaId);
   return (
-    <div className="space-y-2 rounded-md bg-white p-3">
+    <div className="space-y-2 rounded-md bg-superficie p-3">
       <div className="grid grid-cols-2 gap-2">
         <select
           value={l.categoriaId}
@@ -503,7 +503,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
 function ComoQueda({ previa: p }) {
   const cambio = (a, d, decimales = 0) => (a === d ? formatNumero(d, decimales) : `${formatNumero(a, decimales)} → ${formatNumero(d, decimales)}`);
   return (
-    <section className="mt-6 rounded-lg border border-suelo-200 bg-white p-4 text-sm">
+    <section className="mt-6 rounded-lg border border-suelo-200 bg-superficie p-4 text-sm">
       <h2 className="mb-2 font-semibold">Cómo queda {p.potrero}</h2>
       <p>
         Cabezas: <strong>{cambio(p.antes.cabezas, p.despues.cabezas)}</strong>

@@ -48,14 +48,14 @@ export default function AvisosApp() {
         <>
           <div
             role="alert"
-            className="fixed inset-x-0 bottom-0 z-50 mx-auto mb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:mb-4 w-[calc(100%-2rem)] max-w-md rounded-lg border border-suelo-200 bg-white p-4 shadow-lg ring-1 ring-campo-500/40"
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto mb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:mb-4 w-[calc(100%-2rem)] max-w-md rounded-lg border border-suelo-200 bg-superficie p-4 shadow-lg ring-1 ring-campo-500/40"
           >
             <p className="mb-3 text-sm text-suelo-900">Hay una versión nueva de la app.</p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => updateServiceWorker(true)}
-                className="flex-1 rounded-md bg-campo-600 px-4 py-2 font-medium text-white transition hover:bg-campo-700"
+                className="flex-1 rounded-md bg-boton px-4 py-2 font-medium text-white transition hover:bg-boton-hover"
               >
                 Actualizar
               </button>

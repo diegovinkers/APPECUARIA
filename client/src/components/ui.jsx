@@ -3,14 +3,14 @@ import { useState } from 'react';
 import Icono from './Icono';
 
 export const inputClass =
-  'w-full rounded-md border border-suelo-300 bg-white px-4 py-2 text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500';
+  'w-full rounded-md border border-suelo-300 bg-superficie px-4 py-2 text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500';
 
 export const buttonClass =
-  'w-full rounded-md bg-campo-600 px-4 py-2 font-medium text-white transition hover:bg-campo-700 disabled:opacity-50';
+  'w-full rounded-md bg-boton px-4 py-2 font-medium text-white transition hover:bg-boton-hover disabled:opacity-50';
 
 export function Card({ title, children }) {
   return (
-    <div className="mx-4 mt-10 rounded-lg border border-suelo-200 bg-white p-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-md sm:p-8">
+    <div className="mx-4 mt-10 rounded-lg border border-suelo-200 bg-superficie p-6 shadow-sm sm:mx-auto sm:mt-16 sm:w-full sm:max-w-md sm:p-8">
       <h1 className="mb-6 text-2xl font-bold">{title}</h1>
       {children}
     </div>

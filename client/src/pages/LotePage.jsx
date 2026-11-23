@@ -65,7 +65,7 @@ export function EntradaCorral({ lote, puedeEditar, onGuardar }) {
             <button type="button" onClick={() => setEditando(false)} className="rounded-md border border-suelo-300 px-3 py-2 text-sm">
               Cancelar
             </button>
-            <button type="submit" disabled={ocupado || pesoMal} className="rounded-md bg-campo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+            <button type="submit" disabled={ocupado || pesoMal} className="rounded-md bg-boton px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
               {ocupado ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
@@ -176,7 +176,7 @@ export default function LotePage() {
       {lote.activo && <BotonEventos contexto={{ lote: lote.id }} className="mt-3" />}
 
       {actual ? (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-suelo-200 bg-white px-4 py-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-suelo-200 bg-superficie px-4 py-3">
           <p>
             <strong className="text-2xl">{formatNumero(actual.cabezas)}</strong> cab
             {actual.pesoPromedioKg ? ` · ${formatNumero(actual.pesoPromedioKg)} kg promedio` : ''}

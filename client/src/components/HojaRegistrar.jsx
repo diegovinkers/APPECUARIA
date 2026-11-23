@@ -127,7 +127,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
       <div
         role="dialog"
         aria-label={titulo}
-        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-white px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
+        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-superficie px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-suelo-300 lg:hidden" aria-hidden="true" />
         <div className="mb-2 flex items-center gap-2">
@@ -162,7 +162,7 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
             {!campoId && <p className="py-4 text-sm text-suelo-600">Todavía no hay estancias cargadas.</p>}
             {campoId && (
               <>
-                <label className="mb-2 flex items-center gap-2 rounded-md border border-suelo-300 bg-white px-3 py-2">
+                <label className="mb-2 flex items-center gap-2 rounded-md border border-suelo-300 bg-superficie px-3 py-2">
                   <Icono nombre="buscar" className="h-4 w-4 text-suelo-500" />
                   <input
                     value={busqueda}

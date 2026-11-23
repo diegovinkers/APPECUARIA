@@ -13,6 +13,12 @@ import {
   procesosParaEvento,
   textoBotonEtapa,
   totalDiagnostico,
+  diasCorto,
+  estiloSugerencia,
+  lotesPorEstado,
+  rutaRegistrar,
+  sePuedeDescartar,
+  textoTipo,
 } from './procesos';
 
 describe('procesos (puro)', () => {
@@ -182,5 +188,59 @@ describe('¿de qué proceso? (Eventos)', () => {
     expect(ofreceNuevoServicio({ clave: 'ENTORE' })).toBe(true);
     expect(ofreceNuevoServicio({ clave: 'INSEMINACION' })).toBe(true);
     expect(ofreceNuevoServicio({ clave: 'ECOGRAFIA' })).toBe(false);
+  });
+});
+
+describe('sugerencias y cronograma (fase 5)', () => {
+  it('textoTipo: entore o inseminación', () => {
+    expect(textoTipo('TOROS')).toBe('Entore');
+    expect(textoTipo('IATF')).toBe('Inseminación');
+    expect(textoTipo('IA')).toBe('Inseminación');
+  });
+
+  it('diasCorto: lo que va en la lista', () => {
+    expect(diasCorto({ estado: 'PROXIMA', dias: 5 })).toBe('faltan 5 días');
+    expect(diasCorto({ estado: 'PENDIENTE', dias: 1 })).toBe('falta 1 día');
+    expect(diasCorto({ estado: 'HOY', dias: 0 })).toBe('hoy');
+    expect(diasCorto({ estado: 'HOY', dias: -5, hasta: '2027-12-09' })).toBe('en curso');
+    expect(diasCorto({ estado: 'ATRASADA', dias: -3 })).toBe('atrasada 3 días');
+    expect(diasCorto({ estado: 'ATRASADA', dias: -100, hasta: '2027-12-09' })).toBe('atrasada');
+    expect(diasCorto(null)).toBe('');
+  });
+
+  it('rutaRegistrar: la pantalla de la etapa, el nuevo proceso enganchado, o nada', () => {
+    expect(rutaRegistrar(7, { etapa: 'DIAGNOSTICO' })).toBe('/pecuaria/procesos/7/etapa/DIAGNOSTICO');
+    expect(rutaRegistrar(7, { etapa: 'NUEVO_ENTORE' })).toBe('/pecuaria/procesos/nuevo?desde=7');
+    expect(rutaRegistrar(7, { etapa: 'OTRA' })).toBeNull();
+    expect(rutaRegistrar(7, null)).toBeNull();
+  });
+
+  it('sePuedeDescartar: lo abierto, no el inicio ni lo hecho', () => {
+    expect(sePuedeDescartar({ clave: 'DIAGNOSTICO', estado: 'PROXIMA' })).toBe(true);
+    expect(sePuedeDescartar({ clave: 'INICIO', estado: 'HECHA' })).toBe(false);
+    expect(sePuedeDescartar({ clave: 'FIN_SERVICIO', estado: 'HECHA' })).toBe(false);
+    expect(sePuedeDescartar({ clave: 'FIN_SERVICIO', estado: 'DESCARTADA' })).toBe(false);
+  });
+
+  it('estiloSugerencia: cada estado con su color (lo desconocido, como pendiente)', () => {
+    expect(estiloSugerencia('ATRASADA').tarjeta).toContain('red');
+    expect(estiloSugerencia('X')).toBe(estiloSugerencia('PENDIENTE'));
+  });
+
+  it('lotesPorEstado: en el orden de los estados, con su nombre; los que salieron, aparte', () => {
+    const grupos = lotesPorEstado(
+      [
+        { loteId: 1, rol: 'PRENADAS', cabezas: 165, activo: true },
+        { loteId: 2, rol: 'VACIAS', cabezas: 35, activo: true },
+        { loteId: 3, rol: 'VIENTRES', cabezas: 0, activo: false },
+        { loteId: 4, rol: 'PRENADAS', cabezas: 5, activo: true },
+      ],
+      { PRENADAS: 'Preñada', VACIAS: 'Falladas' },
+    );
+    expect(grupos.map((g) => [g.rol, g.nombre, g.cabezas, g.lotes.length])).toEqual([
+      ['PRENADAS', 'Preñada', 170, 2],
+      ['VACIAS', 'Falladas', 35, 1],
+      ['LIBRES', 'LIBRES', 0, 1],
+    ]);
   });
 });

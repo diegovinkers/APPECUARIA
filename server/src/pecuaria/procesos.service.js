@@ -19,12 +19,13 @@ import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { fotoActual, nombreLibre } from './lotes.js';
 import { fechaUY } from './stock.service.js';
 import { tipoPorClave } from './tipos.repository.js';
-import { TEXTO_ETAPA, campaniaDe, embudo, etapaActual, fechasServicio, mesesEsperados, planDecision, proximas, sugerirCategoria, sumarDias, textoMeses } from './procesos.calculos.js';
+import { TEXTO_ETAPA, campaniaDe, embudo, etapaActual, fechasServicio, mesesEsperados, planDecision, sugerirCategoria, sumarDias, textoMeses } from './procesos.calculos.js';
+import { sugerencias } from './procesos.sugerencias.js';
 import { aplicar, revertirEventoEn } from './movimientos.service.js';
 import { aplicarEntradaSalida } from './entradas-salidas.service.js';
 import { ETAPAS_UNICAS, PLANTILLAS, TIPOS_REPRODUCCION, etapaDe, etapaDePlantilla } from './procesos.plantillas.js';
 import { textoDatos } from './eventos.datos.js';
-import { plazosProceso } from './procesos.configuracion.js';
+import { estadosProceso, plazosProceso } from './procesos.configuracion.js';
 import { MODALIDAD, lineaDiagnostico, lineaParicion, lineaRevision, lineaSimple, textoAncla } from './procesos.datos.js';
 
 const TX = { timeout: 60_000, maxWait: 10_000 };
@@ -428,7 +429,21 @@ async function bloquear(tx, id) {
 
 const anclaSelect = { id: true, etapa: true, loteId: true, fecha: true, cabezas: true, datos: true, anulado: true, grupoId: true };
 const aAncla = (r) => ({ ...r, fecha: fechaISO(r.fecha) });
-const aLoteRol = (pl) => ({ loteId: pl.loteId, rol: pl.rol, activo: pl.lote.activo && pl.hasta == null });
+const aLoteRol = (pl) => ({ loteId: pl.loteId, rol: pl.rol, mes: pl.mes, activo: pl.lote.activo && pl.hasta == null });
+
+// El cronograma y lo que sigue (procesos.sugerencias.js), con los plazos de
+// Configuración, las sugerencias descartadas y los procesos enganchados.
+const cronogramaDe = (p, anclas, roles, parametros, hoy) =>
+  sugerencias({
+    proceso: { modalidad: p.datos?.modalidad, estado: p.estado },
+    anclas,
+    lotes: roles,
+    plazos: parametros.plazos,
+    hoy,
+    descartadas: p.datos?.descartadas ?? [],
+    siguientes: (p.siguientes ?? []).map((s) => fechaISO(s.fechaInicio)),
+  });
+const incluirSiguientes = { siguientes: { where: { estado: { not: 'ANULADO' } }, select: { fechaInicio: true } } };
 
 async function procesoParaCargar(tx, id) {
   const procesoId = parseId(id);
@@ -1247,6 +1262,7 @@ const incluirFicha = {
     orderBy: { id: 'asc' },
   },
   registros: { include: { lote: { select: { id: true, nombre: true } } }, orderBy: [{ fecha: 'asc' }, { id: 'asc' }] },
+  ...incluirSiguientes,
 };
 
 // Las muertes (con el "+" o desde el proceso) de los lotes de crías.
@@ -1268,7 +1284,7 @@ export async function ficha(id) {
   const anclas = p.registros.map(aAncla);
   const roles = p.lotes.map(aLoteRol);
   const etapa = etapaActual(anclas, roles);
-  const proxima = proximas({ anclas, lotes: roles, parametros, hoy: hoyISO() });
+  const { items: cronograma, proxima } = cronogramaDe(p, anclas, roles, parametros, hoyISO());
   const cabezas = await cabezasDeHoy(
     prisma,
     p.lotes.map((pl) => pl.lote),
@@ -1332,7 +1348,7 @@ export async function ficha(id) {
       puedeAnular: !rs.every((r) => r.anulado) && p.estado !== 'ANULADO',
     }));
     let estado = vigentes.length ? 'HECHA' : 'PENDIENTE';
-    if (!vigentes.length && proxima.etapa === e.clave && proxima.atrasada) estado = 'ATRASADA';
+    if (!vigentes.length && proxima?.etapa === e.clave && proxima.atrasada) estado = 'ATRASADA';
     return {
       clave: e.clave,
       nombre: e.nombre,
@@ -1371,6 +1387,10 @@ export async function ficha(id) {
     etapa,
     textoEtapa: TEXTO_ETAPA[etapa],
     proxima,
+    // Las etapas con su fecha esperada y la real (docs/PECUARIA.md §9).
+    cronograma,
+    // El nombre de cada estado (rol), de Configuración → Procesos.
+    estados: await estadosProceso(),
     embudo: embudo(anclas, await movimientosEmbudo(prisma, p.lotes)),
     // Los meses en que se espera la parición (para repartir las preñadas en el diagnóstico).
     meses: servicio.inicio ? mesesEsperados(servicio, parametros.gestacionDias) : [],
@@ -1395,8 +1415,9 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
     where: { AND: y },
     include: {
       campo: { select: { id: true, sigla: true, nombre: true } },
-      lotes: { include: { lote: { select: { id: true, activo: true, potreroId: true } } } },
+      lotes: { include: { lote: { select: { id: true, activo: true, potreroId: true, potrero: { select: { nombre: true } } } } } },
       registros: { select: anclaSelect },
+      ...incluirSiguientes,
     },
     orderBy: [{ fechaInicio: 'desc' }, { id: 'desc' }],
     take: 1000,
@@ -1424,7 +1445,10 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
       fechaInicio: fechaISO(p.fechaInicio),
       etapa: e,
       textoEtapa: TEXTO_ETAPA[e],
-      proxima: proximas({ anclas, lotes: roles, parametros, hoy }),
+      modalidad: p.datos?.modalidad ?? null,
+      // Dónde están hoy los animales del proceso (sin repetir).
+      potreros: [...new Set(activos.map((pl) => pl.lote.potrero.nombre))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })),
+      proxima: cronogramaDe(p, anclas, roles, parametros, hoy).proxima,
       embudoCorto: embudo(anclas).corto,
       lotes: activos.length,
       // Los lotes que están hoy en el proceso (Eventos: no ofrecer "empezar un
@@ -1511,4 +1535,27 @@ export async function asociar(id, { registroIds = [] }, usuarioId) {
     return { proceso, hechos };
   });
   return { ficha: await ficha(r.proceso.id), auditoria: { proceso: r.proceso.nombre, asociados: r.hechos, usuarioId } };
+}
+
+// --- Sugerencias (docs/PECUARIA.md §9) ---
+
+// Descarta una sugerencia del cronograma (no va a pasar en este proceso: por
+// ejemplo, no se ecografía) o la vuelve a activar. Se guarda en
+// proceso.datos.descartadas. No se descarta lo hecho ni el inicio.
+// Devuelve { nombre, item } para la auditoría.
+export async function descartarSugerencia(id, { clave, descartada }) {
+  const { proceso, cronograma } = await ficha(id);
+  if (proceso.estado !== 'ABIERTO') throw conflict(`El proceso está ${proceso.estado === 'CERRADO' ? 'cerrado' : 'anulado'}`);
+  const item = cronograma.find((i) => i.clave === clave);
+  if (!item || item.clave === 'INICIO') throw badRequest('Esa sugerencia no está en el cronograma de este proceso');
+  if (item.estado === 'HECHA') throw badRequest(`${item.nombre} ya está hecha: no se puede descartar`);
+  await prisma.$transaction(async (tx) => {
+    await bloquear(tx, proceso.id);
+    const p = await tx.proceso.findUnique({ where: { id: proceso.id }, select: { datos: true } });
+    const actuales = new Set(p.datos?.descartadas ?? []);
+    if (descartada) actuales.add(clave);
+    else actuales.delete(clave);
+    await tx.proceso.update({ where: { id: proceso.id }, data: { datos: { ...p.datos, descartadas: [...actuales] } } });
+  });
+  return { nombre: proceso.nombre, item: { clave, nombre: item.nombre, fecha: item.fecha } };
 }

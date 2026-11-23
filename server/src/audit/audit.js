@@ -84,6 +84,9 @@ export const ACCION = {
   // Configuración de los procesos (plazos, avisos, nombres de los estados).
   // entidad = etapa_plantilla. detalle: { antes, despues } por clave de etapa o de estado.
   PROCESO_CONFIG_EDITADA: 'PROCESO_CONFIG_EDITADA',
+  // Una sugerencia del cronograma descartada o vuelta a activar.
+  // entidad = proceso. detalle: { proceso, clave, nombre, fecha, descartada }
+  PROCESO_SUGERENCIA: 'PROCESO_SUGERENCIA',
   // Toros (uno por uno). entidad = toro. detalle: { identificacion, campoId, ... } / { antes, despues }
   TORO_CREADO: 'TORO_CREADO',
   TORO_EDITADO: 'TORO_EDITADO',

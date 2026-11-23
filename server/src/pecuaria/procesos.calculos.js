@@ -123,38 +123,6 @@ export function fechasServicio(anclas) {
   return { inicio: inicios[0] ?? null, fin: fines.at(-1) ?? inicios.at(-1) ?? null };
 }
 
-// Lo que sigue: { etapa, texto, desde, atrasada }.
-//   parametros: { gestacionDias, diagnosticoDesdeDias, lactanciaMeses } (de
-//   procesos.configuracion.js: los plazos de la parición, la ecografía y el destete).
-export function proximas({ anclas, lotes = [], parametros, hoy }) {
-  const etapa = etapaActual(anclas, lotes);
-  const { inicio, fin } = fechasServicio(anclas);
-  const g = parametros.gestacionDias;
-  if (etapa === 'SERVICIO' && lotes.some((l) => l.rol === 'SIN_SERVIR' && l.activo)) {
-    return { etapa: 'INSEMINACION', texto: 'quedan sin inseminar', desde: null, atrasada: false };
-  }
-  if (etapa === 'SERVICIO') return { etapa: 'FIN_SERVICIO', texto: inicio ? `en servicio desde ${ddmm(inicio)}` : 'en servicio', desde: null, atrasada: false };
-  if (etapa === 'ESPERA_DIAGNOSTICO') {
-    const desde = sumarDias(fin, parametros.diagnosticoDesdeDias);
-    return { etapa: 'DIAGNOSTICO', texto: `diag. desde ${ddmm(desde)}`, desde, atrasada: hoy > sumarDias(fin, 120) };
-  }
-  if (etapa === 'PRENEZ' || etapa === 'PARICION') {
-    const desde = inicio ? sumarDias(inicio, g) : null;
-    const hasta = fin ? sumarDias(fin, g) : null;
-    const atrasada = hasta != null && hoy > sumarDias(hasta, 30);
-    if (etapa === 'PRENEZ') {
-      return { etapa: 'PARICION', texto: inicio ? `parición ${textoMeses(mesesEsperados({ inicio, fin }, g))}` : 'parición', desde, atrasada };
-    }
-    return { etapa: 'PARICION', texto: hasta ? `parición hasta ${ddmm(hasta)}` : 'pariendo', desde, atrasada };
-  }
-  if (etapa === 'CRIA') {
-    const partos = de(vigentes(anclas), 'PARICION').map((x) => x.fecha).sort();
-    const desde = partos[0] ? sumarMeses(partos[0], parametros.lactanciaMeses) : null;
-    return { etapa: 'DESTETE', texto: desde ? `destete desde ${nombreMes(desde)}` : 'destete', desde, atrasada: desde != null && hoy > sumarDias(desde, 60) };
-  }
-  return { etapa: null, texto: 'terminado', desde: null, atrasada: false };
-}
-
 const porcentaje = (n, base) => (n == null || !base ? null : Math.round((n / base) * 100));
 
 // Los números del proceso, de los anclas vigentes y de los movimientos de

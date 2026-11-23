@@ -1,22 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { anularCargaProceso, anularProceso, asociarSueltos, cerrarProceso, editarProceso, getProceso, getSueltos } from '../../api/pecuaria';
+import { anularCargaProceso, anularProceso, asociarSueltos, cerrarProceso, descartarSugerencia, editarProceso, getProceso, getSueltos } from '../../api/pecuaria';
 import { NOMBRE_ETAPA } from '../../components/procesos';
 import { getErrorMessages } from '../../api/axios';
 import usePuede from '../../hooks/usePuede';
 import { ErrorList, Notice, inputClass } from '../../components/ui';
 import { formatFecha, formatNumero } from '../../components/pecuaria';
-import { ETAPAS_CON_PANTALLA, formatoPorcentaje, textoBotonEtapa } from '../../components/procesos';
+import {
+  ETAPAS_CON_PANTALLA,
+  estiloSugerencia,
+  formatoPorcentaje,
+  lotesPorEstado,
+  rutaRegistrar,
+  sePuedeDescartar,
+  textoBotonEtapa,
+  textoTipo,
+} from '../../components/procesos';
 
-const NOMBRE_ROL = { VIENTRES: 'servidas', PRENADAS: 'preñadas', VACIAS: 'vacías', PARIDAS: 'paridas', CRIAS: 'crías', LIBRES: 'ya no siguen', SIN_SERVIR: 'sin inseminar' };
-const MARCA = { HECHA: '✔', PENDIENTE: '○', ATRASADA: '⚠' };
+// Caracteres simples (no emoji: en el celular el ✔ y el ⚠ salen de colores).
+const MARCA = { HECHA: '✓', PENDIENTE: '○', ATRASADA: '!' };
 const COLOR_MARCA = { HECHA: 'bg-campo-600 text-white', PENDIENTE: 'bg-suelo-200 text-suelo-500', ATRASADA: 'bg-amber-500 text-white' };
 // Las etapas que se pueden cargar además de la que sigue (menú ⋯).
 const OTRAS_ETAPAS = ['REPASO', 'REVISION', 'ABORTO', 'FIN_PARICION'];
 
-// La ficha de un proceso (diseño de procesos §12): el embudo, la línea de
-// tiempo (cada etapa hecha, pendiente o atrasada, con sus cargas), los lotes
-// y, abajo, el botón de la etapa que sigue.
+// La ficha de un proceso (fase 5, docs/PECUARIA.md §9; primero el celular):
+// - la tarjeta "Próximo evento", del color de su estado, con Registrar;
+// - el cronograma: cada etapa con su fecha estimada y la real (descartar);
+// - el stock del proceso: los lotes por estado (nombres de Configuración);
+// - el embudo y lo que se cargó (con Anular);
+// - el menú ⋯ "Más opciones" (renombrar, otras etapas, sumar sueltos, cerrar, anular).
 export default function ProcesoPage() {
   const { id } = useParams();
   const location = useLocation();
@@ -66,6 +78,18 @@ export default function ProcesoPage() {
     } catch (error) {
       setAviso(null);
       setErrors(getErrorMessages(error, 'No se pudo anular'));
+    }
+  }
+
+  async function descartar(item, descartada) {
+    try {
+      const { data } = await descartarSugerencia(Number(id), item.clave, descartada);
+      setDatos(data);
+      setErrors([]);
+      setAviso(descartada ? `Listo: ${item.nombre.toLowerCase()} quedó descartada.` : `Listo: ${item.nombre.toLowerCase()} volvió al cronograma.`);
+    } catch (error) {
+      setAviso(null);
+      setErrors(getErrorMessages(error, 'No se pudo cambiar la sugerencia'));
     }
   }
 
@@ -128,13 +152,13 @@ export default function ProcesoPage() {
     );
   }
 
-  const { proceso, embudo, etapas, lotes, proxima, pendientes } = datos;
+  const { proceso, embudo, etapas, lotes, proxima, pendientes, cronograma = [], estados = {} } = datos;
   const abierto = proceso.estado === 'ABIERTO';
   const registra = abierto && puedo('pecuaria:CREAR');
   const conAnular = puedo('pecuaria:ANULAR');
-  const visibles = etapas.filter((e) => e.linea || e.estado === 'HECHA');
+  // Lo que se cargó: solo las etapas con cargas.
+  const cargadas = etapas.filter((e) => e.cargas.length);
   const activos = lotes.filter((l) => l.activo);
-  const siguiente = proxima?.etapa;
 
   return (
     <main className="mx-auto flex min-h-full max-w-3xl flex-col px-4 pt-6 sm:pt-10">
@@ -145,11 +169,12 @@ export default function ProcesoPage() {
         <h1 className="min-w-0 flex-1 text-2xl font-bold leading-tight sm:text-3xl">{proceso.nombre}</h1>
         {registra && (
           <div className="relative">
-            <button type="button" aria-label="Más acciones" aria-expanded={menu} onClick={() => setMenu((m) => !m)} className="min-h-11 min-w-11 rounded-md text-xl text-suelo-600 hover:bg-suelo-200/70">
+            <button type="button" aria-label="Más opciones" aria-expanded={menu} onClick={() => setMenu((m) => !m)} className="min-h-11 min-w-11 rounded-md text-xl text-suelo-600 hover:bg-suelo-200/70">
               ⋯
             </button>
             {menu && (
-              <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-suelo-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 z-20 mt-1 w-60 rounded-lg border border-suelo-200 bg-white py-1 shadow-lg" role="menu" aria-label="Más opciones">
+                <p className="px-4 pb-1 pt-2 text-xs text-suelo-500">Más opciones</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -183,7 +208,7 @@ export default function ProcesoPage() {
         )}
       </div>
       <p className="text-sm text-suelo-600">
-        {proceso.campo.nombre} · campaña {proceso.campania} · {formatNumero(activos.length)} {activos.length === 1 ? 'lote' : 'lotes'} · {abierto ? datos.textoEtapa.toLowerCase() : proceso.estado === 'CERRADO' ? 'cerrado' : 'anulado'}
+        {textoTipo(proceso.datos?.modalidad)} · {proceso.campo.nombre} · campaña {proceso.campania} · {abierto ? datos.textoEtapa.toLowerCase() : proceso.estado === 'CERRADO' ? 'cerrado' : 'anulado'}
       </p>
 
       {renombrando && (
@@ -239,7 +264,7 @@ export default function ProcesoPage() {
         </section>
       )}
 
-      <Embudo embudo={embudo} />
+      {abierto && <ProximoEvento proceso={proceso} item={proxima} registra={registra} onDescartar={(item) => descartar(item, true)} />}
 
       {pendientes.map((p) => (
         <p key={p.loteId} className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-900" data-testid="pendiente">
@@ -254,97 +279,187 @@ export default function ProcesoPage() {
         </p>
       ))}
 
-      <h2 className="mb-2 mt-6 text-lg font-semibold">Etapas</h2>
-      <ol className="space-y-1" aria-label="Línea de tiempo">
-        {visibles.map((e) => (
-          <li key={e.clave} data-etapa={e.clave} data-estado={e.estado} className="flex gap-3">
-            <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${COLOR_MARCA[e.estado]}`} aria-hidden="true">
-              {MARCA[e.estado]}
-            </span>
-            <div className="min-w-0 flex-1 border-b border-suelo-100 pb-2">
-              <p className="flex flex-wrap items-baseline justify-between gap-x-2">
-                <span className={`font-medium ${e.estado === 'PENDIENTE' ? 'text-suelo-500' : ''}`}>{e.nombre}</span>
-                <span className="text-xs text-suelo-500">
-                  {e.fecha ? formatFecha(e.fecha) : siguiente === e.clave ? <span className={proxima.atrasada ? 'font-medium text-amber-700' : ''}>{proxima.texto}</span> : ''}
+      <Cronograma items={cronograma} registra={registra} onDescartar={descartar} />
+
+      <StockProceso lotes={lotes} estados={estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} />
+
+      <Embudo embudo={embudo} />
+
+      {cargadas.length > 0 && (
+        <>
+          <h2 className="mb-2 mt-6 text-lg font-semibold">Lo que se cargó</h2>
+          <ol className="mb-6 space-y-1" aria-label="Línea de tiempo">
+            {cargadas.map((e) => (
+              <li key={e.clave} data-etapa={e.clave} data-estado={e.estado} className="flex gap-3">
+                <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${COLOR_MARCA[e.estado]}`} aria-hidden="true">
+                  {MARCA[e.estado]}
                 </span>
-              </p>
-              {e.cargas.map((c) => (
-                <div key={c.grupoId} className={`mt-1 text-sm ${c.anulada ? 'text-suelo-400 line-through' : 'text-suelo-700'}`}>
-                  {e.cargas.length > 1 && <span className="mr-1 text-xs text-suelo-500">{formatFecha(c.fecha)}:</span>}
-                  {c.lineas.map((l) => (
-                    <span key={l.registroId} className="block">
-                      {l.lote ? `${l.lote}: ` : ''}
-                      {l.texto}
-                    </span>
+                <div className="min-w-0 flex-1 border-b border-suelo-100 pb-2">
+                  <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <span className="font-medium">{e.nombre}</span>
+                    <span className="text-xs text-suelo-500">{e.fecha ? formatFecha(e.fecha) : ''}</span>
+                  </p>
+                  {e.cargas.map((c) => (
+                    <div key={c.grupoId} className={`mt-1 text-sm ${c.anulada ? 'text-suelo-400 line-through' : 'text-suelo-700'}`}>
+                      {e.cargas.length > 1 && <span className="mr-1 text-xs text-suelo-500">{formatFecha(c.fecha)}:</span>}
+                      {c.lineas.map((l) => (
+                        <span key={l.registroId} className="block">
+                          {l.lote ? `${l.lote}: ` : ''}
+                          {l.texto}
+                        </span>
+                      ))}
+                      {c.movimientos?.map((m) => (
+                        <span key={m.id} className={`block pl-3 text-xs ${m.revertido ? 'line-through' : 'text-suelo-600'}`}>
+                          · {m.texto}
+                        </span>
+                      ))}
+                      {c.inicial && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] text-sky-800 no-underline">dato inicial</span>}
+                      {c.anulada && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[11px] text-red-700">anulado</span>}
+                      {conAnular && c.puedeAnular && !c.anulada && (
+                        <button type="button" onClick={() => anular(c, e)} className="min-h-8 text-xs text-red-700 hover:underline">
+                          Anular
+                        </button>
+                      )}
+                    </div>
                   ))}
-                  {c.movimientos?.map((m) => (
-                    <span key={m.id} className={`block pl-3 text-xs ${m.revertido ? 'line-through' : 'text-suelo-600'}`}>
-                      · {m.texto}
-                    </span>
-                  ))}
-                  {c.inicial && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] text-sky-800 no-underline">dato inicial</span>}
-                  {c.anulada && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[11px] text-red-700">anulado</span>}
-                  {conAnular && c.puedeAnular && !c.anulada && (
-                    <button type="button" onClick={() => anular(c, e)} className="text-xs text-red-700 hover:underline">
-                      Anular
-                    </button>
-                  )}
                 </div>
-              ))}
-            </div>
-          </li>
-        ))}
-      </ol>
-
-      <h2 className="mb-2 mt-6 text-lg font-semibold">Lotes</h2>
-      <ul className="mb-6 divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-white text-sm">
-        {lotes.map((l) => (
-          <li key={l.loteId} className={`flex items-baseline justify-between gap-3 px-3 py-2 ${l.activo ? '' : 'text-suelo-400'}`}>
-            <span className="min-w-0">
-              <Link to={`/pecuaria/lotes/${l.loteId}`} className="font-medium text-campo-800 hover:underline">
-                {l.nombre}
-              </Link>
-              <span className="block text-xs text-suelo-500">
-                {l.potrero?.nombre} · {l.categoria} · {NOMBRE_ROL[l.rol] ?? l.rol}
-                {!l.activo && ' · salió del proceso'}
-              </span>
-            </span>
-            <span className="shrink-0 tabular-nums">{formatNumero(l.cabezas)} cab</span>
-          </li>
-        ))}
-      </ul>
-
-      {registra && siguiente && (
-        // Fijo abajo, como la barra del camino de pasos.
-        <div className="sticky bottom-0 -mx-4 mt-auto border-t border-suelo-200 bg-white px-4 py-3">
-          <div className="flex flex-col gap-2">
-            {/* IATF por días: otro día, o terminar (las que quedan, al repaso o afuera). */}
-            {siguiente === 'INSEMINACION' && (
-              <Link
-                data-testid="terminar-inseminacion"
-                to={`/pecuaria/procesos/${proceso.id}/etapa/FIN_INSEMINACION`}
-                className="flex min-h-11 items-center justify-center rounded-md border border-campo-600 px-4 font-semibold text-campo-700 hover:bg-campo-50"
-              >
-                {textoBotonEtapa('FIN_INSEMINACION')}
-              </Link>
-            )}
-            {ETAPAS_CON_PANTALLA.has(siguiente) ? (
-              <Link
-                data-testid="siguiente"
-                to={`/pecuaria/procesos/${proceso.id}/etapa/${siguiente}`}
-                className="flex min-h-11 items-center justify-center rounded-md bg-campo-600 px-4 font-semibold text-white hover:bg-campo-700"
-              >
-                {textoBotonEtapa(siguiente)}
-              </Link>
-            ) : (
-              <span data-testid="siguiente" className="flex min-h-11 items-center justify-center rounded-md bg-suelo-200 px-4 text-sm text-suelo-600">
-                {textoBotonEtapa(siguiente)} (muy pronto)
-              </span>
-            )}
-          </div>
-        </div>
+              </li>
+            ))}
+          </ol>
+        </>
       )}
     </main>
+  );
+}
+
+// La tarjeta "Próximo evento": lo que sigue, del color de su estado, con el
+// botón Registrar (abre la etapa con los lotes del proceso ya elegidos).
+function ProximoEvento({ proceso, item, registra, onDescartar }) {
+  if (!item) {
+    return (
+      <section aria-label="Próximo evento" className="mt-4 rounded-xl border border-campo-300 bg-white p-4 text-suelo-700">
+        No hay nada pendiente en el cronograma.
+      </section>
+    );
+  }
+  const estilo = estiloSugerencia(item.estado);
+  const ruta = rutaRegistrar(proceso.id, item);
+  return (
+    <section aria-label="Próximo evento" data-estado={item.estado} className={`mt-4 rounded-xl border-2 p-4 ${estilo.tarjeta}`}>
+      <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-suelo-600">
+        Próximo evento
+        <span className={`rounded-full px-2 py-0.5 text-[11px] normal-case tracking-normal ${estilo.punto}`}>{estilo.etiqueta}</span>
+      </p>
+      <p className="mt-1 text-xl font-bold leading-tight">{item.nombre}</p>
+      <p className={`mt-0.5 ${item.estado === 'ATRASADA' ? 'font-semibold text-red-700' : 'text-suelo-700'}`}>{item.texto}</p>
+      {registra && (
+        <div className="mt-3 flex flex-col gap-2">
+          {ruta ? (
+            <Link data-testid="registrar" to={ruta} className="flex min-h-12 items-center justify-center rounded-lg bg-campo-600 px-4 text-lg font-semibold text-white hover:bg-campo-700">
+              Registrar
+            </Link>
+          ) : (
+            <span data-testid="registrar" className="flex min-h-12 items-center justify-center rounded-lg bg-suelo-200 px-4 text-sm text-suelo-600">
+              Registrar (muy pronto)
+            </span>
+          )}
+          {/* IATF por días: además de otro día, terminar (las que quedan, al repaso o afuera). */}
+          {item.etapa === 'INSEMINACION' && (
+            <Link
+              data-testid="terminar-inseminacion"
+              to={`/pecuaria/procesos/${proceso.id}/etapa/FIN_INSEMINACION`}
+              className="flex min-h-11 items-center justify-center rounded-lg border border-campo-600 bg-white px-4 font-semibold text-campo-700 hover:bg-campo-50"
+            >
+              {textoBotonEtapa('FIN_INSEMINACION')}
+            </Link>
+          )}
+          {sePuedeDescartar(item) && (
+            <button type="button" onClick={() => onDescartar(item)} className="min-h-11 text-sm text-suelo-600 underline-offset-2 hover:underline">
+              No va a pasar: descartar
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+const fechaCorta = (iso) => (iso ? formatFecha(iso) : '—');
+
+// El cronograma: cada etapa con su fecha estimada (o la ventana) y la real.
+function Cronograma({ items, registra, onDescartar }) {
+  if (!items.length) return null;
+  return (
+    <>
+      <h2 className="mb-2 mt-6 text-lg font-semibold">Cronograma</h2>
+      <ol className="space-y-2" aria-label="Cronograma">
+        {items.map((i) => {
+          const estilo = estiloSugerencia(i.estado);
+          return (
+            <li key={i.clave} data-clave={i.clave} data-estado={i.estado} className="flex gap-3">
+              <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${estilo.punto}`} aria-hidden="true">
+                {estilo.marca}
+              </span>
+              <div className={`min-w-0 flex-1 border-b border-suelo-100 pb-2 ${i.estado === 'DESCARTADA' ? 'text-suelo-400' : ''}`}>
+                <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+                  <span className={`font-medium ${i.estado === 'DESCARTADA' ? 'line-through' : ''}`}>{i.nombre}</span>
+                  <span className={`text-xs ${i.estado === 'ATRASADA' ? 'font-semibold text-red-700' : 'text-suelo-500'}`}>{estilo.etiqueta}</span>
+                </p>
+                <p className="text-sm text-suelo-600">
+                  Estimada: {i.hasta ? `${fechaCorta(i.fecha)} al ${fechaCorta(i.hasta)}` : fechaCorta(i.fecha)}
+                  {i.real && <span className="ml-2 font-medium text-campo-700">Real: {fechaCorta(i.real)}</span>}
+                </p>
+                {i.avance && !i.real && i.estado !== 'DESCARTADA' && <p className="text-xs text-suelo-600">{i.avance}</p>}
+                {registra && i.estado === 'DESCARTADA' && (
+                  <button type="button" onClick={() => onDescartar(i, false)} className="min-h-8 text-xs text-campo-700 hover:underline">
+                    Volver a tenerla en cuenta
+                  </button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </>
+  );
+}
+
+// El stock del proceso: los lotes por estado, con el nombre de Configuración.
+function StockProceso({ lotes, estados, total }) {
+  const grupos = lotesPorEstado(lotes, estados);
+  if (!grupos.length) return null;
+  return (
+    <>
+      <h2 className="mb-2 mt-6 flex items-baseline justify-between text-lg font-semibold">
+        Stock del proceso <span className="text-sm font-normal text-suelo-600">{formatNumero(total)} cab hoy</span>
+      </h2>
+      <div className="space-y-3" aria-label="Stock del proceso">
+        {grupos.map((g) => (
+          <section key={g.rol} data-rol={g.rol} className={`rounded-lg border border-suelo-200 bg-white ${g.rol === 'LIBRES' ? 'opacity-70' : ''}`}>
+            <p className="flex items-baseline justify-between border-b border-suelo-100 px-3 py-2">
+              <span className="font-semibold">{g.nombre}</span>
+              {g.rol !== 'LIBRES' && <span className="tabular-nums">{formatNumero(g.cabezas)} cab</span>}
+            </p>
+            <ul className="divide-y divide-suelo-100 text-sm">
+              {g.lotes.map((l) => (
+                <li key={l.loteId} className="flex items-baseline justify-between gap-3 px-3 py-2">
+                  <span className="min-w-0">
+                    <Link to={`/pecuaria/lotes/${l.loteId}`} className="font-medium text-campo-800 hover:underline">
+                      {l.nombre}
+                    </Link>
+                    <span className="block text-xs text-suelo-500">
+                      {l.potrero?.nombre} · {l.categoria}
+                      {!l.activo && ' · salió del proceso'}
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">{formatNumero(l.cabezas)} cab</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </>
   );
 }
 

@@ -200,3 +200,59 @@ export const ofreceNuevoServicio = (tipo) => tipo?.clave === 'ENTORE' || tipo?.c
 
 // "Anotarla suelta" / "Anotarlo suelto", según el evento.
 export const textoSuelto = (tipo) => (['ECOGRAFIA', 'INSEMINACION', 'PESADA'].includes(tipo?.clave) ? 'Anotarla suelta' : 'Anotarlo suelto');
+
+// --- Sugerencias y cronograma (docs/PECUARIA.md §9, fase 5) ---
+
+// Entore o inseminación (la modalidad del proceso; IA es la de antes de los ajustes).
+export const textoTipo = (modalidad) => (modalidad === 'IATF' || modalidad === 'IA' ? 'Inseminación' : 'Entore');
+
+// Cómo se ve cada estado de una sugerencia: la tarjeta, el punto del
+// cronograma y la etiqueta corta.
+export const ESTILO_SUGERENCIA = {
+  PENDIENTE: { tarjeta: 'border-suelo-300 bg-white', punto: 'bg-suelo-200 text-suelo-600', etiqueta: 'Pendiente', marca: '○' },
+  PROXIMA: { tarjeta: 'border-trigo-500 bg-trigo-100', punto: 'bg-trigo-500 text-trigo-900', etiqueta: 'Se acerca', marca: '•' },
+  HOY: { tarjeta: 'border-campo-600 bg-campo-50', punto: 'bg-campo-600 text-white', etiqueta: 'Hoy', marca: '●' },
+  ATRASADA: { tarjeta: 'border-red-500 bg-red-50', punto: 'bg-red-600 text-white', etiqueta: 'Atrasada', marca: '!' },
+  HECHA: { tarjeta: 'border-campo-300 bg-white', punto: 'bg-campo-600 text-white', etiqueta: 'Hecha', marca: '✓' },
+  DESCARTADA: { tarjeta: 'border-suelo-200 bg-suelo-50', punto: 'bg-suelo-200 text-suelo-400', etiqueta: 'Descartada', marca: '–' },
+};
+export const estiloSugerencia = (estado) => ESTILO_SUGERENCIA[estado] ?? ESTILO_SUGERENCIA.PENDIENTE;
+
+// Lo corto que va en la lista: "faltan 5 días", "hoy", "atrasada 3 días".
+export function diasCorto(item) {
+  if (!item) return '';
+  if (item.estado === 'HOY') return item.hasta ? 'en curso' : 'hoy';
+  if (item.estado === 'ATRASADA') {
+    const n = item.hasta ? null : -item.dias;
+    return n ? `atrasada ${n === 1 ? '1 día' : `${n} días`}` : 'atrasada';
+  }
+  if (item.dias == null) return '';
+  return item.dias === 1 ? 'falta 1 día' : `faltan ${item.dias} días`;
+}
+
+// A dónde lleva "Registrar" de una sugerencia: la pantalla de su etapa (que
+// ya trae los lotes del proceso elegidos), o "+ Nuevo proceso" enganchado a
+// este para el nuevo entore. null si todavía no tiene pantalla.
+export function rutaRegistrar(procesoId, item) {
+  if (!item) return null;
+  if (item.etapa === 'NUEVO_ENTORE') return `/pecuaria/procesos/nuevo?desde=${procesoId}`;
+  return ETAPAS_CON_PANTALLA.has(item.etapa) ? `/pecuaria/procesos/${procesoId}/etapa/${item.etapa}` : null;
+}
+
+// Se puede descartar lo abierto (no el inicio, ni lo hecho).
+export const sePuedeDescartar = (item) => item.clave !== 'INICIO' && !['HECHA', 'DESCARTADA'].includes(item.estado);
+
+// Los lotes del proceso agrupados por estado (en el orden de los estados),
+// con el nombre de Configuración y el total de cabezas de los que siguen.
+const ORDEN_ROL = ['SIN_SERVIR', 'VIENTRES', 'PRENADAS', 'VACIAS', 'PARIDAS', 'CRIAS', 'LIBRES'];
+export function lotesPorEstado(lotes = [], nombres = {}) {
+  const grupos = new Map();
+  for (const l of lotes) {
+    const rol = l.activo ? l.rol : 'LIBRES';
+    if (!grupos.has(rol)) grupos.set(rol, { rol, nombre: nombres[rol] ?? rol, cabezas: 0, lotes: [] });
+    const g = grupos.get(rol);
+    g.lotes.push(l);
+    if (l.activo) g.cabezas += l.cabezas ?? 0;
+  }
+  return [...grupos.values()].sort((a, b) => ORDEN_ROL.indexOf(a.rol) - ORDEN_ROL.indexOf(b.rol));
+}

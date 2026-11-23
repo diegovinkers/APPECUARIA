@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// La ficha de un proceso: el embudo, la línea de tiempo (hecha, pendiente,
-// atrasada; "dato inicial"), los lotes, el botón de la etapa que sigue,
-// renombrar y anular una carga (solo con el permiso de anular).
+// La ficha de un proceso (fase 5, docs/PECUARIA.md §9): la tarjeta "Próximo
+// evento" con Registrar y descartar, el cronograma (estimada y real), el
+// stock por estado, el embudo, lo que se cargó (con Anular) y el menú ⋯
+// "Más opciones" (renombrar, cerrar, anular, sumar sueltos).
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -15,6 +16,7 @@ const api = vi.hoisted(() => ({
   anularProceso: vi.fn(),
   getSueltos: vi.fn(),
   asociarSueltos: vi.fn(),
+  descartarSugerencia: vi.fn(),
 }));
 const permisos = vi.hoisted(() => ({ lista: ['pecuaria:VER', 'pecuaria:CREAR'] }));
 vi.mock('../../api/pecuaria', () => api);
@@ -24,26 +26,45 @@ const { default: ProcesoPage } = await import('./ProcesoPage.jsx');
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const etapa = (clave, nombre, estado, extra = {}) => ({ clave, nombre, linea: true, unica: true, estado, fecha: null, cargas: [], ...extra });
+const FIN = {
+  clave: 'FIN_SERVICIO',
+  etapa: 'FIN_SERVICIO',
+  nombre: 'Fin del entore',
+  fecha: '2027-03-01',
+  real: null,
+  estado: 'PROXIMA',
+  dias: 5,
+  texto: 'faltan 5 días (01/03/2027)',
+  titulo: 'Fin del entore: faltan 5 días (01/03/2027)',
+  atrasada: false,
+};
 const FICHA = {
-  proceso: { id: 7, nombre: 'Servicio 2026-27 · Vaquillonas', estado: 'ABIERTO', campania: '2026-27', fechaInicio: '2026-11-15', campo: { id: 1, sigla: 'EG', nombre: 'La Gateada' } },
+  proceso: { id: 7, nombre: 'Entore 2026-27 · Vacas', estado: 'ABIERTO', campania: '2026-27', fechaInicio: '2026-12-01', datos: { modalidad: 'TOROS' }, campo: { id: 1, sigla: 'EJ', nombre: 'Estancia Ejemplo' } },
   etapa: 'SERVICIO',
   textoEtapa: 'En servicio',
-  proxima: { etapa: 'FIN_SERVICIO', texto: 'en servicio desde 15/11', atrasada: false },
-  embudo: { servidas: 50, prenadas: 40, paridas: null, destetados: null, porcentajes: { prenez: 80, paricion: null, destete: null }, corto: '50 → 40 → — → —' },
-  lotes: [{ loteId: 1, nombre: 'Lote V', potrero: { id: 8, nombre: 'P8' }, categoria: 'Vaquillonas', cabezas: 50, rol: 'VIENTRES', activo: true }],
+  proxima: FIN,
+  cronograma: [
+    { clave: 'INICIO', etapa: 'INICIO', nombre: 'Inicio del entore', fecha: '2026-12-01', real: '2026-12-01', estado: 'HECHA', texto: 'hecha el 01/12/2026' },
+    { ...FIN },
+    { clave: 'DIAGNOSTICO', etapa: 'DIAGNOSTICO', nombre: 'Ecografía', fecha: '2027-03-31', real: null, estado: 'DESCARTADA', texto: 'descartada' },
+    { clave: 'PARICION', etapa: 'PARICION', nombre: 'Parición', fecha: '2027-09-10', hasta: '2027-12-09', real: null, estado: 'PENDIENTE', texto: 'faltan 286 días' },
+  ],
+  estados: { VIENTRES: 'Servida', PRENADAS: 'Preñada', LIBRES: 'Fuera del proceso' },
+  embudo: { servidas: 200, prenadas: 165, paridas: null, destetados: null, porcentajes: { prenez: 83, paricion: null, destete: null }, corto: '200 → 165 → — → —' },
+  lotes: [
+    { loteId: 1, nombre: 'Vacas', potrero: { id: 8, nombre: 'P8' }, categoria: 'Vacas de cría', cabezas: 200, rol: 'VIENTRES', activo: true },
+    { loteId: 2, nombre: 'Vacas · P3', potrero: { id: 3, nombre: 'P3' }, categoria: 'Vacas de cría', cabezas: 0, rol: 'VIENTRES', activo: false },
+  ],
   etapas: [
     etapa('INICIO', 'Inicio del servicio', 'HECHA', {
-      fecha: '2026-11-15',
-      cargas: [{ grupoId: 'g1', fecha: '2026-11-15', inicial: false, anulada: false, puedeAnular: true, lineas: [{ registroId: 1, lote: 'Lote V', cabezas: 50, texto: 'Entore con toros · 50 cab.' }] }],
+      fecha: '2026-12-01',
+      cargas: [{ grupoId: 'g1', fecha: '2026-12-01', inicial: false, anulada: false, puedeAnular: true, lineas: [{ registroId: 1, lote: 'Vacas', cabezas: 200, texto: 'Entore con toros · 200 cab.' }] }],
     }),
-    etapa('REPASO', 'Repaso', 'PENDIENTE', { linea: false }),
     etapa('FIN_SERVICIO', 'Fin del servicio', 'PENDIENTE'),
     etapa('DIAGNOSTICO', 'Diagnóstico', 'HECHA', {
-      fecha: '2026-11-19',
-      cargas: [{ grupoId: 'g2', fecha: '2026-11-19', inicial: true, anulada: false, puedeAnular: true, lineas: [{ registroId: 2, lote: null, cabezas: 50, texto: '40 preñadas · 10 vacías' }] }],
+      fecha: '2027-03-31',
+      cargas: [{ grupoId: 'g2', fecha: '2027-03-31', inicial: true, anulada: false, puedeAnular: true, lineas: [{ registroId: 2, lote: null, cabezas: 200, texto: '165 preñadas · 35 vacías' }] }],
     }),
-    etapa('PARICION', 'Parición', 'ATRASADA', { unica: false }),
-    etapa('DESTETE', 'Destete', 'PENDIENTE'),
   ],
   pendientes: [],
 };
@@ -60,10 +81,12 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   contenedor.remove();
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
-async function montar() {
+async function montar(datos) {
+  if (datos) api.getProceso.mockResolvedValue({ data: datos });
   act(() =>
     root.render(
       <MemoryRouter initialEntries={['/pecuaria/procesos/7']}>
@@ -75,95 +98,149 @@ async function montar() {
   );
   await act(async () => {});
 }
-const etapaEn = (clave) => contenedor.querySelector(`[data-etapa="${clave}"]`);
+const tarjeta = () => contenedor.querySelector('section[aria-label="Próximo evento"]');
+const enCronograma = (clave) => contenedor.querySelector(`[aria-label="Cronograma"] [data-clave="${clave}"]`);
+const cargada = (clave) => contenedor.querySelector(`[data-etapa="${clave}"]`);
+const boton = (texto, dentro = contenedor) => [...dentro.querySelectorAll('button')].find((b) => b.textContent.trim() === texto);
+const abrirMenu = () => act(() => contenedor.querySelector('button[aria-label="Más opciones"]').click());
 
-describe('la ficha del proceso', () => {
-  it('el embudo con sus porcentajes', async () => {
+describe('la tarjeta "Próximo evento"', () => {
+  it('lo que sigue, del color de su estado, con Registrar a la pantalla de la etapa', async () => {
     await montar();
-    const embudo = contenedor.querySelector('[aria-label="Embudo"]');
-    expect(embudo.textContent).toContain('Servidas');
-    expect(embudo.textContent).toContain('50');
-    expect(embudo.textContent).toContain('80 %');
-    expect(embudo.textContent).toContain('Destetados');
+    expect(tarjeta().getAttribute('data-estado')).toBe('PROXIMA');
+    expect(tarjeta().textContent).toContain('Fin del entore');
+    expect(tarjeta().textContent).toContain('faltan 5 días (01/03/2027)');
+    expect(tarjeta().textContent).toContain('Se acerca');
+    expect(tarjeta().querySelector('[data-testid="registrar"]').getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/FIN_SERVICIO');
   });
 
-  it('la línea de tiempo: hecha, pendiente y atrasada; los datos iniciales marcados; el repaso no va si no se hizo', async () => {
+  it('descartar desde la tarjeta: manda la clave y muestra la ficha que vuelve', async () => {
+    api.descartarSugerencia.mockResolvedValue({ data: { ...FICHA, proxima: FICHA.cronograma[3] } });
     await montar();
-    expect(etapaEn('INICIO').getAttribute('data-estado')).toBe('HECHA');
-    expect(etapaEn('INICIO').textContent).toContain('Entore con toros · 50 cab.');
-    expect(etapaEn('FIN_SERVICIO').getAttribute('data-estado')).toBe('PENDIENTE');
-    expect(etapaEn('PARICION').getAttribute('data-estado')).toBe('ATRASADA');
-    expect(etapaEn('DIAGNOSTICO').textContent).toContain('dato inicial');
-    expect(etapaEn('REPASO')).toBeNull();
+    await act(async () => boton('No va a pasar: descartar', tarjeta()).click());
+    expect(api.descartarSugerencia).toHaveBeenCalledWith(7, 'FIN_SERVICIO', true);
+    expect(tarjeta().textContent).toContain('Parición');
+    expect(contenedor.textContent).toContain('Listo: fin del entore quedó descartada.');
   });
 
-  it('el botón de abajo registra la etapa que sigue', async () => {
-    await montar();
-    const boton = contenedor.querySelector('[data-testid="siguiente"]');
-    expect(boton.textContent).toBe('Registrar fin del servicio');
-    expect(boton.getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/FIN_SERVICIO');
+  it('atrasada: en rojo', async () => {
+    await montar({ ...FICHA, proxima: { ...FIN, estado: 'ATRASADA', atrasada: true, texto: 'atrasada 3 días (01/03/2027)' } });
+    expect(tarjeta().getAttribute('data-estado')).toBe('ATRASADA');
+    expect(tarjeta().className).toContain('border-red-500');
+    expect(tarjeta().textContent).toContain('Atrasada');
   });
 
   it('IATF con sin inseminar: otro día, o terminar la inseminación', async () => {
-    api.getProceso.mockResolvedValue({ data: { ...FICHA, proxima: { etapa: 'INSEMINACION', texto: 'quedan sin inseminar', atrasada: false } } });
-    await montar();
-    expect(contenedor.querySelector('[data-testid="siguiente"]').getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/INSEMINACION');
-    const terminar = contenedor.querySelector('[data-testid="terminar-inseminacion"]');
+    await montar({ ...FICHA, proxima: { clave: 'INSEMINACION', etapa: 'INSEMINACION', nombre: 'Inseminación', estado: 'HOY', texto: 'es hoy · quedan vacas sin inseminar' } });
+    expect(tarjeta().querySelector('[data-testid="registrar"]').getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/INSEMINACION');
+    const terminar = tarjeta().querySelector('[data-testid="terminar-inseminacion"]');
     expect(terminar.textContent).toBe('Terminar la inseminación');
     expect(terminar.getAttribute('href')).toBe('/pecuaria/procesos/7/etapa/FIN_INSEMINACION');
   });
 
-  it('renombrar', async () => {
-    api.editarProceso.mockResolvedValue({ data: { id: 7, nombre: 'Vaquillonas EG' } });
+  it('el nuevo entore lleva a "+ Nuevo proceso" enganchado a este', async () => {
+    await montar({ ...FICHA, proxima: { clave: 'NUEVO_ENTORE:2027-09', etapa: 'NUEVO_ENTORE', nombre: 'Nuevo entore (paridas de sep)', estado: 'PROXIMA', texto: 'faltan 3 días' } });
+    expect(tarjeta().querySelector('[data-testid="registrar"]').getAttribute('href')).toBe('/pecuaria/procesos/nuevo?desde=7');
+  });
+
+  it('quien solo mira no ve Registrar; un proceso cerrado no tiene tarjeta', async () => {
+    permisos.lista = ['pecuaria:VER'];
     await montar();
-    act(() => contenedor.querySelector('[aria-label="Más acciones"]').click());
-    act(() => [...contenedor.querySelectorAll('button')].find((b) => b.textContent === 'Renombrar').click());
-    const input = contenedor.querySelector('input[aria-label="Nombre del proceso"]');
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    act(() => {
-      setter.call(input, 'Vaquillonas EG');
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-    await act(async () => input.form.requestSubmit());
-    expect(api.editarProceso).toHaveBeenCalledWith(7, { nombre: 'Vaquillonas EG' });
+    expect(tarjeta().querySelector('[data-testid="registrar"]')).toBeNull();
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    await montar({ ...FICHA, proceso: { ...FICHA.proceso, estado: 'CERRADO' }, proxima: null });
+    expect(tarjeta()).toBeNull();
+  });
+});
+
+describe('cronograma, stock y lo que se cargó', () => {
+  it('el cronograma: estimada y real, la ventana de la parición, y lo descartado se puede volver a tener en cuenta', async () => {
+    api.descartarSugerencia.mockResolvedValue({ data: FICHA });
+    await montar();
+    expect(enCronograma('INICIO').getAttribute('data-estado')).toBe('HECHA');
+    expect(enCronograma('INICIO').textContent).toContain('Real: 01/12/2026');
+    expect(enCronograma('FIN_SERVICIO').textContent).toContain('Estimada: 01/03/2027');
+    expect(enCronograma('PARICION').textContent).toContain('Estimada: 10/09/2027 al 09/12/2027');
+    await act(async () => boton('Volver a tenerla en cuenta', enCronograma('DIAGNOSTICO')).click());
+    expect(api.descartarSugerencia).toHaveBeenCalledWith(7, 'DIAGNOSTICO', false);
+  });
+
+  it('el stock del proceso, por estado con los nombres de Configuración', async () => {
+    await montar();
+    const stock = contenedor.querySelector('[aria-label="Stock del proceso"]');
+    expect(stock.querySelector('[data-rol="VIENTRES"]').textContent).toContain('Servida');
+    expect(stock.querySelector('[data-rol="VIENTRES"]').textContent).toContain('200 cab');
+    // El que salió va aparte, como "Fuera del proceso".
+    expect(stock.querySelector('[data-rol="LIBRES"]').textContent).toContain('Vacas · P3');
+    expect(contenedor.textContent).toContain('200 cab hoy');
+  });
+
+  it('el embudo con sus porcentajes', async () => {
+    await montar();
+    const embudo = contenedor.querySelector('[aria-label="Embudo"]');
+    expect(embudo.textContent).toContain('Servidas');
+    expect(embudo.textContent).toContain('83 %');
+  });
+
+  it('lo que se cargó: solo las etapas con cargas, con el dato inicial marcado', async () => {
+    await montar();
+    expect(cargada('INICIO').textContent).toContain('Entore con toros · 200 cab.');
+    expect(cargada('DIAGNOSTICO').textContent).toContain('dato inicial');
+    expect(cargada('FIN_SERVICIO')).toBeNull();
   });
 
   it('anular una carga, solo con el permiso de anular', async () => {
     await montar();
-    expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent === 'Anular')).toBe(false);
+    expect(boton('Anular')).toBeUndefined();
     act(() => root.unmount());
     root = createRoot(contenedor);
     permisos.lista = ['pecuaria:VER', 'pecuaria:CREAR', 'pecuaria:ANULAR'];
     api.anularCargaProceso.mockResolvedValue({ data: {} });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     await montar();
-    const anular = [...etapaEn('INICIO').querySelectorAll('button')].find((b) => b.textContent === 'Anular');
-    await act(async () => anular.click());
+    await act(async () => boton('Anular', cargada('INICIO')).click());
     expect(api.anularCargaProceso).toHaveBeenCalledWith(7, 'g1');
   });
+});
 
-  it('cerrar el proceso (con nota) y anularlo (solo con el permiso de anular)', async () => {
-    permisos.lista = ['pecuaria:VER', 'pecuaria:CREAR'];
+describe('el menú "Más opciones"', () => {
+  it('renombrar', async () => {
+    api.editarProceso.mockResolvedValue({ data: { id: 7, nombre: 'Vacas EJ' } });
+    await montar();
+    abrirMenu();
+    act(() => boton('Renombrar').click());
+    const input = contenedor.querySelector('input[aria-label="Nombre del proceso"]');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    act(() => {
+      setter.call(input, 'Vacas EJ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.form.requestSubmit());
+    expect(api.editarProceso).toHaveBeenCalledWith(7, { nombre: 'Vacas EJ' });
+  });
+
+  it('cerrar el proceso (con nota); anularlo solo con el permiso de anular', async () => {
     api.cerrarProceso.mockResolvedValue({ data: {} });
     vi.spyOn(window, 'prompt').mockReturnValue('Se vendió todo');
     await montar();
-    act(() => contenedor.querySelector('[aria-label="Más acciones"]').click());
-    expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent === 'Anular el proceso')).toBe(false);
-    await act(async () => [...contenedor.querySelectorAll('button')].find((b) => b.textContent === 'Cerrar el proceso').click());
+    abrirMenu();
+    expect(contenedor.querySelector('[role="menu"]').textContent).toContain('Más opciones');
+    expect(boton('Anular el proceso')).toBeUndefined();
+    await act(async () => boton('Cerrar el proceso').click());
     expect(api.cerrarProceso).toHaveBeenCalledWith(7, { nota: 'Se vendió todo' });
   });
 
   it('sumar eventos sueltos: la lista con la etapa que toman, y "Sumar"', async () => {
-    api.getSueltos.mockResolvedValue({ data: [{ id: 31, fecha: '2026-11-14', tipo: { clave: 'ECOGRAFIA', nombre: 'Ecografía' }, lote: { id: 1, nombre: 'Lote V' }, cabezas: 50, texto: '40 preñadas · 10 vacías', etapa: 'DIAGNOSTICO' }] });
+    api.getSueltos.mockResolvedValue({ data: [{ id: 31, fecha: '2026-11-14', tipo: { clave: 'ECOGRAFIA', nombre: 'Ecografía' }, lote: { id: 1, nombre: 'Vacas' }, cabezas: 50, texto: '40 preñadas · 10 vacías', etapa: 'DIAGNOSTICO' }] });
     api.asociarSueltos.mockResolvedValue({ data: {} });
     await montar();
-    act(() => contenedor.querySelector('[aria-label="Más acciones"]').click());
-    await act(async () => [...contenedor.querySelectorAll('button')].find((b) => b.textContent === 'Sumar eventos sueltos').click());
+    abrirMenu();
+    await act(async () => boton('Sumar eventos sueltos').click());
     const caja = contenedor.querySelector('[aria-label="Eventos sueltos"]');
-    expect(caja.textContent).toContain('Ecografía');
     expect(caja.textContent).toContain('como diagnóstico');
     act(() => caja.querySelector('input[type="checkbox"]').click());
-    await act(async () => [...caja.querySelectorAll('button')].find((b) => b.textContent === 'Sumar al proceso').click());
+    await act(async () => boton('Sumar al proceso', caja).click());
     expect(api.asociarSueltos).toHaveBeenCalledWith(7, [31]);
   });
 });

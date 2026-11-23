@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getProcesos, getProcesosTodas } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import usePuede from '../hooks/usePuede';
 import { ErrorList } from './ui';
 import { formatFecha, formatNumero } from './pecuaria';
-import { Paginador, celda, paginar } from './tabla';
+import { Paginador, paginar } from './tabla';
 import PanelFiltros from './PanelFiltros';
-import { campaniasParaFiltro, nombreProceso } from './procesos';
+import { campaniasParaFiltro, diasCorto, estiloSugerencia, nombreProceso, textoTipo } from './procesos';
 
 const ESTADOS = [
   ['ABIERTO', 'Abiertos'],
@@ -23,17 +23,16 @@ const ETAPAS = [
   ['CRIA', 'Con cría al pie'],
   ['TERMINADO', 'Terminado'],
 ];
-const SOLO_COMPU = 'hidden md:table-cell';
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const selector = 'mt-1 block w-full rounded-md border border-suelo-300 bg-white px-2 py-2 text-sm';
 
-// La pestaña Procesos de Registro (diseño de procesos §12): una fila por
-// proceso con su etapa, lo que sigue (en ámbar si se atrasó) y el embudo
-// corto. Filtros en el panel (estado, campaña, etapa), en la URL. Tocar la
-// fila abre la ficha. Con "Todas las estancias", la sigla adelante.
+// La lista de la página Procesos (fase 5, docs/PECUARIA.md §9): una tarjeta
+// por proceso (primero el celular, sin tablas anchas) con el tipo, dónde
+// están, las cabezas y el próximo evento con los días que faltan, del color
+// de su estado. Filtros en el panel (estado, campaña, etapa), en la URL.
+// Tocar la tarjeta abre la ficha. Con "Todas las estancias", la sigla adelante.
 export default function ProcesosLista({ campoId, todas = false, grupo = 'estancias' }) {
   const puedo = usePuede();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const f = { estado: params.get('pestado') || 'ABIERTO', campania: params.get('pcampania') ?? '', etapa: params.get('petapa') ?? '' };
   const poner = (cambios) =>
@@ -124,68 +123,60 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
           {activos ? 'No hay procesos con esos filtros.' : 'Todavía no hay procesos abiertos. Se empiezan con "+ Nuevo proceso" o desde Eventos → Entore o Inseminación.'}
         </p>
       ) : (
-        <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-white">
-          <table className="w-full border-separate border-spacing-0 text-left text-sm">
-            <thead className="text-xs text-suelo-600">
-              <tr>
-                {[
-                  ['Proceso', ''],
-                  ['Etapa', ''],
-                  ['Inicio', SOLO_COMPU],
-                  ['Lotes', SOLO_COMPU],
-                  ['Embudo', ''],
-                ].map(([titulo, clase]) => (
-                  <th key={titulo} scope="col" className={`sticky top-0 z-10 border-b border-r border-suelo-300 bg-suelo-100 px-1.5 py-1.5 font-medium last:border-r-0 md:px-2 ${clase}`}>
-                    {titulo}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pag.filas.map((p, n) => (
-                <tr
-                  key={p.id}
-                  onClick={() => navigate(`/pecuaria/procesos/${p.id}`)}
-                  className={`cursor-pointer hover:[&>td]:bg-campo-50 ${n % 2 ? '[&>td]:bg-suelo-50' : '[&>td]:bg-white'}`}
-                >
-                  <td className={celda}>
-                    <Link to={`/pecuaria/procesos/${p.id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-campo-800 hover:underline">
-                      {nombreProceso(p, todas)}
-                    </Link>
-                    {p.estado !== 'ABIERTO' && <span className="ml-1 rounded bg-suelo-200 px-1.5 py-0.5 text-[11px] text-suelo-700">{p.estado === 'CERRADO' ? 'cerrado' : 'anulado'}</span>}
-                    <span className="block text-xs text-suelo-500 md:hidden">
-                      {formatNumero(p.lotes)} {p.lotes === 1 ? 'lote' : 'lotes'} · desde {formatFecha(p.fechaInicio).slice(0, 5)}
-                    </span>
-                  </td>
-                  <td className={celda}>
-                    {p.textoEtapa}
-                    {p.proxima?.etapa && (
-                      <span data-atrasada={p.proxima.atrasada ? 'true' : undefined} className={`block text-xs ${p.proxima.atrasada ? 'font-medium text-amber-700' : 'text-suelo-500'}`}>
-                        {p.proxima.atrasada ? '⚠ ' : ''}
-                        {p.proxima.texto}
-                      </span>
-                    )}
-                    {p.pendientes > 0 && <span className="block text-xs font-medium text-amber-700">⚠ decidir {p.pendientes === 1 ? '1 grupo de vacías' : `${p.pendientes} grupos de vacías`}</span>}
-                  </td>
-                  <td className={`${celda} ${SOLO_COMPU} whitespace-nowrap`}>{formatFecha(p.fechaInicio)}</td>
-                  <td className={`${celda} ${SOLO_COMPU} whitespace-nowrap`}>
-                    {formatNumero(p.lotes)} · {formatNumero(p.cabezas)} cab
-                  </td>
-                  <td className={`${celda} whitespace-nowrap tabular-nums`}>{p.embudoCorto}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={5} className="sticky bottom-0 border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
-                  <strong>Total:</strong> {formatNumero(datos.length)} {datos.length === 1 ? 'proceso' : 'procesos'} · {formatNumero(cabezas)} cabezas hoy
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <ul className="space-y-2" aria-label="Procesos">
+            {pag.filas.map((p) => (
+              <li key={p.id}>
+                <TarjetaProceso p={p} todas={todas} />
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 px-1 text-sm text-suelo-600">
+            <strong>Total:</strong> {formatNumero(datos.length)} {datos.length === 1 ? 'proceso' : 'procesos'} · {formatNumero(cabezas)} cabezas hoy
+          </p>
         </div>
       )}
       {datos && <Paginador {...pag} onCambiar={setPagina} de={datos.length} />}
     </div>
+  );
+}
+
+// Una tarjeta de la lista. Toda la tarjeta es el link a la ficha.
+function TarjetaProceso({ p, todas }) {
+  const prox = p.proxima;
+  const estilo = estiloSugerencia(prox?.estado);
+  return (
+    <Link
+      to={`/pecuaria/procesos/${p.id}`}
+      data-testid="proceso"
+      className="block rounded-lg border border-suelo-300 bg-white p-3 hover:border-campo-500 active:bg-campo-50"
+    >
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-campo-800">
+            {nombreProceso(p, todas)}
+            {p.estado !== 'ABIERTO' && <span className="ml-1 rounded bg-suelo-200 px-1.5 py-0.5 text-[11px] font-normal text-suelo-700">{p.estado === 'CERRADO' ? 'cerrado' : 'anulado'}</span>}
+          </p>
+          <p className="text-sm text-suelo-600">
+            {textoTipo(p.modalidad)} · {p.textoEtapa}
+            {p.potreros?.length ? ` · ${p.potreros.join(', ')}` : ''}
+          </p>
+        </div>
+        <p className="shrink-0 text-right">
+          <span className="block text-lg font-bold tabular-nums leading-tight">{formatNumero(p.cabezas)}</span>
+          <span className="text-xs text-suelo-500">cab</span>
+        </p>
+      </div>
+      {prox && (
+        <div data-atrasada={prox.atrasada ? 'true' : undefined} data-estado={prox.estado} className={`mt-2 flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm ${estilo.tarjeta}`}>
+          <span className="min-w-0 flex-1 truncate">{prox.nombre ?? prox.titulo ?? prox.texto}</span>
+          <span className={`shrink-0 font-semibold ${prox.estado === 'ATRASADA' ? 'text-red-700' : ''}`}>{diasCorto(prox) || prox.texto}</span>
+        </div>
+      )}
+      {p.pendientes > 0 && <p className="mt-1 text-xs font-medium text-amber-700">⚠ decidir {p.pendientes === 1 ? '1 grupo de vacías' : `${p.pendientes} grupos de vacías`}</p>}
+      <p className="mt-1 text-xs text-suelo-500">
+        Desde {formatFecha(p.fechaInicio)} · {p.embudoCorto}
+      </p>
+    </Link>
   );
 }

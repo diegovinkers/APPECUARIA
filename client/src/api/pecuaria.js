@@ -93,6 +93,8 @@ export const vistaPreviaEtapa = (id, etapa, datos) => api.post(`/pecuaria/proces
 export const registrarEtapa = (id, etapa, datos) => api.post(`/pecuaria/procesos/${id}/etapas/${etapa}`, datos);
 export const anularCargaProceso = (id, grupoId) => api.post(`/pecuaria/procesos/${id}/cargas/${grupoId}/anular`);
 // Plazos, avisos y nombres de los estados de los procesos (docs/PECUARIA.md §9).
+// Descartar una sugerencia del cronograma (o volver a activarla). Devuelve la ficha.
+export const descartarSugerencia = (id, clave, descartada) => api.post(`/pecuaria/procesos/${id}/sugerencias`, { clave, descartada });
 export const getConfiguracionProcesos = () => api.get('/pecuaria/procesos/configuracion');
 export const guardarConfiguracionProcesos = (datos) => api.put('/pecuaria/procesos/configuracion', datos);
 // Los toros, uno por uno.

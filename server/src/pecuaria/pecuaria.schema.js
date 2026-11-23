@@ -643,6 +643,12 @@ export const configuracionProcesosSchema = z
   })
   .refine((b) => b.etapas?.length || b.estados?.length, 'No hay nada para guardar');
 
+// Descartar una sugerencia del cronograma, o volver a activarla.
+export const sugerenciaSchema = z.object({
+  clave: z.string({ error: 'Falta la sugerencia' }).regex(/^[A-Z_]{2,20}(:[0-9-]{7,10})?$/, 'La sugerencia no es válida'),
+  descartada: z.boolean({ error: 'descartada tiene que ser true o false' }),
+});
+
 // --- Toros (uno por uno) ---
 const loteToro = z.int({ error: 'El lote no es válido' }).positive('El lote no es válido').nullable();
 export const toroSchema = z.object({

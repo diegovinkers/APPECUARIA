@@ -535,3 +535,16 @@ export async function patchToro(req, res) {
   if (detalle) await registrar(req, { accion: ACCION.TORO_EDITADO, entidad: 'toro', entidadId: despues.id, detalle: { identificacion: despues.identificacion, ...detalle } });
   res.json(despues);
 }
+
+// --- Procesos: descartar una sugerencia (o volver a activarla) ---
+
+export async function postSugerencia(req, res) {
+  const { nombre, item } = await procesos.descartarSugerencia(req.params.id, req.body);
+  await registrar(req, {
+    accion: ACCION.PROCESO_SUGERENCIA,
+    entidad: 'proceso',
+    entidadId: req.params.id,
+    detalle: { proceso: nombre, ...item, descartada: req.body.descartada },
+  });
+  res.json(await procesos.ficha(req.params.id));
+}

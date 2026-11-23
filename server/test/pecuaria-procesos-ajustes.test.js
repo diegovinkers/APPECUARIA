@@ -134,7 +134,11 @@ describe('IATF por días', () => {
     await cargar(agent, proceso.id, 'FIN_INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id, destino: 'REPASO' }] });
     const f = await ficha(agent, proceso.id);
     expect(f.embudo.servidas).toBe(50);
-    expect(f.proxima.etapa).toBe('FIN_SERVICIO');
+    // Con repaso de toros, el cronograma suma el fin del servicio (90 días
+    // desde el repaso); lo que sigue es lo más temprano: la ecografía de la
+    // primera tanda (motor de sugerencias, 23/11).
+    expect(f.cronograma.find((i) => i.etapa === 'FIN_SERVICIO')).toMatchObject({ fecha: '2027-02-14' });
+    expect(f.proxima).toMatchObject({ etapa: 'DIAGNOSTICO', fecha: '2026-12-15' });
     expect((await roles(proceso.id)).find(([n]) => n === 'Lote V')[1]).toBe('VIENTRES');
   });
 
@@ -146,7 +150,9 @@ describe('IATF por días', () => {
       ['Lote V', 20],
     ]);
     expect((await roles(proceso.id)).find(([n]) => n === 'Lote V')[1]).toBe('VIENTRES');
-    expect((await ficha(agent, proceso.id)).proxima.etapa).toBe('FIN_SERVICIO');
+    // Sin repaso con toros no hay fin del entore: lo que sigue es la ecografía
+    // de cada tanda (motor de sugerencias, 23/11).
+    expect((await ficha(agent, proceso.id)).proxima.etapa).toBe('DIAGNOSTICO');
   });
 
   it('al terminar, las sin inseminar pueden salir del proceso (y moverse)', async () => {

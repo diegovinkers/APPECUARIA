@@ -63,6 +63,7 @@ import {
   getToros,
   postToro,
   patchToro,
+  postSugerencia,
 } from './pecuaria.controller.js';
 import {
   confirmarImportacionSchema,
@@ -96,6 +97,7 @@ import {
   configuracionProcesosSchema,
   toroSchema,
   editarToroSchema,
+  sugerenciaSchema,
 } from './pecuaria.schema.js';
 import { authRequired } from '../auth/auth.middleware.js';
 import { requirePermission } from '../auth/permisos.js';
@@ -225,6 +227,7 @@ router.post('/procesos/:id/decision', registrar, alcance('proceso'), validateBod
 router.post('/procesos/:id/cargas/:grupoId/anular', revertir, alcance('proceso'), postAnularCarga);
 router.post('/procesos/:id/cerrar', registrar, alcance('proceso'), validateBody(cerrarProcesoSchema), postCerrarProceso);
 router.post('/procesos/:id/anular', revertir, alcance('proceso'), postAnularProceso);
+router.post('/procesos/:id/sugerencias', registrar, alcance('proceso'), validateBody(sugerenciaSchema), postSugerencia);
 // Eventos de reproducción sueltos de los lotes del proceso, para sumarlos.
 router.get('/procesos/:id/sueltos', ver, alcance('proceso'), getSueltos);
 router.post('/procesos/:id/asociar', registrar, alcance('proceso'), validateBody(asociarSchema), postAsociar);

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// La pestaña Procesos de Registro: una fila por proceso, con su etapa, lo que
-// sigue (en ámbar si se atrasó), el embudo corto, los filtros y "+ Nuevo proceso".
+// La lista de la página Procesos (fase 5): una tarjeta por proceso con el
+// tipo, dónde están, las cabezas y el próximo evento con los días que faltan
+// (del color de su estado), los filtros y "+ Nuevo proceso".
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -25,7 +26,9 @@ const PROCESOS = [
     fechaInicio: '2026-11-15',
     etapa: 'PRENEZ',
     textoEtapa: 'Diagnosticado',
-    proxima: { etapa: 'PARICION', texto: 'parición oct–dic', atrasada: false },
+    modalidad: 'TOROS',
+    potreros: ['P8', 'P9'],
+    proxima: { etapa: 'PARICION', nombre: 'Parición', estado: 'PENDIENTE', dias: 40, texto: 'faltan 40 días (10/09/2027 al 09/12/2027)', atrasada: false },
     embudoCorto: '50 → 40 → — → —',
     lotes: 2,
     cabezas: 50,
@@ -41,7 +44,9 @@ const PROCESOS = [
     fechaInicio: '2026-11-01',
     etapa: 'ESPERA_DIAGNOSTICO',
     textoEtapa: 'Esperando el diagnóstico',
-    proxima: { etapa: 'DIAGNOSTICO', texto: 'diag. desde 29/04', atrasada: true },
+    modalidad: 'IATF',
+    potreros: ['P3'],
+    proxima: { etapa: 'DIAGNOSTICO', nombre: 'Ecografía', estado: 'ATRASADA', dias: -3, texto: 'atrasada 3 días (29/04/2027)', titulo: 'Ecografía: atrasada 3 días (29/04/2027)', atrasada: true },
     embudoCorto: '120 → — → — → —',
     lotes: 3,
     cabezas: 120,
@@ -87,22 +92,25 @@ async function montar({ ruta = '/pecuaria/procesos', todas = false } = {}) {
   );
   await act(async () => {});
 }
-const filas = () => [...contenedor.querySelectorAll('tbody tr')];
+const filas = () => [...contenedor.querySelectorAll('[data-testid="proceso"]')];
 const donde = () => contenedor.querySelector('[data-testid="donde"]').textContent;
 
-describe('la pestaña Procesos', () => {
-  it('una fila por proceso: nombre, etapa, lo que sigue y el embudo corto', async () => {
+describe('la lista de procesos', () => {
+  it('una tarjeta por proceso: tipo, etapa, potreros, cabezas, el próximo evento y el embudo corto', async () => {
     await montar();
     expect(api.getProcesos).toHaveBeenCalledWith(1, expect.objectContaining({ estado: 'ABIERTO' }));
     expect(filas()).toHaveLength(2);
     const [a, b] = filas();
     expect(a.textContent).toContain('Servicio 2026-27 · Vaquillonas');
-    expect(a.textContent).toContain('Diagnosticado');
-    expect(a.textContent).toContain('parición oct–dic');
+    expect(a.textContent).toContain('Entore · Diagnosticado · P8, P9');
+    expect(a.textContent).toContain('50cab');
+    expect(a.querySelector('[data-estado]').textContent).toBe('Pariciónfaltan 40 días');
+    expect(b.textContent).toContain('Inseminación');
     expect(a.textContent).toContain('50 → 40 → — → —');
     expect(a.textContent).toContain('decidir');
-    // Atrasada: en ámbar.
-    expect(b.querySelector('[data-atrasada="true"]').textContent).toContain('diag. desde 29/04');
+    // Atrasada: en rojo, con los días.
+    expect(b.querySelector('[data-atrasada="true"]').textContent).toBe('Ecografíaatrasada 3 días');
+    expect(b.querySelector('[data-atrasada="true"]').className).toContain('border-red-500');
     expect(a.querySelector('[data-atrasada="true"]')).toBeNull();
   });
 
@@ -112,7 +120,7 @@ describe('la pestaña Procesos', () => {
     expect(filas()[0].textContent).toContain('EG Servicio 2026-27 · Vaquillonas');
   });
 
-  it('tocar la fila abre la ficha', async () => {
+  it('tocar la tarjeta abre la ficha', async () => {
     await montar();
     act(() => filas()[0].dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(donde()).toBe('/pecuaria/procesos/7');

@@ -8,13 +8,11 @@ import {
   etapaActual,
   mesesEsperados,
   planDecision,
-  proximas,
   sugerirCategoria,
   textoMeses,
 } from '../src/pecuaria/procesos.calculos.js';
 import { ETAPAS_UNICAS, PLANTILLAS, etapaDe } from '../src/pecuaria/procesos.plantillas.js';
 
-const PARAMETROS = { gestacionDias: 283, diagnosticoDesdeDias: 45, lactanciaMeses: 6 };
 
 // Un ancla: { etapa, loteId, fecha, cabezas, datos, anulado }.
 const ancla = (etapa, loteId, fecha, cabezas, datos = {}, anulado = false) => ({ etapa, loteId, fecha, cabezas, datos, anulado });
@@ -93,38 +91,6 @@ describe('etapa actual', () => {
   it('sin el fin de la parición, si ya no quedan preñadas activas, también es cría', () => {
     const a = [ancla('INICIO', 1, '2027-01-01', 50), ancla('PARICION', 2, '2027-10-12', 6, { madres: 6 })];
     expect(etapaActual(a, [{ loteId: 2, rol: 'PRENADAS', activo: false }, { loteId: 3, rol: 'CRIAS', activo: true }])).toBe('CRIA');
-  });
-});
-
-describe('próximas fechas', () => {
-  const servicio = [ancla('INICIO', 1, '2027-01-01', 50), ancla('FIN_SERVICIO', 1, '2027-03-15', 50)];
-
-  it('el diagnóstico se espera desde el fin + 45 días; se atrasa a los 120', () => {
-    expect(proximas({ anclas: servicio, lotes: [], parametros: PARAMETROS, hoy: '2027-04-01' })).toMatchObject({
-      etapa: 'DIAGNOSTICO',
-      desde: '2027-04-29',
-      atrasada: false,
-      texto: 'diag. desde 29/04',
-    });
-    expect(proximas({ anclas: servicio, lotes: [], parametros: PARAMETROS, hoy: '2027-08-01' }).atrasada).toBe(true);
-  });
-
-  it('después del diagnóstico, la parición esperada por meses; después de parir, el destete', () => {
-    const diag = [...servicio, ancla('DIAGNOSTICO', 1, '2027-04-30', 50, { prenadas: { sin: 40 }, vacias: 10 })];
-    const lotes = [{ loteId: 1, rol: 'PRENADAS', activo: true }];
-    expect(proximas({ anclas: diag, lotes, parametros: PARAMETROS, hoy: '2027-05-01' })).toMatchObject({
-      etapa: 'PARICION',
-      desde: '2027-10-11',
-      texto: 'parición oct–dic',
-      atrasada: false,
-    });
-    const cria = [...diag, ancla('PARICION', 1, '2027-10-11', 40, { madres: 40, machos: 20, hembras: 20 }), ancla('FIN_PARICION', 1, '2028-01-05', 0)];
-    expect(proximas({ anclas: cria, lotes: [{ loteId: 2, rol: 'CRIAS', activo: true }], parametros: PARAMETROS, hoy: '2028-01-10' })).toMatchObject({
-      etapa: 'DESTETE',
-      desde: '2028-04-11',
-      texto: 'destete desde abr',
-      atrasada: false,
-    });
   });
 });
 
@@ -314,17 +280,6 @@ describe('IATF por días y vacías (ajustes del 20/11)', () => {
 
   it('servidas: el inicio, cada día y las que van al repaso (no las que salen)', () => {
     expect(embudo(anclas).servidas).toBe(50);
-  });
-
-  it('con lotes sin inseminar, lo que sigue es otro día de inseminación', () => {
-    const lotes = [{ loteId: 1, rol: 'SIN_SERVIR', activo: true }];
-    expect(proximas({ anclas: anclas.slice(0, 1), lotes, parametros: PARAMETROS, hoy: '2026-11-16' }).etapa).toBe('INSEMINACION');
-    expect(proximas({ anclas, lotes: [{ loteId: 1, rol: 'VIENTRES', activo: true }], parametros: PARAMETROS, hoy: '2026-11-18' }).etapa).toBe('FIN_SERVICIO');
-  });
-
-  it('las fechas del servicio van del primer día al último en que entraron animales', () => {
-    const f = proximas({ anclas: [...anclas, ancla('FIN_SERVICIO', 1, '2026-12-01', 50)], lotes: [], parametros: PARAMETROS, hoy: '2026-12-02' });
-    expect(f).toMatchObject({ etapa: 'DIAGNOSTICO', desde: '2027-01-15' });
   });
 
   it('vacías: volver a intentar y salen se mueven al potrero elegido', () => {

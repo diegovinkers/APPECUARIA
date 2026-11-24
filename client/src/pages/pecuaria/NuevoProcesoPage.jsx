@@ -38,13 +38,32 @@ const ROLES = [
 //   2. A quién: los lotes de hembras de la estancia que no están en otro
 //      proceso (las vacías para volver a servir, primero).
 //   3. Datos: la fecha (o las fechas y los números de antes), cuántas entran
-//      (en la IATF, cuántas se inseminaron hoy), los toros, el nombre.
+//      (en la IATF, cuántas se van a inseminar), los toros, el nombre.
 //   4. Dónde (ajustes del 20/11): se quedan donde están, o repartirlas en
 //      potreros (cada fila: potrero, cabezas y toros). No va si ya está en curso.
 //   5. Revisar (con los movimientos que se harían) y confirmar.
 // En /pecuaria/procesos/:id/tanda (fase 6) es otra tanda de ese proceso: los
 // mismos pasos sin el tipo (sale del proceso), y se carga como etapa TANDA.
 // En un entore, los toros se eligen uno por uno (van al potrero de las vacas).
+// La línea de abajo (al lado de Seguir): desde Datos, las que entran (o se
+// inseminan), no el lote entero.
+export function textoAyuda(lotes, entran, modalidad, paso) {
+  const lote = `${lotes.length} ${lotes.length === 1 ? 'lote' : 'lotes'}`;
+  if (paso === 'Qué' || paso === 'A quién') return `${lote} · ${formatNumero(lotes.reduce((s, l) => s + l.cabezas, 0))} cab`;
+  const n = formatNumero(lotes.reduce((s, l) => s + entran(l), 0));
+  return `${lote} · ${modalidad === 'IATF' ? `${n} a inseminar` : `entran ${n}`}`;
+}
+
+// Debajo del reparto de un lote: de las que entran (o se inseminan), cuántas
+// se reparten y cuántas quedan en su potrero; aparte, las que no entran.
+export function textoQuedan({ lote, entran, repartidas, iatf }) {
+  const verbo = iatf ? 'se inseminan' : 'entran';
+  if (repartidas > entran) return `Repartís ${formatNumero(repartidas)}, pero ${verbo} ${formatNumero(entran)}.`;
+  const quedan = `De las ${formatNumero(entran)} que ${verbo}, quedan en ${lote.potrero}: ${formatNumero(entran - repartidas)}.`;
+  const afuera = lote.cabezas - entran;
+  return afuera > 0 ? `${quedan} Las otras ${formatNumero(afuera)} (${iatf ? 'sin inseminar' : 'no entran'}) también quedan ahí.` : quedan;
+}
+
 export default function NuevoProcesoPage() {
   const navigate = useNavigate();
   const { id: tandaDe } = useParams();
@@ -195,7 +214,7 @@ export default function NuevoProcesoPage() {
       textoSeguir={nombrePaso === 'Revisar' ? 'Confirmar' : pasos[paso + 1] === 'Revisar' ? 'Revisar' : 'Seguir'}
       puedeSeguir={nombrePaso === 'Qué' || lotes.length > 0}
       ocupado={ocupado}
-      ayuda={lotes.length ? `${lotes.length} ${lotes.length === 1 ? 'lote' : 'lotes'} · ${formatNumero(lotes.reduce((s, l) => s + l.cabezas, 0))} cab` : null}
+      ayuda={lotes.length ? textoAyuda(lotes, entran, modalidad, nombrePaso) : null}
     >
       <div className="mt-2">
         <ErrorList errors={errors} />
@@ -287,11 +306,11 @@ export default function NuevoProcesoPage() {
             ))}
           {lotes.map((l) => (
             <label key={l.loteId} className={etiqueta}>
-              {modalidad === 'IATF' ? '¿Cuántas se inseminaron hoy?' : '¿Cuántas entran al servicio?'} ({l.lote}, tiene {formatNumero(l.cabezas)})
+              {modalidad === 'IATF' ? '¿Cuántas se van a inseminar?' : '¿Cuántas entran al servicio?'} ({l.lote}, tiene {formatNumero(l.cabezas)})
               <input inputMode="numeric" value={cabezas[l.loteId] ?? ''} onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`} />
               <span className="mt-1 block text-xs text-suelo-500">
                 {modalidad === 'IATF'
-                  ? 'Dejalo vacío si se inseminaron todas. Las que no, quedan aparte como "sin inseminar", para otro día.'
+                  ? 'Dejalo vacío si se insemina todo el lote. Las que no, quedan aparte como "sin inseminar", para otro día.'
                   : 'Dejalo vacío si entran todas.'}
               </span>
             </label>
@@ -377,7 +396,7 @@ export default function NuevoProcesoPage() {
               return (
                 <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3" data-reparto={l.loteId}>
                   <legend className="px-1 text-sm font-semibold">
-                    {l.lote} ({l.potrero}) · entran {formatNumero(entran(l))}
+                    {l.lote} ({l.potrero}) · {modalidad === 'IATF' ? 'se inseminan' : 'entran'} {formatNumero(entran(l))}
                   </legend>
                   {filas.map((f, i) => (
                     <div key={i} className={`grid ${modalidad === 'TOROS' ? 'grid-cols-[1fr_5rem_4.5rem_auto]' : 'grid-cols-[1fr_5rem_auto]'} items-end gap-2`}>
@@ -411,9 +430,7 @@ export default function NuevoProcesoPage() {
                     + Agregar potrero
                   </button>
                   <p className={`text-xs ${repartidas > entran(l) ? 'font-medium text-red-700' : 'text-suelo-500'}`} data-testid="quedan">
-                    {repartidas > entran(l)
-                      ? `Repartís ${formatNumero(repartidas)}, pero entran ${formatNumero(entran(l))}.`
-                      : `Quedan en ${l.potrero}: ${formatNumero(l.cabezas - repartidas)}.`}
+                    {textoQuedan({ lote: l, entran: entran(l), repartidas, iatf: modalidad === 'IATF' })}
                   </p>
                 </fieldset>
               );

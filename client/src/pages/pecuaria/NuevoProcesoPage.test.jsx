@@ -95,7 +95,7 @@ describe('nuevo proceso', () => {
     await cambiar(campo('Lote V: potrero 1'), '13');
     await cambiar(campo('Lote V: cabezas 1'), '20');
     await cambiar(campo('Lote V: toros 1'), '1');
-    expect(contenedor.querySelector('[data-testid="quedan"]').textContent).toBe('Quedan en P8: 30.');
+    expect(contenedor.querySelector('[data-testid="quedan"]').textContent).toBe('De las 50 que entran, quedan en P8: 30.');
     await click(boton('Revisar'));
     expect(api.vistaPreviaProceso).toHaveBeenCalledWith(
       expect.objectContaining({ modalidad: 'TOROS', lineas: [{ loteId: 1, reparto: [{ potreroId: 13, cabezas: 20, toros: 1 }] }] }),
@@ -103,14 +103,28 @@ describe('nuevo proceso', () => {
     expect(contenedor.textContent).toContain('20 → P13, lote Lote V · P13');
   });
 
-  it('IATF: pregunta cuántas se inseminaron hoy', async () => {
+  it('IATF: pregunta cuántas se van a inseminar, y el reparto cuenta solo esas (captura de Diego, 24/11)', async () => {
     await montar();
     await click(boton('IATF'));
     await click(boton('Seguir'));
     await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]);
     await click(boton('Seguir'));
-    expect(contenedor.textContent).toContain('¿Cuántas se inseminaron hoy? (Lote V, tiene 50)');
+    expect(contenedor.textContent).toContain('¿Cuántas se van a inseminar? (Lote V, tiene 50)');
     expect(contenedor.textContent).toContain('quedan aparte como "sin inseminar"');
+    const cuantas = [...contenedor.querySelectorAll('label')].find((l) => l.textContent.startsWith('¿Cuántas se van a inseminar?')).querySelector('input');
+    await cambiar(cuantas, '12');
+    // Abajo, las que se inseminan (no el lote entero).
+    expect(contenedor.textContent).toContain('1 lote · 12 a inseminar');
+    await click(boton('Seguir'));
+    await click(boton('Repartirlas en potreros'));
+    expect(contenedor.querySelector('[data-reparto] legend').textContent).toBe('Lote V (P8) · se inseminan 12');
+    await cambiar(campo('Lote V: potrero 1'), '13');
+    await cambiar(campo('Lote V: cabezas 1'), '6');
+    expect(contenedor.querySelector('[data-testid="quedan"]').textContent).toBe(
+      'De las 12 que se inseminan, quedan en P8: 6. Las otras 38 (sin inseminar) también quedan ahí.',
+    );
+    await cambiar(campo('Lote V: cabezas 1'), '13');
+    expect(contenedor.querySelector('[data-testid="quedan"]').textContent).toBe('Repartís 13, pero se inseminan 12.');
   });
 });
 

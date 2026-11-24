@@ -399,8 +399,9 @@ export function textoVersionEvento(r) {
   return `${r.tipo.nombre} del lote ${r.lote.nombre}`;
 }
 
-// versionId → texto, para las versiones que dejaron los eventos de un potrero
-// (y sus anulaciones).
+// versionId → { texto, titulo }, para las versiones que dejaron los eventos de
+// un potrero (y sus anulaciones). El título es el corto de la tabla de la
+// ficha ("Pesada", "Anulación de recuento").
 export async function textosDeVersiones(potreroId) {
   const rows = await prisma.eventoRegistro.findMany({
     where: { potreroId, OR: [{ versionId: { not: null } }, { versionAnulacionId: { not: null } }] },
@@ -408,10 +409,13 @@ export async function textosDeVersiones(potreroId) {
     orderBy: { id: 'asc' },
   });
   const textos = new Map();
-  const sumar = (id, texto) => textos.set(id, textos.has(id) ? `${textos.get(id)}; ${texto}` : texto);
+  const sumar = (id, texto, titulo) => {
+    const antes = textos.get(id);
+    textos.set(id, antes ? { texto: `${antes.texto}; ${texto}`, titulo: antes.titulo === titulo ? titulo : 'Varios eventos' } : { texto, titulo });
+  };
   for (const r of rows) {
-    if (r.versionId) sumar(r.versionId, textoVersionEvento(r));
-    if (r.versionAnulacionId) sumar(r.versionAnulacionId, `Anulación: ${textoVersionEvento(r)}`);
+    if (r.versionId) sumar(r.versionId, textoVersionEvento(r), r.tipo.nombre);
+    if (r.versionAnulacionId) sumar(r.versionAnulacionId, `Anulación: ${textoVersionEvento(r)}`, `Anulación de ${r.tipo.nombre.toLowerCase()}`);
   }
   return textos;
 }

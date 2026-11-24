@@ -132,21 +132,122 @@ export async function detallePotrero(id) {
   };
 }
 
-// Cómo se cuenta un movimiento en el historial de cada potrero.
-function textoMovimiento(m, potreroId) {
-  const cab = `${m.cabezas} ${m.categoriaOrigen.nombre}`;
-  const como = m.categoriaDestinoId !== m.categoriaOrigenId ? `, como ${m.categoriaDestino.nombre}` : '';
+// Títulos cortos de las entradas y salidas (un solo lado) en la tabla de la ficha.
+const TITULO_TIPO = {
+  NACIMIENTO: 'Nacimiento',
+  VENTA: 'Venta',
+  TRASLADO_ENTRADA: 'Traslado',
+  TRASLADO_SALIDA: 'Traslado',
+  PERDIDA: 'Pérdida',
+};
+
+// Cómo se cuenta un movimiento en el historial de un potrero: un título corto
+// para la tabla ("Entraron 5"), el detalle (de dónde, a dónde, qué) y el texto
+// completo (para la fila desplegada). Una entrada (compra, nacimiento) no tiene
+// potrero de origen y una salida (venta, muerte) no tiene destino.
+export function describirMovimiento(m, potrero) {
+  const pid = potrero.id;
+  const catO = m.categoriaOrigen?.nombre ?? m.categoriaDestino?.nombre ?? '';
+  const catD = m.categoriaDestino?.nombre ?? catO;
+  const cab = `${m.cabezas} ${catO}`;
+  const como = m.categoriaDestinoId && m.categoriaOrigenId && m.categoriaDestinoId !== m.categoriaOrigenId ? `, como ${catD}` : '';
+  const sale = m.potreroOrigenId === pid && m.potreroDestinoId !== pid;
+  const otro = sale ? m.potreroDestino : m.potreroOrigen;
+  // Otro potrero (con la sigla si es de otra estancia) o, si no hay, el campo de un traslado.
+  const lugar = otro
+    ? `${otro.campoId !== potrero.campoId && otro.campo?.sigla ? `${otro.campo.sigla} ` : ''}${otro.nombre}`
+    : (m.campoOtro?.nombre ?? null);
+  const hacia = lugar ? ` ${sale ? 'a' : 'de'} ${lugar}` : '';
+  const loteO = m.loteOrigen?.nombre;
+  const loteD = m.loteDestino?.nombre;
+  const reversion = m.modo === 'REVERSION';
+
+  // En el mismo potrero: separar en otro lote o cambiar de categoría.
   if (m.potreroOrigenId === m.potreroDestinoId) {
-    return `Se separaron ${cab} del lote ${m.loteOrigen.nombre} al lote ${m.loteDestino.nombre}${como}`;
+    if (m.modo === 'CATEGORIA') {
+      return { titulo: 'Cambio de categoría', detalle: `${m.cabezas} ${catO} → ${catD}`, texto: `Cambio de categoría: ${cab} pasaron a ${catD} (lote ${loteD})` };
+    }
+    return {
+      titulo: reversion ? 'Reversión' : `Se separaron ${m.cabezas}`,
+      detalle: `${catO}: lote ${loteO} → ${loteD}`,
+      texto: `Se separaron ${cab} del lote ${loteO} al lote ${loteD}${como}`,
+    };
   }
-  if (m.modo === 'ENTERO') {
-    return m.potreroOrigenId === potreroId
-      ? `Salió el lote ${m.loteOrigen.nombre} entero (${cab}) hacia ${m.potreroDestino.nombre}`
-      : `Llegó el lote ${m.loteOrigen.nombre} entero (${cab}) desde ${m.potreroOrigen.nombre}${como}`;
+  // De un solo lado: compra, nacimiento, venta, muerte, traslado.
+  if (!otro) {
+    const nombre = TITULO_TIPO[m.tipo?.clave] ?? m.tipo?.nombre ?? (sale ? 'Salida' : 'Entrada');
+    return {
+      titulo: reversion ? 'Reversión' : nombre,
+      detalle: `${sale ? '−' : '+'}${cab}${hacia}`,
+      texto: `${reversion ? 'Reversión' : (m.tipo?.nombre ?? nombre)}: ${sale ? 'salieron' : 'entraron'} ${cab} (lote ${sale ? loteO : loteD})${hacia}`,
+    };
   }
-  return m.potreroOrigenId === potreroId
-    ? `Salieron ${cab} del lote ${m.loteOrigen.nombre} hacia ${m.potreroDestino.nombre} (lote ${m.loteDestino.nombre})`
-    : `Llegaron ${cab} desde ${m.potreroOrigen.nombre} (lote ${m.loteOrigen.nombre}) al lote ${m.loteDestino.nombre}${como}`;
+  const titulo = reversion
+    ? 'Reversión'
+    : m.tipo?.clave === 'DESTETE'
+      ? 'Destete'
+      : m.modo === 'ENTERO'
+        ? sale ? 'Salió el lote' : 'Llegó el lote'
+        : `${sale ? 'Salieron' : 'Entraron'} ${m.cabezas}`;
+  const detalle = m.modo === 'ENTERO' && !reversion ? `${loteO} · ${cab}${hacia}${como}` : `${catO}${hacia}${sale ? '' : como}`;
+  const texto =
+    m.modo === 'ENTERO'
+      ? sale
+        ? `Salió el lote ${loteO} entero (${cab}) hacia ${lugar}`
+        : `Llegó el lote ${loteO} entero (${cab}) desde ${lugar}${como}`
+      : sale
+        ? `Salieron ${cab} del lote ${loteO} hacia ${lugar} (lote ${loteD})`
+        : `Llegaron ${cab} desde ${lugar} (lote ${loteO}) al lote ${loteD}${como}`;
+  return { titulo, detalle, texto };
+}
+
+// Título y detalle de una versión con varios movimientos (un movimiento
+// múltiple, una entrada con varias líneas): si todos dicen lo mismo, ese.
+function juntarDescripciones(lista) {
+  if (lista.length === 1) return lista[0];
+  const titulos = new Set(lista.map((d) => d.titulo));
+  return {
+    titulo: titulos.size === 1 ? lista[0].titulo : `${lista.length} movimientos`,
+    detalle: lista.map((d) => d.detalle).join('; '),
+    texto: lista.map((d) => d.texto).join('. '),
+  };
+}
+
+const TITULO_ORIGEN = { PLANILLA: 'Planilla', MANUAL: 'A mano', MOVIMIENTO: 'Movimiento', EVENTO: 'Evento' };
+
+// La carga de una versión. Se calcula con las hectáreas (y el área
+// utilizable) de hoy: no se guardan las de antes. Los lotes sin peso usan el
+// promedio de su categoría de hoy (kilosEstimados: se muestra con "≈").
+function cargaDeVersion(potrero, lineas, kg) {
+  const c = calcularPotrero(
+    {
+      hectareas: potrero.hectareas == null ? null : Number(potrero.hectareas),
+      hectareasAConfirmar: potrero.hectareasAConfirmar,
+      areaUtilizable: potrero.areaUtilizable == null ? null : Number(potrero.areaUtilizable),
+      lineas,
+    },
+    kg,
+  );
+  return {
+    cabezas: c.cabezas,
+    pesoPromedio: c.cabezas && c.kilosCompletos ? Math.round(c.kilos / c.cabezas) : null,
+    kgPvHa: c.kilosCompletos ? c.kgPvHa : null,
+    cabHa: c.cabHa,
+    kilosEstimados: c.kilosEstimados,
+  };
+}
+
+// Cuánto cambió cada dato contra la versión anterior (null: no se puede
+// comparar, porque falta uno de los dos).
+const diferencia = (despues, antes) => (despues == null || antes == null ? null : Math.round((despues - antes) * 100) / 100);
+export function variacion(carga, anterior) {
+  if (!anterior) return null;
+  return {
+    cabezas: carga.cabezas - anterior.cabezas,
+    pesoPromedio: diferencia(carga.pesoPromedio, anterior.pesoPromedio),
+    kgPvHa: diferencia(carga.kgPvHa, anterior.kgPvHa),
+    cabHa: diferencia(carga.cabHa, anterior.cabHa),
+  };
 }
 
 export async function historialPotrero(id) {
@@ -173,43 +274,60 @@ export async function historialPotrero(id) {
     }),
     prisma.movimiento.findMany({
       where: { OR: [{ potreroOrigenId: potrero.id }, { potreroDestinoId: potrero.id }] },
+      orderBy: { id: 'asc' },
       include: {
         loteOrigen: { select: { nombre: true } },
         loteDestino: { select: { nombre: true } },
-        potreroOrigen: { select: { nombre: true } },
-        potreroDestino: { select: { nombre: true } },
+        potreroOrigen: { select: { nombre: true, campoId: true, campo: { select: { sigla: true } } } },
+        potreroDestino: { select: { nombre: true, campoId: true, campo: { select: { sigla: true } } } },
+        campoOtro: { select: { nombre: true } },
+        tipo: { select: { clave: true, nombre: true } },
       },
     }),
     textosDeVersiones(potrero.id),
     listarEventos(undefined, { potreroId: potrero.id }),
   ]);
-  const ids = [...new Set(movimientos.flatMap((m) => [m.categoriaOrigenId, m.categoriaDestinoId]))];
+  const kg = await parametrosCarga();
+  const ids = [...new Set(movimientos.flatMap((m) => [m.categoriaOrigenId, m.categoriaDestinoId]).filter(Boolean))];
   const nombres = new Map((await prisma.categoria.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((c) => [c.id, c]));
+  // Una versión puede venir de varios movimientos (un múltiple, una entrada de varias líneas).
   const porVersion = new Map();
   for (const m of movimientos) {
     m.categoriaOrigen = nombres.get(m.categoriaOrigenId);
     m.categoriaDestino = nombres.get(m.categoriaDestinoId);
     const vid = m.potreroOrigenId === potrero.id ? m.versionOrigenId : m.versionDestinoId;
-    porVersion.set(vid, textoMovimiento(m, potrero.id));
+    porVersion.set(vid, [...(porVersion.get(vid) ?? []), describirMovimiento(m, potrero)]);
   }
+  // De la más nueva a la más vieja; la variación es contra la que sigue en la lista.
+  const filas = versiones.map((v) => {
+    const lineas = ordenarLineas(v.lineas).map(toLinea);
+    const mov = porVersion.has(v.id) ? juntarDescripciones(porVersion.get(v.id)) : null;
+    // Una pesada o un recuento con diferencia (o su anulación).
+    const evento = textosEventos.get(v.id) ?? null;
+    const titulo = mov?.titulo ?? evento?.titulo ?? TITULO_ORIGEN[v.origen];
+    const detalle =
+      mov?.detalle ??
+      evento?.texto ??
+      (v.importacion ? `${v.importacion.archivo} (${v.importacion.hoja})` : (v.nota ?? null));
+    return {
+      id: v.id,
+      fecha: fechaISO(v.fecha),
+      origen: v.origen,
+      nota: v.nota,
+      creadoEn: v.creadoEn,
+      usuario: v.usuario?.nombre ?? null,
+      importacion: v.importacion,
+      titulo,
+      detalle,
+      movimiento: mov?.texto ?? null,
+      evento: evento?.texto ?? null,
+      lineas,
+      cabezas: lineas.reduce((s, l) => s + l.cabezas, 0),
+      carga: cargaDeVersion(potrero, lineas, kg),
+    };
+  });
   return {
-    versiones: versiones.map((v) => {
-      const lineas = ordenarLineas(v.lineas).map(toLinea);
-      return {
-        id: v.id,
-        fecha: fechaISO(v.fecha),
-        origen: v.origen,
-        nota: v.nota,
-        creadoEn: v.creadoEn,
-        usuario: v.usuario?.nombre ?? null,
-        importacion: v.importacion,
-        movimiento: porVersion.get(v.id) ?? null,
-        // Una pesada o un recuento con diferencia (o su anulación).
-        evento: textosEventos.get(v.id) ?? null,
-        lineas,
-        cabezas: lineas.reduce((s, l) => s + l.cabezas, 0),
-      };
-    }),
+    versiones: filas.map((v, i) => ({ ...v, cambio: variacion(v.carga, filas[i + 1]?.carga) })),
     usos: usos.map((u) => ({
       uso: u.usoSuelo,
       desde: fechaISO(u.desde),

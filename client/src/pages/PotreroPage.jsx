@@ -13,20 +13,22 @@ import {
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
-import { Dato, EnProceso, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
+import { EnProceso, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
 import usePuede from '../hooks/usePuede';
 import { EventoItem } from '../components/movimientos';
 import BotonEventos from '../components/BotonEventos';
+import HistorialPotrero from '../components/HistorialPotrero';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 // Acepta "250" o "250,5" (como se escribe acá).
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
-const ORIGEN = { PLANILLA: 'Planilla', MANUAL: 'A mano', MOVIMIENTO: 'Movimiento', EVENTO: 'Evento' };
 const botonSecundario =
   'rounded-md border border-suelo-300 px-3 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500 hover:text-suelo-900';
 
-// Detalle de un potrero: stock por categoría con los cálculos, y los cambios
-// (stock, uso de suelo, hectáreas). Cada cambio queda en el historial.
+// La ficha de un potrero (rehecha el 24/11, pedido del jefe): arriba lo
+// mínimo (nombre, uso, hectáreas y los lotes de hoy) y, como centro, la tabla
+// de movimientos con cómo cambiaron las cabezas, el peso y la carga en cada
+// uno. Las correcciones (stock, uso, hectáreas) van en el menú "⋯".
 export default function PotreroPage() {
   const puedo = usePuede();
   const { id } = useParams();
@@ -85,124 +87,54 @@ export default function PotreroPage() {
   const { stock } = potrero;
   // Un corral (feedlot) no se mide por hectárea: tiene metros de comedero.
   const esCorral = potrero.tipo === 'CORRAL';
+  // Las acciones que se usan poco van en el menú "⋯" (24/11).
+  const acciones = [
+    puedo('pecuaria:CREAR') && ['stock', 'Editar stock'],
+    puedo('pecuaria:CREAR') && !esCorral && ['uso', 'Cambiar uso de suelo'],
+    puedo('pecuaria:EDITAR') && esCorral && ['comedero', potrero.metrosComedero == null ? 'Cargar metros de comedero' : 'Corregir metros de comedero'],
+    puedo('pecuaria:EDITAR') && !esCorral && ['hectareas', potrero.hectareasAConfirmar ? 'Cargar hectáreas' : 'Corregir hectáreas'],
+  ].filter(Boolean);
+  // Lo que ya está en la fila de la tabla de Potreros (cabezas, cab/ha,
+  // kg/ha) no se repite arriba: lo dice la primera fila de "Movimientos"
+  // (pedido del jefe, 24/11: la ficha muestra cómo fue cambiando el potrero).
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
-      <Link to="/pecuaria/potreros" className="text-sm text-campo-600 hover:underline">
-        ← Potreros
-      </Link>
-      <h1 className="mt-2 text-3xl font-bold">
+    <main className="mx-auto max-w-3xl px-4 py-4 sm:py-8">
+      <div className="flex items-center justify-between gap-2">
+        <Link to="/pecuaria/potreros" className="text-sm text-campo-600 hover:underline">
+          ← Potreros
+        </Link>
+        <div className="flex items-center gap-2">
+          <BotonEventos contexto={{ potrero: potrero.id }} />
+          <MenuAcciones acciones={acciones} onElegir={setModo} />
+        </div>
+      </div>
+      <h1 className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-bold">
         {potrero.nombre}
-        {potrero.tipo === 'CORRAL' && <span className="ml-2 align-middle text-sm font-medium text-amber-800">corral</span>}
+        {esCorral && <span className="text-sm font-medium text-amber-800">corral</span>}
+        <span className="text-sm font-normal text-suelo-500">{potrero.campo.nombre}</span>
       </h1>
-      <p className="text-sm text-suelo-600">{potrero.campo.nombre}</p>
-      <EnProceso procesos={potrero.procesos} />
-      <BotonEventos contexto={{ potrero: potrero.id }} className="mt-3" />
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-suelo-600">
         {!esCorral && <UsoBadge uso={potrero.usoActual} />}
         {!esCorral && potrero.usoActual && <span className="text-xs text-suelo-500">desde {formatFecha(potrero.usoActual.desde)}</span>}
         {esCorral ? (
-          <span className="text-sm text-suelo-600" data-testid="metros-comedero">
+          <span data-testid="metros-comedero">
             {potrero.metrosComedero == null ? 'Sin metros de comedero' : `${formatNumero(potrero.metrosComedero, 2)} m de comedero`}
             {potrero.metrosComedero != null && stock?.cabezas > 0 && ` · ${formatNumero(potrero.metrosComedero / stock.cabezas, 2)} m por cabeza`}
           </span>
         ) : (
           <Hectareas hectareas={potrero.hectareas} aConfirmar={potrero.hectareasAConfirmar} />
         )}
-        {potrero.areaUtilizable != null && (
-          <span className="text-sm text-suelo-600" data-testid="area-utilizable">
-            · {formatNumero(potrero.areaUtilizable, 2)} ha utilizables
-          </span>
-        )}
+        {potrero.areaUtilizable != null && <span data-testid="area-utilizable">· {formatNumero(potrero.areaUtilizable, 2)} utilizables</span>}
         {potrero.subdivisiones.length > 0 && (
           <span className="text-xs text-suelo-500">{potrero.subdivisiones.map((s) => s.codigo).join(' · ')}</span>
         )}
       </div>
+      <EnProceso procesos={potrero.procesos} />
 
-      <div className="mt-4">
+      <div className="mt-3">
         <ErrorList errors={errors} />
         <Notice tone={aviso?.tono}>{aviso?.texto}</Notice>
       </div>
-
-      <section className="mt-2 rounded-lg border border-suelo-200 p-4">
-        <p className="mb-3 text-sm text-suelo-600">
-          {stock
-            ? `Stock al ${formatFecha(stock.fecha)} · ${ORIGEN[stock.origen]}${stock.usuario ? ` (${stock.usuario})` : ''}`
-            : 'Sin datos de stock todavía'}
-        </p>
-        <div className="grid grid-cols-3 gap-3">
-          <Dato valor={formatNumero(stock?.cabezas ?? 0)} etiqueta="cabezas" />
-          <Dato valor={formatNumero(stock?.cabHa, 2)} etiqueta="cab./ha" />
-          <Dato valor={aprox(stock?.kilosEstimados, formatNumero(stock?.kgPvHa, 1))} etiqueta="kg PV/ha" />
-        </div>
-        {stock?.valorUsd > 0 && (
-          <p className="mt-3 text-sm" data-testid="valor-potrero">
-            Valor del ganado: <strong>{aprox(stock.kilosEstimados, formatUsd(stock.valorUsd))}</strong>
-            {!stock.valorCompleto && <span className="text-amber-800"> (incompleto: hay categorías sin precio)</span>}
-          </p>
-        )}
-        {stock?.kilosEstimados && (
-          <p className="mt-3 text-sm text-suelo-600">≈ Algunos lotes no tienen peso: se usa el peso promedio de su categoría (Configuración).</p>
-        )}
-        {potrero.hectareasAConfirmar && !esCorral && (
-          <p className="mt-3 text-sm text-amber-800">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
-        )}
-        {stock && !stock.kilosCompletos && (
-          <p className="mt-3 text-sm text-amber-800">Hay categorías sin peso promedio: los kilos están incompletos.</p>
-        )}
-        {stock?.lineas.length > 0 && (
-          <ul className="mt-4 space-y-2 text-sm">
-            {stock.lineas.map((l) => (
-              <LoteFila
-                key={l.loteId}
-                linea={l}
-                esCorral={esCorral}
-                puedeRegistrar={puedo('pecuaria:CREAR')}
-                onRenombrar={(nombre) => guardar(() => renombrarLote(l.loteId, nombre).then(() => null), 'Lote renombrado.')}
-              />
-            ))}
-          </ul>
-        )}
-        {puedo('pecuaria:CREAR') &&
-          familiasJuntas(stock?.lineas).map((g) => (
-            <div key={g.queda.loteId} className="mt-3 rounded-md border border-campo-300 bg-campo-50 p-3 text-sm">
-              <p>
-                <strong>{[g.queda, ...g.suman].map((l) => l.lote).join(' y ')}</strong> son del mismo lote y están juntas acá.
-              </p>
-              <button type="button" onClick={() => unir(g)} className="mt-2 rounded-md bg-boton px-3 py-1.5 font-medium text-white hover:bg-boton-hover">
-                Unirlas en {g.queda.lote}
-              </button>
-            </div>
-          ))}
-        {stock?.nota && <p className="mt-3 text-sm text-suelo-600">Nota: {stock.nota}</p>}
-        {/* Mover, entradas y salidas se registran desde el botón "+" (DECISIONES §11). */}
-      </section>
-
-      {!modo && (
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {puedo('pecuaria:CREAR') && (
-            <button type="button" onClick={() => setModo('stock')} className={buttonClass}>
-              Editar stock
-            </button>
-          )}
-          {puedo('pecuaria:CREAR') && !esCorral && (
-            <button type="button" onClick={() => setModo('uso')} className={botonSecundario}>
-              Cambiar uso de suelo
-            </button>
-          )}
-          {/* Los metros de comedero, como las hectáreas, son datos del potrero: Configuración. */}
-          {puedo('pecuaria:EDITAR') && esCorral && (
-            <button type="button" onClick={() => setModo('comedero')} className={botonSecundario}>
-              {potrero.metrosComedero == null ? 'Cargar metros de comedero' : 'Corregir metros de comedero'}
-            </button>
-          )}
-          {/* Las hectáreas son datos del potrero: Configuración. */}
-          {puedo('pecuaria:EDITAR') && !esCorral && (
-            <button type="button" onClick={() => setModo('hectareas')} className={botonSecundario}>
-              {potrero.hectareasAConfirmar ? 'Cargar hectáreas' : 'Corregir hectáreas'}
-            </button>
-          )}
-        </div>
-      )}
 
       {modo === 'stock' && (
         <EditarStock
@@ -243,8 +175,89 @@ export default function PotreroPage() {
         />
       )}
 
-      {historial && <Historial historial={historial} />}
+      {/* Qué hay hoy: los lotes, compactos (el nombre lleva a su historial). */}
+      <section className="mt-3" data-testid="lotes-hoy">
+        <h2 className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-2 text-sm font-semibold text-suelo-700">
+          <span>Hoy{stock ? ` · ${formatNumero(stock.cabezas)} cab` : ''}</span>
+          {stock?.valorUsd > 0 && (
+            <span className="text-xs font-normal text-suelo-600" data-testid="valor-potrero">
+              Valor {aprox(stock.kilosEstimados, formatUsd(stock.valorUsd))}
+              {!stock.valorCompleto && <span className="text-amber-800" title="Hay categorías sin precio"> *</span>}
+            </span>
+          )}
+        </h2>
+        {stock?.lineas.length > 0 ? (
+          <ul className="divide-y divide-suelo-200 rounded-lg border border-suelo-200 bg-superficie text-sm">
+            {stock.lineas.map((l) => (
+              <LoteFila
+                key={l.loteId}
+                linea={l}
+                esCorral={esCorral}
+                puedeRegistrar={puedo('pecuaria:CREAR')}
+                onRenombrar={(nombre) => guardar(() => renombrarLote(l.loteId, nombre).then(() => null), 'Lote renombrado.')}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-suelo-500">Vacío.</p>
+        )}
+        {potrero.hectareasAConfirmar && !esCorral && (
+          <p className="mt-2 text-xs text-amber-800">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
+        )}
+        {stock && !stock.kilosCompletos && <p className="mt-2 text-xs text-amber-800">Hay categorías sin peso promedio: los kilos están incompletos.</p>}
+        {puedo('pecuaria:CREAR') &&
+          familiasJuntas(stock?.lineas).map((g) => (
+            <div key={g.queda.loteId} className="mt-2 rounded-md border border-campo-300 bg-campo-50 p-3 text-sm">
+              <p>
+                <strong>{[g.queda, ...g.suman].map((l) => l.lote).join(' y ')}</strong> son del mismo lote y están juntas acá.
+              </p>
+              <button type="button" onClick={() => unir(g)} className="mt-2 rounded-md bg-boton px-3 py-1.5 font-medium text-white hover:bg-boton-hover">
+                Unirlas en {g.queda.lote}
+              </button>
+            </div>
+          ))}
+      </section>
+
+      {historial && <Historial historial={historial} kilosEstimados={stock?.kilosEstimados} />}
     </main>
+  );
+}
+
+// El "⋯" de arriba: las correcciones (editar stock, uso, hectáreas o comedero).
+function MenuAcciones({ acciones, onElegir }) {
+  const [abierto, setAbierto] = useState(false);
+  if (!acciones.length) return null;
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setAbierto((a) => !a)}
+        aria-label="Más opciones"
+        aria-expanded={abierto}
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-suelo-300 text-lg font-bold text-suelo-700 hover:border-campo-500"
+      >
+        ⋯
+      </button>
+      {abierto && (
+        <ul className="absolute right-0 z-30 mt-1 w-56 overflow-hidden rounded-lg border border-suelo-300 bg-superficie py-1 text-sm shadow-lg" role="menu">
+          {acciones.map(([modo, texto]) => (
+            <li key={modo}>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAbierto(false);
+                  onElegir(modo);
+                }}
+                className="block w-full px-4 py-2.5 text-left text-suelo-800 hover:bg-suelo-100"
+              >
+                {texto}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -547,44 +560,28 @@ function CorregirComedero({ potrero, onGuardar, onCancelar }) {
   );
 }
 
-function Historial({ historial }) {
+// Lo que fue pasando: la tabla de movimientos (lo principal) y, plegados, los
+// eventos y los usos de suelo anteriores.
+function Historial({ historial, kilosEstimados }) {
   return (
-    <section className="mt-8">
-      <h2 className="mb-3 text-lg font-semibold">Historial</h2>
-      <ul className="space-y-2">
-        {historial.versiones.map((v) => (
-          <li key={v.id} className="rounded-md bg-suelo-50 px-3 py-2 text-sm">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <span>
-                <strong>{formatFecha(v.fecha)}</strong> · {ORIGEN[v.origen]}
-                {v.usuario && <span className="text-suelo-600"> · {v.usuario}</span>}
-              </span>
-              <span className="font-semibold">{formatNumero(v.cabezas)} cab</span>
-            </div>
-            <p className="mt-1 text-suelo-600">
-              {v.lineas.length ? v.lineas.map((l) => `${l.lote}: ${formatNumero(l.cabezas)}`).join(' · ') : 'Vacío'}
-              {v.importacion && ` · ${v.importacion.archivo} (${v.importacion.hoja})`}
-            </p>
-            {v.movimiento && <p className="mt-1 text-campo-700">{v.movimiento}</p>}
-            {v.evento && <p className="mt-1 text-sky-800">{v.evento}</p>}
-            {v.nota && <p className="text-suelo-600">Nota: {v.nota}</p>}
-          </li>
-        ))}
-      </ul>
+    <section className="mt-5">
+      <h2 className="mb-1.5 text-sm font-semibold text-suelo-700">Movimientos</h2>
+      <HistorialPotrero versiones={historial.versiones} />
+      {kilosEstimados && <p className="mt-1.5 text-xs text-suelo-500">≈ Lotes sin pesar: se usa el peso promedio de su categoría (Configuración).</p>}
       {historial.eventos?.length > 0 && (
-        <>
-          <h3 className="mb-2 mt-5 text-sm font-semibold text-suelo-700">Eventos (pesadas, vacunas…)</h3>
-          <ul className="space-y-2" data-testid="eventos-potrero">
+        <details className="mt-4 rounded-lg border border-suelo-200 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-suelo-700">Eventos ({historial.eventos.length})</summary>
+          <ul className="mt-2 space-y-2" data-testid="eventos-potrero">
             {historial.eventos.map((e) => (
               <EventoItem key={e.id} e={e} conPotrero />
             ))}
           </ul>
-        </>
+        </details>
       )}
       {historial.usos.length > 0 && (
-        <>
-          <h3 className="mb-2 mt-5 text-sm font-semibold text-suelo-700">Usos de suelo</h3>
-          <ul className="space-y-1 text-sm">
+        <details className="mt-2 rounded-lg border border-suelo-200 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-suelo-700">Usos de suelo ({historial.usos.length})</summary>
+          <ul className="mt-2 space-y-1 text-sm">
             {historial.usos.map((u, i) => (
               <li key={i} className="flex flex-wrap items-center gap-2">
                 <UsoBadge uso={u.uso} />
@@ -595,44 +592,50 @@ function Historial({ historial }) {
               </li>
             ))}
           </ul>
-        </>
+        </details>
       )}
     </section>
   );
 }
 
-// Un lote del potrero: nombre (se cambia tocándolo), categoría, cabezas, peso,
-// y el botón para moverlo (todo o una parte) a otro lote o potrero.
+// Un lote del potrero, en una línea: el nombre (lleva a su historial),
+// categoría, cabezas y peso. El lápiz cambia el nombre.
 function LoteFila({ linea: l, esCorral, puedeRegistrar, onRenombrar }) {
   const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(l.lote);
   return (
-    <li className="rounded-md bg-suelo-50 px-3 py-2">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {editando ? (
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                onRenombrar(nombre.trim());
-                setEditando(false);
-              }}
-            >
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre del lote" className={`${inputClass} py-1`} />
-              <button type="submit" disabled={!nombre.trim()} className="text-sm text-campo-600">
-                Guardar
-              </button>
-            </form>
-          ) : puedeRegistrar ? (
-            <button type="button" onClick={() => setEditando(true)} className="text-left font-semibold hover:underline" title="Cambiar el nombre">
+    <li className="px-3 py-2">
+      {editando ? (
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onRenombrar(nombre.trim());
+            setEditando(false);
+          }}
+        >
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} aria-label="Nombre del lote" className={`${inputClass} py-1`} />
+          <button type="submit" disabled={!nombre.trim()} className="text-sm text-campo-600">
+            Guardar
+          </button>
+          <button type="button" onClick={() => setEditando(false)} className="text-sm text-suelo-600">
+            Cancelar
+          </button>
+        </form>
+      ) : (
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="flex min-w-0 items-baseline gap-1">
+            <Link to={`/pecuaria/lotes/${l.loteId}`} className="truncate font-semibold text-campo-700 hover:underline" title="Ver el historial del lote">
               {l.lote}
-            </button>
-          ) : (
-            <p className="font-semibold">{l.lote}</p>
-          )}
-          <p className="text-suelo-600">
-            {l.categoria} · {formatNumero(l.cabezas)} cab ·{' '}
+            </Link>
+            {puedeRegistrar && (
+              <button type="button" onClick={() => setEditando(true)} aria-label={`Cambiar el nombre de ${l.lote}`} className="shrink-0 px-1 text-xs text-suelo-400 hover:text-suelo-700">
+                ✎
+              </button>
+            )}
+          </div>
+          <span className="shrink-0 whitespace-nowrap tabular-nums text-suelo-700">
+            <strong>{formatNumero(l.cabezas)}</strong> ·{' '}
             {l.pesoPromedioKg ? (
               `${formatNumero(l.pesoPromedioKg)} kg`
             ) : l.pesoEstimadoKg ? (
@@ -640,18 +643,17 @@ function LoteFila({ linea: l, esCorral, puedeRegistrar, onRenombrar }) {
             ) : (
               <span className="text-amber-800">sin peso</span>
             )}
-          </p>
-          {esCorral && (
-            <p className="text-xs text-suelo-600" data-testid="entrada-corral">
-              {l.fechaEntrada ? `Entró el ${formatFecha(l.fechaEntrada)}` : 'Sin fecha de entrada'}
-              {l.pesoEntradaKg != null && ` con ${formatNumero(l.pesoEntradaKg)} kg`}
-            </p>
-          )}
-          <Link to={`/pecuaria/lotes/${l.loteId}`} className="text-xs text-campo-600 hover:underline">
-            {esCorral ? 'Ver el lote (y su entrada al corral)' : 'Ver historial del lote'}
-          </Link>
+          </span>
         </div>
-      </div>
+      )}
+      {/* La categoría solo si el nombre del lote no la dice ya. */}
+      {!editando && !l.lote.includes(l.categoria) && <p className="text-xs text-suelo-600">{l.categoria}</p>}
+      {esCorral && (
+        <p className="text-xs text-suelo-600" data-testid="entrada-corral">
+          {l.fechaEntrada ? `Entró el ${formatFecha(l.fechaEntrada)}` : 'Sin fecha de entrada'}
+          {l.pesoEntradaKg != null && ` con ${formatNumero(l.pesoEntradaKg)} kg`}
+        </p>
+      )}
     </li>
   );
 }

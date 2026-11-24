@@ -31,6 +31,8 @@ export const CATEGORIAS = [
   { nombre: 'Terneros chicos', alias: ['Ternero chico', 'Ternero chicos'] },
   { nombre: 'Terneras', alias: ['Ternera'] },
   { nombre: 'Terneras chicas', alias: ['Ternera chica'] },
+  // Los recién nacidos de la parición, sin el sexo (24/11): se sexan después.
+  { nombre: 'Terneros/as', alias: ['Terneros y terneras'] },
   { nombre: 'Vacas', alias: ['Vaca'] },
   { nombre: 'Vacas paridas', alias: ['Vaca parida'] },
   { nombre: 'Vacas invernar', alias: ['Vaca invernar', 'Vacas de invernada'] },

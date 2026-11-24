@@ -46,11 +46,12 @@ const ETAPAS = {
   BAJA: { pasos: ['A quién', 'Datos', 'Revisar'], toma: ['VIENTRES', 'SIN_SERVIR', 'PRENADAS', 'VACIAS', 'PARIDAS', 'CRIAS'], ninguno: true },
 };
 
-// Los datos de la parición de cada lote (diseño §9).
+// Los datos de la parición de cada lote (diseño §9). Los terneros, todos
+// juntos, sin el sexo; tampoco las caravanas (24/11, Diego: se cargan
+// después, en otro evento).
 const CAMPOS_PARICION = [
   ['madres', 'madres que parieron', 'Madres que parieron'],
-  ['machos', 'terneros (machos) vivos', 'Terneros (machos) vivos'],
-  ['hembras', 'terneras (hembras) vivas', 'Terneras (hembras) vivas'],
+  ['terneros', 'terneros vivos', 'Terneros vivos (machos y hembras)'],
   ['muertos', 'nacidos muertos', 'Nacidos muertos'],
   ['madresMuertas', 'madres muertas al parto', 'Madres muertas al parto'],
 ];
@@ -152,7 +153,6 @@ export default function ProcesoEtapaPage() {
             loteId: l.loteId,
             ...numeros,
             ...(d.potreroId && { potreroId: Number(d.potreroId) }),
-            ...(texto(d.caravanas) && { caravanas: texto(d.caravanas) }),
           };
         }),
       };
@@ -480,12 +480,8 @@ export default function ProcesoEtapaPage() {
                       ))}
                     </select>
                   </label>
-                  <label className="block text-xs text-suelo-600">
-                    Caravanas de los terneros (opcional)
-                    <input aria-label={`${l.nombre}: caravanas`} value={d.caravanas ?? ''} onChange={(e) => poner('caravanas', e.target.value)} placeholder="Ej.: 1001 a 1040" className={`${inputChico} mt-1`} />
-                  </label>
                   <p className="text-xs text-suelo-500">
-                    Los terneros van al lote del mes en que nacieron (por ejemplo, &quot;Terneros sep-2027&quot; y &quot;Terneras sep-2027&quot;; se crean o se suman). La madre sigue en su categoría: pasa a estar parida. Para abortos: ⋯ → Registrar abortos.
+                    Los terneros van al lote del mes en que nacieron (por ejemplo, &quot;Terneros/as sep-2027&quot;; se crea o se suma). El sexo y las caravanas se cargan después. La madre sigue en su categoría: pasa a estar parida. Para abortos: ⋯ → Registrar abortos.
                   </p>
                 </fieldset>
               );

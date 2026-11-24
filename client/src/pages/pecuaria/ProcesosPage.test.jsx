@@ -32,20 +32,28 @@ const proxima = (etapa, fecha, estado = 'PENDIENTE', extra = {}) => ({ etapa, fe
 const procesos = [
   {
     id: 7,
-    nombre: 'Entore 2026',
-    modalidad: 'TOROS',
+    nombre: 'IATF 2026',
+    modalidad: 'IATF',
     campo: { sigla: 'EG' },
     grupos: [
       { seccion: 'prenadas', tipo: 'PRENADAS', cabezas: 165, potreros: ['P1'], desde: '2026-01-01', proxima: proxima('PARICION', '2026-10-10', 'PENDIENTE', { hasta: '2026-12-10' }) },
-      { seccion: 'reentore', tipo: 'VACIAS_REENTORE', cabezas: 35, potreros: ['P8'], desde: '2026-01-01', proxima: null },
+      // Las vacías de una IATF, para volver a servir: en Entore, con el color.
+      { seccion: 'entore', tipo: 'VACIAS_REENTORE', cabezas: 35, potreros: ['P8'], desde: '2026-01-01', proxima: null, deIatf: true },
     ],
+  },
+  {
+    id: 8,
+    nombre: 'Entore vacas',
+    modalidad: 'TOROS',
+    campo: { sigla: 'EG' },
+    grupos: [{ seccion: 'entore', tipo: 'VIENTRES', cabezas: 40, potreros: ['P5'], desde: '2026-11-01', proxima: proxima('FIN_SERVICIO', '2027-01-30') }],
   },
   {
     id: 9,
     nombre: 'IATF vaquillonas',
     modalidad: 'IATF',
     campo: { sigla: 'EG' },
-    grupos: [{ seccion: 'servicio', tipo: 'VIENTRES', cabezas: 80, potreros: ['P2'], desde: '2026-11-01', proxima: proxima('DIAGNOSTICO', '2026-12-01', 'ATRASADA', { dias: -2 }) }],
+    grupos: [{ seccion: 'iatf', tipo: 'VIENTRES', cabezas: 80, potreros: ['P2'], desde: '2026-11-01', proxima: proxima('DIAGNOSTICO', '2026-12-01', 'ATRASADA', { dias: -2 }) }],
   },
 ];
 
@@ -96,15 +104,15 @@ describe('la página Procesos', () => {
     await montar();
     const titulos = [...contenedor.querySelectorAll('[data-testid="tablero"] h2 button')];
     expect(titulos.map((b) => b.textContent.replace(/\s+/g, ' '))).toEqual([
-      '1En servicioEntore · IATF80cab · 1 grupo',
-      '2ReentoreVacías que se vuelven a servir35cab · 1 grupo',
+      '1InseminaciónIATF80cab · 1 grupo',
+      '2EntoreCon toros · en otro color, las que vienen de IATF75cab · 2 grupos35 de IATF',
       '3PreñadasHasta el parto165cab · 1 grupo',
       '4Con cría al pieHasta el destete0cab',
     ]);
     expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'true')).toBe(true);
-    // Una tarjeta por grupo: el mismo entore está en Preñadas y en Reentore.
-    expect(seccion('prenadas').textContent).toMatch(/Entore 2026/);
-    expect(seccion('reentore').textContent).toMatch(/Entore 2026/);
+    // Una tarjeta por grupo: la misma IATF está en Preñadas y en Entore (sus vacías).
+    expect(seccion('prenadas').textContent).toMatch(/IATF 2026/);
+    expect(seccion('entore').textContent).toMatch(/IATF 2026/);
     expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
   });
 
@@ -122,16 +130,29 @@ describe('la página Procesos', () => {
 
   it('cada tarjeta: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {
     await montar();
-    const servicio = seccion('servicio').querySelector('[data-testid="tarjeta-grupo"]');
+    const servicio = seccion('iatf').querySelector('[data-testid="tarjeta-grupo"]');
     expect(servicio.textContent).toMatch(/En servicio · Inseminación · P2/);
     expect(servicio.textContent).toMatch(/atrasada 2 días/);
     expect(servicio.querySelector('[data-testid="barra-tiempo"]')).not.toBeNull();
     expect(servicio.querySelector('a[href="/pecuaria/procesos/9/etapa/DIAGNOSTICO"]').textContent).toBe('Ecografía');
     expect(servicio.querySelector('a[href="/pecuaria/procesos/9"]').textContent).toBe('IATF vaquillonas');
-    const vacias = seccion('reentore').querySelector('[data-tipo="VACIAS_REENTORE"]');
-    expect(vacias.querySelector('a[href="/pecuaria/procesos/nuevo?desde=7"]').textContent).toBe('Empezar el reentore');
+    const vacias = seccion('entore').querySelector('[data-tipo="VACIAS_REENTORE"]');
+    expect(vacias.querySelector('a[href="/pecuaria/procesos/nuevo?desde=7"]').textContent).toBe('Empezar el entore');
     // La parición es una ventana.
     expect(seccion('prenadas').textContent).toMatch(/10\/10\/2026 a 10\/12\/2026/);
+  });
+
+  it('lo que viene de una IATF va en Entore con otro color y la etiqueta "viene de IATF"', async () => {
+    await montar();
+    const tarjetas = [...seccion('entore').querySelectorAll('[data-testid="tarjeta-grupo"]')];
+    const deIatf = tarjetas.find((t) => t.dataset.deIatf);
+    const comun = tarjetas.find((t) => !t.dataset.deIatf);
+    expect(deIatf.dataset.deIatf).toBe('true');
+    expect(deIatf.className).toMatch(/border-trigo-500/);
+    expect(deIatf.textContent).toMatch(/^IATF 2026.*viene de IATF/);
+    expect(comun.dataset.deIatf).toBeUndefined();
+    expect(comun.textContent).not.toMatch(/viene de IATF/);
+    expect(contenedor.querySelector('[data-testid="de-iatf-entore"]').textContent).toBe('35 de IATF');
   });
 
   it('"Todos" muestra la lista de siempre', async () => {
@@ -145,6 +166,6 @@ describe('la página Procesos', () => {
     estancia.todas = true;
     await montar();
     expect(api.getProcesosTodas).toHaveBeenCalledWith({ estado: 'ABIERTO' }, 'estancias');
-    expect(seccion('servicio').textContent).toMatch(/EG IATF vaquillonas/);
+    expect(seccion('iatf').textContent).toMatch(/EG IATF vaquillonas/);
   });
 });

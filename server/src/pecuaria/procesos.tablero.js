@@ -1,18 +1,22 @@
 // El tablero de Procesos (24/11, dibujo de Diego): 4 secciones que siguen el
 // ciclo de la vaca. Una tarjeta es un grupo de un proceso en un estado, no el
-// proceso entero: el mismo entore puede tener sus preñadas en "Preñadas" y
-// sus vacías en "Reentore".
-//   servicio  En servicio: los vientres de un entore o IATF, hasta su ecografía.
-//   reentore  Reentore: los vientres de un proceso de reentore, y las vacías
-//             que esperan volver a servirse (o que todavía no se decidió).
+// proceso entero: la misma IATF puede tener sus preñadas en "Preñadas" y sus
+// vacías en "Entore".
+//   iatf      Inseminación: los vientres de las IATF, hasta su ecografía.
+//   entore    Entore: los vientres de los entores con toros. Con deIatf, lo
+//             que viene de una IATF y pasó al toro (Diego, 24/11: la IATF es
+//             la primera oportunidad y el toro la segunda; al revés no).
 //   prenadas  Preñadas: hasta el parto.
 //   cria      Con cría al pie: las paridas con sus terneros, hasta el destete.
-// La ecografía no es una sección: reparte en el momento (preñadas a 3, vacías a 2).
+// La ecografía no es una sección: reparte en el momento.
 // Todo puro: los datos vienen de procesos.service.js (listar).
 
-export const SECCIONES = ['servicio', 'reentore', 'prenadas', 'cria'];
+export const SECCIONES = ['iatf', 'entore', 'prenadas', 'cria'];
 
 const ABIERTOS = new Set(['PENDIENTE', 'PROXIMA', 'HOY', 'ATRASADA']);
+
+// IA: los procesos de antes de los ajustes del 20/11 (ahora es IATF).
+export const esIatf = (modalidad) => modalidad === 'IATF' || modalidad === 'IA';
 
 // Lo próximo de esas etapas (lo abierto más temprano), del cronograma del proceso.
 const proximaDe = (items, etapas) =>
@@ -33,10 +37,26 @@ const ordenNatural = (a, b) => a.localeCompare(b, 'es', { numeric: true });
 // el nuevo entore de unas paridas con cría al pie.
 export const esReentore = (p) => p.datos?.reentore ?? (p.procesoAnteriorId != null && !(p.datos?.conCria?.length > 0));
 
+// Lo que pasó al toro dentro de una IATF: los lotes que en el fin de la
+// inseminación fueron "al repaso con toro" y, si hubo un repaso con toros,
+// todo el proceso. De las anclas que no están anuladas.
+export function alToroEnIatf(anclas = []) {
+  const vivas = anclas.filter((a) => !a.anulado);
+  return {
+    repasoTodo: vivas.some((a) => a.etapa === 'REPASO'),
+    loteIds: new Set(vivas.filter((a) => a.etapa === 'FIN_INSEMINACION' && a.datos?.destino === 'REPASO').map((a) => a.loteId)),
+  };
+}
+
 // Los grupos de un proceso abierto.
+//   modalidad: la del proceso (TOROS | IATF | IA)
+//   deIatf: el proceso es un entore con las vacías de una IATF
+//   alToro: lo de la IATF que pasó al toro (alToroEnIatf)
 //   lotes: los que están hoy en el proceso, { loteId, rol, destino, cabezas, potrero }
 //   items: el cronograma (procesos.sugerencias.js)
-export function gruposDelProceso({ reentore = false, fechaInicio, lotes, items = [] }) {
+export function gruposDelProceso({ modalidad, deIatf = false, alToro = { repasoTodo: false, loteIds: new Set() }, fechaInicio, lotes, items = [] }) {
+  const iatf = esIatf(modalidad);
+  const propia = iatf ? 'iatf' : 'entore';
   const grupos = [];
   const armar = (seccion, tipo, delGrupo, extra = {}) => {
     const conAnimales = delGrupo.filter((l) => l.cabezas > 0);
@@ -47,24 +67,33 @@ export function gruposDelProceso({ reentore = false, fechaInicio, lotes, items =
       cabezas: conAnimales.reduce((s, l) => s + l.cabezas, 0),
       loteIds: conAnimales.map((l) => l.loteId),
       potreros: [...new Set(conAnimales.map((l) => l.potrero).filter(Boolean))].sort(ordenNatural),
+      deIatf: false,
       ...extra,
     });
   };
   const de = (...roles) => lotes.filter((l) => roles.includes(l.rol));
+  const servicio = { desde: fechaInicio, proxima: proximaDe(items, ['INSEMINACION', 'FIN_SERVICIO', 'DIAGNOSTICO']) };
 
-  // En servicio (o en el reentore): hasta el fin del servicio y la ecografía.
-  armar(reentore ? 'reentore' : 'servicio', 'VIENTRES', de('SIN_SERVIR', 'VIENTRES'), {
-    desde: fechaInicio,
-    proxima: proximaDe(items, ['INSEMINACION', 'FIN_SERVICIO', 'DIAGNOSTICO']),
-  });
-  // Las vacías: para volver a servir, o todavía sin decidir. Las que se
-  // movieron afuera (LIBRES) ya no están.
+  // Los vientres: en una IATF, los que pasaron al toro van a Entore (con el
+  // color); el resto, a Inseminación. En un entore, a Entore.
+  const vientres = de('SIN_SERVIR', 'VIENTRES');
+  if (iatf) {
+    const pasaron = (l) => l.rol === 'VIENTRES' && (alToro.repasoTodo || alToro.loteIds.has(l.loteId));
+    armar('iatf', 'VIENTRES', vientres.filter((l) => !pasaron(l)), servicio);
+    armar('entore', 'VIENTRES', vientres.filter(pasaron), { ...servicio, deIatf: true });
+  } else {
+    armar('entore', 'VIENTRES', vientres, { ...servicio, deIatf });
+  }
+  // Las vacías para volver a servir van a Entore (las de una IATF, con el
+  // color). Las que todavía no se decidió, en la sección de su proceso. Las
+  // que se movieron afuera (LIBRES) ya no están.
   const vacias = de('VACIAS');
-  armar('reentore', 'VACIAS_REENTORE', vacias.filter((l) => l.destino === 'REENTORE'), { desde: ultimaReal(items, ['DIAGNOSTICO']) });
-  armar('reentore', 'VACIAS_A_DECIDIR', vacias.filter((l) => l.destino == null || l.destino === 'DESPUES'), { desde: ultimaReal(items, ['DIAGNOSTICO']) });
+  const desdeEco = ultimaReal(items, ['DIAGNOSTICO']);
+  armar('entore', 'VACIAS_REENTORE', vacias.filter((l) => l.destino === 'REENTORE'), { desde: desdeEco, deIatf: iatf || deIatf });
+  armar(propia, 'VACIAS_A_DECIDIR', vacias.filter((l) => l.destino == null || l.destino === 'DESPUES'), { desde: desdeEco, deIatf: !iatf && deIatf });
   // Preñadas: hasta la parición (la ventana del mes que viene primero).
   armar('prenadas', 'PRENADAS', de('PRENADAS'), {
-    desde: ultimaReal(items, ['DIAGNOSTICO']) ?? fechaInicio,
+    desde: desdeEco ?? fechaInicio,
     proxima: proximaDe(items, ['PARICION']),
   });
   // Con cría al pie: las paridas, con cuántos terneros tienen, hasta el destete.

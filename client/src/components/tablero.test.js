@@ -10,14 +10,16 @@ describe('armarTablero', () => {
         nombre: 'A',
         grupos: [
           { seccion: 'prenadas', tipo: 'PRENADAS', cabezas: 50, proxima: { fecha: '2026-10-01' } },
-          { seccion: 'reentore', tipo: 'VACIAS_REENTORE', cabezas: 20, proxima: null },
+          { seccion: 'entore', tipo: 'VACIAS_REENTORE', cabezas: 20, proxima: null, deIatf: true },
         ],
       },
       { id: 3, nombre: 'C' },
     ]);
     expect(t.prenadas.map((g) => g.proceso.nombre)).toEqual(['A', 'B']);
-    expect(t.totales).toEqual({ servicio: 0, reentore: 20, prenadas: 150, cria: 0 });
-    expect(t.reentore[0].clave).toBe('2-VACIAS_REENTORE');
+    expect(t.totales).toEqual({ iatf: 0, entore: 20, prenadas: 150, cria: 0 });
+    // Cuántas vienen de IATF en cada sección (van con otro color).
+    expect(t.deIatf).toEqual({ iatf: 0, entore: 20, prenadas: 0, cria: 0 });
+    expect(t.entore[0].clave).toBe('2-VACIAS_REENTORE-iatf');
   });
 });
 
@@ -31,8 +33,8 @@ describe('avance', () => {
 });
 
 describe('accionDeGrupo', () => {
-  it('vacías para volver a servir → empezar el reentore; sin decidir → decidir; el resto, la etapa que viene', () => {
-    expect(accionDeGrupo(4, { tipo: 'VACIAS_REENTORE' })).toEqual({ texto: 'Empezar el reentore', ruta: '/pecuaria/procesos/nuevo?desde=4' });
+  it('vacías para volver a servir → empezar el entore; sin decidir → decidir; el resto, la etapa que viene', () => {
+    expect(accionDeGrupo(4, { tipo: 'VACIAS_REENTORE' })).toEqual({ texto: 'Empezar el entore', ruta: '/pecuaria/procesos/nuevo?desde=4' });
     expect(accionDeGrupo(4, { tipo: 'VACIAS_A_DECIDIR' })).toEqual({ texto: 'Decidir', ruta: '/pecuaria/procesos/4/etapa/DECISION' });
     expect(accionDeGrupo(4, { tipo: 'PRENADAS', proxima: { etapa: 'PARICION' } })).toEqual({ texto: 'Registrar parición', ruta: '/pecuaria/procesos/4/etapa/PARICION' });
     expect(accionDeGrupo(4, { tipo: 'PARIDAS', proxima: { etapa: 'DESTETE' } }).texto).toBe('Destetar');

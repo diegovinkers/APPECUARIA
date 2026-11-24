@@ -91,6 +91,11 @@ export default function TableroProcesos({ tablero, errors, todas }) {
                   <span className="text-xs text-suelo-500">
                     cab{grupos.length ? ` · ${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}` : ''}
                   </span>
+                  {tablero.deIatf[s.clave] > 0 && (
+                    <span className="block text-xs font-medium text-trigo-600" data-testid={`de-iatf-${s.clave}`}>
+                      {formatNumero(tablero.deIatf[s.clave])} de IATF
+                    </span>
+                  )}
                 </span>
                 <Icono nombre="abajo" className={`h-5 w-5 shrink-0 text-suelo-500 transition-transform ${abierta ? 'rotate-180' : ''}`} />
               </button>
@@ -132,7 +137,13 @@ function TarjetaGrupo({ g, todas }) {
   // Compacta (24/11, captura de Diego): nombre y cabezas; qué grupo y dónde;
   // lo que sigue con los días y la barra; las fechas y el botón, chico, al lado.
   return (
-    <article className="rounded-lg border border-suelo-300 bg-superficie px-3 py-2" data-testid="tarjeta-grupo" data-tipo={g.tipo}>
+    // Lo que viene de una IATF y pasó al toro, en color trigo y con la etiqueta.
+    <article
+      className={`rounded-lg border px-3 py-2 ${g.deIatf ? 'border-trigo-500 bg-trigo-100' : 'border-suelo-300 bg-superficie'}`}
+      data-testid="tarjeta-grupo"
+      data-tipo={g.tipo}
+      data-de-iatf={g.deIatf ? 'true' : undefined}
+    >
       <div className="flex items-baseline gap-2">
         <Link to={`/pecuaria/procesos/${p.id}`} className="min-w-0 flex-1 truncate font-semibold text-campo-800 hover:underline">
           {nombreProceso(p, todas)}
@@ -142,6 +153,7 @@ function TarjetaGrupo({ g, todas }) {
         </span>
       </div>
       <p className="truncate text-xs text-suelo-600">
+        {g.deIatf && <span className="mr-1 rounded bg-trigo-500 px-1.5 py-px text-[11px] font-semibold text-trigo-900">viene de IATF</span>}
         {TEXTO_GRUPO[g.tipo]}
         {g.tipo === 'VIENTRES' && ` · ${textoTipo(p.modalidad)}`}
         {g.potreros.length ? ` · ${g.potreros.join(', ')}` : ''}

@@ -40,6 +40,9 @@ const TRAZOS = {
   check: 'M5 12l5 5L20 7',
   // Procesos (23/11): un ciclo.
   procesos: 'M20 12a8 8 0 0 1-13.7 5.7M4 12a8 8 0 0 1 13.7-5.7M18 3v3.5h-3.5M6 21v-3.5h3.5',
+  // Tema claro / oscuro (24/11), en la barra de arriba del celular.
+  sol: 'M8 12a4 4 0 1 0 8 0 4 4 0 1 0-8 0M3 12h1M20 12h1M12 3v1M12 20v1M5.6 5.6l.7.7M17.7 17.7l.7.7M5.6 18.4l.7-.7M17.7 6.3l.7-.7',
+  luna: 'M12 3h.39a7.5 7.5 0 0 0 7.92 12.45A9 9 0 1 1 12 3z',
   // Mostrar / ocultar la contraseña (21/11).
   ojo: 'M10 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M21 12c-2.4 4-5.4 6-9 6s-6.6-2-9-6c2.4-4 5.4-6 9-6s6.6 2 9 6',
   ojoTachado:

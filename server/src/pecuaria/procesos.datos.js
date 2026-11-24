@@ -76,14 +76,18 @@ export function lineaRevision(linea, lote) {
   return { cabezas: aPrenadas + aVacias, datos: { aPrenadas, aVacias }, aLoteId: linea.aLoteId ?? null };
 }
 
-// Una línea de la parición: { datos: { madres, machos, hembras, muertos, madresMuertas }, avisos } o { error }.
+// Una línea de la parición: { datos: { madres, terneros, machos, hembras, muertos, madresMuertas }, avisos } o { error }.
 // lote: { nombre, cabezas } (las que quedan sin parir). Vacío = 0.
+// terneros: los nacidos vivos, sin el sexo (24/11, pedido de Diego: el sexo
+// se carga después, en otro evento). machos y hembras son de las pariciones
+// de antes (se siguen aceptando).
 export function lineaParicion(linea, lote) {
   const en = ` (lote ${lote.nombre})`;
   const datos = {};
   for (const [campo, que] of [
     ['madres', 'Las madres que parieron'],
-    ['machos', 'Los terneros'],
+    ['terneros', 'Los terneros'],
+    ['machos', 'Los machos'],
     ['hembras', 'Las terneras'],
     ['muertos', 'Los nacidos muertos'],
     ['madresMuertas', 'Las madres muertas'],
@@ -92,12 +96,12 @@ export function lineaParicion(linea, lote) {
     if (!r.success) return { error: `${que} ${r.error.issues[0].message}${en}` };
     datos[campo] = r.data ?? 0;
   }
-  const { madres, machos, hembras, muertos, madresMuertas } = datos;
-  if (madres + madresMuertas + machos + hembras + muertos < 1) return { error: `Escribí cuántas parieron${en}` };
+  const { madres, terneros, machos, hembras, muertos, madresMuertas } = datos;
+  if (madres + madresMuertas + terneros + machos + hembras + muertos < 1) return { error: `Escribí cuántas parieron${en}` };
   if (madres + madresMuertas > lote.cabezas) {
     return { error: `En el lote ${lote.nombre} quedan ${lote.cabezas} sin parir: no pueden haber parido ${madres} y muerto ${madresMuertas}` };
   }
-  const nacidos = machos + hembras + muertos;
+  const nacidos = terneros + machos + hembras + muertos;
   if (nacidos < madres) return { error: `En el lote ${lote.nombre} parieron ${madres} madres, pero nacieron ${nacidos} (vivos y muertos)` };
   const avisos = nacidos > madres + madresMuertas ? [`En el lote ${lote.nombre} nacieron más terneros que madres: ¿mellizos?`] : [];
   // La caravana de los terneros: dato opcional, texto libre (fase 7).
@@ -107,6 +111,13 @@ export function lineaParicion(linea, lote) {
 }
 
 const fmt = (n) => Number(n ?? 0).toLocaleString('es-UY');
+// "40 terneros" (sin el sexo) o, en las de antes, "21 machos y 19 hembras".
+function textoNacidos(d) {
+  const partes = [];
+  if (d.terneros) partes.push(`${fmt(d.terneros)} ${d.terneros === 1 ? 'ternero' : 'terneros'}`);
+  if (d.machos || d.hembras) partes.push(`${fmt(d.machos)} machos y ${fmt(d.hembras)} hembras`);
+  return partes.join(' · ') || '0 terneros';
+}
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const nombreMes = (mes) => (mes === 'sin' ? 'sin mes' : MESES[Number(mes.slice(5, 7)) - 1]);
 // IA: los procesos de antes de los ajustes del 20/11 (ahora es IATF).
@@ -143,7 +154,7 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
     case 'FIN_INSEMINACION':
       return `${fmt(cabezas)} sin inseminar: ${d.destino === 'REPASO' ? 'al repaso con toro' : 'salen del proceso'}`;
     case 'PARICION':
-      return `${fmt(d.madres)} paridas · ${fmt(d.machos)} machos y ${fmt(d.hembras)} hembras${d.muertos ? ` · ${fmt(d.muertos)} nacidos muertos` : ''}${d.potrero ? ` · a ${d.potrero}` : ''}${d.caravanas ? ` · caravanas: ${d.caravanas}` : ''}`;
+      return `${fmt(d.madres)} paridas · ${textoNacidos(d)}${d.muertos ? ` · ${fmt(d.muertos)} nacidos muertos` : ''}${d.potrero ? ` · a ${d.potrero}` : ''}${d.caravanas ? ` · caravanas: ${d.caravanas}` : ''}`;
     case 'FIN_PARICION':
       return d.falladas ? `${fmt(d.falladas)} no parieron` : 'parieron todas';
     case 'DESTETE':

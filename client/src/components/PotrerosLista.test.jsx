@@ -187,9 +187,12 @@ describe('la tabla de potreros', () => {
     expect(botonFiltros.textContent).toBe('2');
   });
 
-  it('arriba de la tabla: el buscador ocupa el ancho y el botón Filtros va a la derecha (24/11)', () => {
+  it('abajo de la tabla (cerca del pulgar): el buscador ocupa el ancho y el botón Filtros va a la derecha (24/11)', () => {
     montar([potrero(1, '8.1', 10, 5), potrero(2, '10.2', 10, 5)], '/pecuaria/potreros?q=8&grupo=CN');
     const barra = contenedor.querySelector('[data-testid="barra-potreros"]');
+    // La barra va después de la tabla.
+    const tabla = contenedor.querySelector('[data-testid="caja-potreros"]');
+    expect(tabla.compareDocumentPosition(barra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const buscador = barra.querySelector('input[aria-label="Buscar potrero o lote"]');
     expect(buscador.value).toBe('8');
     // El botón queda después del buscador (a la derecha).

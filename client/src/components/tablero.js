@@ -1,14 +1,15 @@
 // El tablero de Procesos (24/11, dibujo de Diego): las 4 secciones del ciclo
 // de la vaca. El servidor manda, en cada proceso abierto, sus `grupos` (uno
 // por estado, cada uno con su sección); acá se juntan por sección.
+// La IATF es la primera oportunidad y el toro la segunda: lo que viene de una
+// IATF y pasó al toro va en Entore con otro color (deIatf).
 
 export const SECCIONES_TABLERO = [
-  { clave: 'servicio', nombre: 'En servicio', corto: 'Servicio', sub: 'Entore · IATF', vacio: 'No hay vacas en servicio. Se empieza con "+ Nuevo proceso".' },
-  { clave: 'reentore', nombre: 'Reentore', corto: 'Reentore', sub: 'Vacías que se vuelven a servir', vacio: 'No hay vacías para volver a servir.' },
-  { clave: 'prenadas', nombre: 'Preñadas', corto: 'Preñadas', sub: 'Hasta el parto', vacio: 'No hay preñadas esperando el parto.' },
-  { clave: 'cria', nombre: 'Con cría al pie', corto: 'Cría', sub: 'Hasta el destete', vacio: 'No hay vacas con cría al pie.' },
+  { clave: 'iatf', nombre: 'Inseminación', sub: 'IATF', vacio: 'No hay vacas en inseminación. Se empieza con "+ Nuevo".' },
+  { clave: 'entore', nombre: 'Entore', sub: 'Con toros · en otro color, las que vienen de IATF', vacio: 'No hay vacas con toros.' },
+  { clave: 'prenadas', nombre: 'Preñadas', sub: 'Hasta el parto', vacio: 'No hay preñadas esperando el parto.' },
+  { clave: 'cria', nombre: 'Con cría al pie', sub: 'Hasta el destete', vacio: 'No hay vacas con cría al pie.' },
 ];
-export const esSeccion = (clave) => SECCIONES_TABLERO.some((s) => s.clave === clave);
 
 // Qué es cada grupo, en la tarjeta.
 export const TEXTO_GRUPO = {
@@ -19,20 +20,22 @@ export const TEXTO_GRUPO = {
   PARIDAS: 'Paridas',
 };
 
-// { servicio: [tarjetas], ..., totales: { servicio: cabezas, ... } }. Cada
-// tarjeta es un grupo con su proceso; primero lo que vence antes (lo que no
-// tiene fecha, al final).
+// { iatf: [tarjetas], ..., totales: { iatf: cabezas, ... }, deIatf: { entore: cabezas, ... } }.
+// Cada tarjeta es un grupo con su proceso; primero lo que vence antes (lo que
+// no tiene fecha, al final).
 export function armarTablero(procesos = []) {
   const tablero = Object.fromEntries(SECCIONES_TABLERO.map((s) => [s.clave, []]));
   for (const p of procesos) {
-    for (const g of p.grupos ?? []) tablero[g.seccion]?.push({ ...g, proceso: p, clave: `${p.id}-${g.tipo}` });
+    for (const g of p.grupos ?? []) tablero[g.seccion]?.push({ ...g, proceso: p, clave: `${p.id}-${g.tipo}-${g.deIatf ? 'iatf' : ''}` });
   }
   const totales = {};
+  const deIatf = {};
   for (const { clave } of SECCIONES_TABLERO) {
     tablero[clave].sort((a, b) => (a.proxima?.fecha ?? '9999').localeCompare(b.proxima?.fecha ?? '9999') || a.proceso.nombre.localeCompare(b.proceso.nombre));
     totales[clave] = tablero[clave].reduce((s, g) => s + g.cabezas, 0);
+    deIatf[clave] = tablero[clave].reduce((s, g) => s + (g.deIatf ? g.cabezas : 0), 0);
   }
-  return { ...tablero, totales };
+  return { ...tablero, totales, deIatf };
 }
 
 const dia = (iso) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
@@ -46,7 +49,8 @@ export function avance(desde, hasta, hoy) {
 }
 
 // El botón de lo que sigue en la tarjeta: { texto, ruta } (o null).
-//   vacías para volver a servir → empezar el reentore (Nuevo proceso enganchado)
+//   vacías para volver a servir → empezar el entore (Nuevo proceso enganchado;
+//                                 arranca con "Entore con toros" elegido)
 //   vacías sin decidir          → decidir (la pantalla de la etapa)
 //   el resto                    → la pantalla de la etapa que viene
 const BOTON = {
@@ -57,7 +61,7 @@ const BOTON = {
   DESTETE: 'Destetar',
 };
 export function accionDeGrupo(procesoId, g) {
-  if (g.tipo === 'VACIAS_REENTORE') return { texto: 'Empezar el reentore', ruta: `/pecuaria/procesos/nuevo?desde=${procesoId}` };
+  if (g.tipo === 'VACIAS_REENTORE') return { texto: 'Empezar el entore', ruta: `/pecuaria/procesos/nuevo?desde=${procesoId}` };
   if (g.tipo === 'VACIAS_A_DECIDIR') return { texto: 'Decidir', ruta: `/pecuaria/procesos/${procesoId}/etapa/DECISION` };
   const etapa = g.proxima?.etapa;
   return etapa && BOTON[etapa] ? { texto: BOTON[etapa], ruta: `/pecuaria/procesos/${procesoId}/etapa/${etapa}` } : null;

@@ -37,6 +37,45 @@ const lineas = async (agent, potrero) =>
   ((await agent.get(`${API}/potreros/${potrero.id}`).expect(200)).body.stock?.lineas ?? []).map((l) => [l.lote, l.categoria, l.cabezas]).sort((a, b) => a[0].localeCompare(b[0]));
 const parto = (lote, extra = {}) => ({ loteId: lote.id, madres: 6, machos: 3, hembras: 2, muertos: 1, ...extra });
 
+describe('parición sin el sexo de los terneros (24/11)', () => {
+  // Diego: al parir se carga el total de terneros; el sexo y las caravanas,
+  // después, en otro evento.
+  it('el total va a un solo lote "Terneros/as <mes>" (categoría Terneros/as, sin sexo), que se crea si falta', async () => {
+    const { agent, proceso, P, Q, P12 } = await preparar();
+    // Una instalación nueva la trae del seed; una base de antes (desarrollo,
+    // Render) no: se borra para probar que la parición la crea.
+    expect(await prisma.categoria.findUnique({ where: { nombre: 'Terneros/as' } })).toMatchObject({ sexo: null });
+    await prisma.categoria.delete({ where: { nombre: 'Terneros/as' } });
+    const r = await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-12', lineas: [{ loteId: P.id, madres: 6, terneros: 6 }] });
+    const categoria = await prisma.categoria.findUnique({ where: { nombre: 'Terneros/as' } });
+    expect(categoria.sexo).toBeNull();
+    expect(await lineas(agent, P12)).toEqual([
+      ['Lote P', 'Vaquillonas preñadas', 12],
+      ['Lote P · paridas oct', 'Vaquillonas preñadas', 6],
+      ['Lote Q', 'Vaquillonas preñadas', 20],
+      ['Terneros/as oct-2026', 'Terneros/as', 6],
+    ]);
+    expect(r.ficha.embudo).toMatchObject({ paridas: 6, ternerosVivos: 6 });
+    const ancla = await prisma.eventoRegistro.findFirst({ where: { procesoId: proceso.id, etapa: 'PARICION' } });
+    expect(ancla.datos).toMatchObject({ madres: 6, terneros: 6, machos: 0, hembras: 0 });
+    expect(ancla.datos.caravanas).toBeUndefined();
+
+    // Otra carga del mismo mes (otro lote de madres) se suma al mismo lote de terneros/as.
+    await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-20', lineas: [{ loteId: Q.id, madres: 5, terneros: 6 }] });
+    expect((await lineas(agent, P12)).filter(([n]) => n.startsWith('Terneros/as'))).toEqual([['Terneros/as oct-2026', 'Terneros/as', 12]]);
+    expect(await prisma.categoria.count({ where: { nombre: 'Terneros/as' } })).toBe(1);
+  });
+
+  it('la vista previa cuenta los terneros sin sexo y avisa de mellizos; nacidos de menos es error', async () => {
+    const { agent, proceso, P } = await preparar();
+    const previa = (await agent.post(`${API}/procesos/${proceso.id}/etapas/PARICION/vista-previa`).send({ fecha: '2026-10-12', lineas: [{ loteId: P.id, madres: 4, terneros: 5 }] }).expect(200)).body;
+    expect(previa.oracion).toMatch(/parición de 4 madres \(5 terneros vivos\)/);
+    expect(previa.avisos.join(' ')).toMatch(/¿mellizos\?/);
+    const mal = await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-12', lineas: [{ loteId: P.id, madres: 4, terneros: 3 }] }, 400);
+    expect(mal.errors[0]).toMatch(/parieron 4 madres, pero nacieron 3/);
+  });
+});
+
 describe('parición', () => {
   // Fase 7: la madre no cambia de categoría (el estado va en el rol) y los
   // terneros van al lote del mes en que nacieron ("Terneros oct-2026").

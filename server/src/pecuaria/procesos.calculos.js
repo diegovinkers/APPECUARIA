@@ -12,7 +12,7 @@
 //   DIAGNOSTICO   { metodo, prenadas: { [mes | 'sin']: n }, vacias, inicial? }
 //   REVISION      { aPrenadas, aVacias }                 (corrige el diagnóstico)
 //   ABORTO        cabezas = abortos
-//   PARICION      { madres, machos, hembras, muertos, madresMuertas }
+//   PARICION      { madres, terneros, muertos, madresMuertas } (antes del 24/11: machos y hembras en vez de terneros)
 //   FIN_PARICION  { falladas }
 //   DESTETE       { destetados, pesoPromedioKg? }
 import { normalizarTexto } from './normalizar.js';
@@ -146,7 +146,7 @@ export function embudo(anclas, movimientos = []) {
 
   const partos = de(a, 'PARICION');
   const paridas = partos.length ? suma(partos, (x) => num(x.datos?.madres)) : null;
-  const ternerosVivos = partos.length ? suma(partos, (x) => num(x.datos?.machos) + num(x.datos?.hembras)) : null;
+  const ternerosVivos = partos.length ? suma(partos, (x) => num(x.datos?.terneros) + num(x.datos?.machos) + num(x.datos?.hembras)) : null;
   const nacidosMuertos = suma(partos, (x) => num(x.datos?.muertos));
   const madresMuertas = suma(partos, (x) => num(x.datos?.madresMuertas));
 

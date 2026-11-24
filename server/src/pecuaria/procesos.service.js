@@ -11,7 +11,7 @@
 //
 // La etapa actual, las próximas fechas y el embudo se calculan
 // (procesos.calculos.js); no se guardan.
-import { esReentore, gruposDelProceso } from './procesos.tablero.js';
+import { alToroEnIatf, esIatf, esReentore, gruposDelProceso } from './procesos.tablero.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { Prisma } from '../generated/prisma/client.ts';
@@ -1094,7 +1094,21 @@ async function loteDelMes(ctx, { rol, mes, potreroId, raizId, sexo = null }) {
     include: { lote: { include: { categoria: { select: { sexo: true } } } } },
     orderBy: { id: 'asc' },
   });
-  return pls.find((pl) => (sexo ? pl.lote.categoria.sexo === sexo : pl.lote.id === raizId || pl.lote.raizId === raizId)) ?? null;
+  // sexo 'SIN': el lote de crías sin sexo (Terneros/as).
+  const coincide = (pl) => (sexo === 'SIN' ? pl.lote.categoria.sexo == null : pl.lote.categoria.sexo === sexo);
+  return pls.find((pl) => (sexo ? coincide(pl) : pl.lote.id === raizId || pl.lote.raizId === raizId)) ?? null;
+}
+
+// La categoría de los terneros recién nacidos, sin el sexo (24/11). Si la
+// base no la tiene (las categorías del seed solo se crean en una base
+// vacía), se crea la primera vez, después de "Terneras chicas".
+export const CATEGORIA_SIN_SEXO = 'Terneros/as';
+async function categoriaSinSexo(tx) {
+  const ya = await tx.categoria.findUnique({ where: { nombre: CATEGORIA_SIN_SEXO } });
+  if (ya) return ya;
+  const vecina = await tx.categoria.findFirst({ where: { nombre: 'Terneras chicas' }, select: { orden: true } });
+  const ultima = await tx.categoria.aggregate({ _max: { orden: true } });
+  return tx.categoria.create({ data: { nombre: CATEGORIA_SIN_SEXO, sexo: null, orden: vecina ? vecina.orden + 1 : (ultima._max.orden ?? 0) + 10 } });
 }
 
 // "Terneros set-2027": el lote de las crías de un mes.
@@ -1139,7 +1153,7 @@ async function cargaParicion(ctx, body) {
     const r = lineaParicion(linea, lote);
     if (r.error) throw badRequest(r.error);
     ctx.avisos.push(...r.avisos);
-    const { madres, machos, hembras, madresMuertas } = r.datos;
+    const { madres, terneros, machos, hembras, madresMuertas } = r.datos;
     const destinoId = linea.potreroId ? Number(linea.potreroId) : lote.potreroId;
     let destinoNombre = null;
     if (destinoId !== lote.potreroId) {
@@ -1194,6 +1208,13 @@ async function cargaParicion(ctx, body) {
     }
 
     const crias = [];
+    // Sin el sexo (24/11): todos al lote "Terneros/as <mes>" (categoría Terneros/as).
+    if (terneros) {
+      const ya = await loteDelMes(ctx, { rol: 'CRIAS', mes, potreroId: destinoId, sexo: 'SIN' });
+      if (ya) crias.push({ cabezas: terneros, loteId: ya.loteId });
+      else crias.push({ cabezas: terneros, nuevoLote: { nombre: await nombreLibre(tx, lote.campoId, nombreCrias(CATEGORIA_SIN_SEXO, mes)), categoriaId: (await categoriaSinSexo(tx)).id } });
+    }
+    // Las de antes, con el sexo: un lote de terneros y otro de terneras.
     for (const [sexo, n, paso, palabra] of [
       ['MACHO', machos, 'CRIA_MACHO', 'terneros'],
       ['HEMBRA', hembras, 'CRIA_HEMBRA', 'terneras'],
@@ -1556,7 +1577,7 @@ function oracionEtapa(ctx) {
   }
   if (ctx.etapa === 'PARICION') {
     const madres = ctx.lineas.reduce((s, l) => s + l.datos.madres, 0);
-    const vivos = ctx.lineas.reduce((s, l) => s + l.datos.machos + l.datos.hembras, 0);
+    const vivos = ctx.lineas.reduce((s, l) => s + l.datos.terneros + l.datos.machos + l.datos.hembras, 0);
     return `Vas a anotar la parición de ${plural(madres, 'madre', 'madres')} (${plural(vivos, 'ternero vivo', 'terneros vivos')}) el ${fechaUY(ctx.dia)}`;
   }
   if (ctx.etapa === 'FIN_PARICION') return `Vas a anotar el fin de la parición: ${plural(cabezas, 'no parió', 'no parieron')} (pasan a vacías) el ${fechaUY(ctx.dia)}`;
@@ -1835,6 +1856,8 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
       campo: { select: { id: true, sigla: true, nombre: true } },
       lotes: { include: { lote: { select: { id: true, activo: true, potreroId: true, potrero: { select: { nombre: true } } } } } },
       registros: { select: anclaSelect },
+      // El tablero: si el proceso anterior era una IATF (las vacías que pasan al toro).
+      procesoAnterior: { select: { datos: true } },
       ...incluirSiguientes,
     },
     orderBy: [{ fechaInicio: 'desc' }, { id: 'desc' }],
@@ -1874,7 +1897,10 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
       grupos:
         p.estado === 'ABIERTO'
           ? gruposDelProceso({
-              reentore,
+              modalidad: p.datos?.modalidad,
+              // Un entore con las vacías de una IATF (va con otro color).
+              deIatf: reentore && esIatf(p.procesoAnterior?.datos?.modalidad),
+              alToro: alToroEnIatf(anclas),
               fechaInicio: fechaISO(p.fechaInicio),
               items: cronograma.items,
               lotes: activos.map((pl) => ({ loteId: pl.loteId, rol: pl.rol, destino: pl.destino, cabezas: cabezas.get(pl.loteId) ?? 0, potrero: pl.lote.potrero.nombre })),

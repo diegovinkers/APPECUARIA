@@ -200,35 +200,6 @@ export default function PotrerosLista({ potreros, todas = false }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Arriba de la tabla: el buscador ocupa el ancho y el botón Filtros
-          va a la derecha (pedido de Diego, 24/11). En la compu el panel está
-          fijo a la izquierda y el botón no aparece. */}
-      <div className="mb-2 flex shrink-0 items-center gap-2" data-testid="barra-potreros">
-        <div className="relative min-w-0 flex-1">
-          <Icono nombre="buscar" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-suelo-400" />
-          <input
-            type="text"
-            inputMode="search"
-            enterKeyHint="search"
-            value={f.q}
-            onChange={(e) => poner({ q: e.target.value })}
-            placeholder="Buscar potrero o lote…"
-            aria-label="Buscar potrero o lote"
-            className="block w-full rounded-md border border-suelo-300 bg-superficie py-1.5 pl-8 pr-8 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:border-campo-500 focus:ring-2 focus:ring-campo-500/40"
-          />
-          {f.q && (
-            <button
-              type="button"
-              onClick={() => poner({ q: '' })}
-              aria-label="Borrar la búsqueda"
-              className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-suelo-500 hover:bg-suelo-100 hover:text-suelo-800"
-            >
-              <Icono nombre="cerrar" className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        <DestinoBotonFiltros />
-      </div>
       <PanelFiltros activos={activosPanel} onLimpiar={limpiar} compacto>
         {/* Los grupos bajan de renglón si no entran (nada de scroll de costado). */}
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Grupo de uso de suelo">
@@ -309,6 +280,36 @@ export default function PotrerosLista({ potreros, todas = false }) {
           </div>
         </div>
       )}
+      {/* Abajo de la tabla, cerca del pulgar (pedido de Diego, 24/11): el
+          buscador ocupa el ancho y el botón Filtros va a la derecha. Con pocos
+          potreros (o ninguno) queda igual abajo de todo (mt-auto). En la
+          compu el panel está fijo a la izquierda y el botón no aparece. */}
+      <div className="mt-auto flex shrink-0 items-center gap-2 pt-2" data-testid="barra-potreros">
+        <div className="relative min-w-0 flex-1">
+          <Icono nombre="buscar" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-suelo-400" />
+          <input
+            type="text"
+            inputMode="search"
+            enterKeyHint="search"
+            value={f.q}
+            onChange={(e) => poner({ q: e.target.value })}
+            placeholder="Buscar potrero o lote…"
+            aria-label="Buscar potrero o lote"
+            className="block w-full rounded-md border border-suelo-300 bg-superficie py-1.5 pl-8 pr-8 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:border-campo-500 focus:ring-2 focus:ring-campo-500/40"
+          />
+          {f.q && (
+            <button
+              type="button"
+              onClick={() => poner({ q: '' })}
+              aria-label="Borrar la búsqueda"
+              className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-suelo-500 hover:bg-suelo-100 hover:text-suelo-800"
+            >
+              <Icono nombre="cerrar" className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <DestinoBotonFiltros />
+      </div>
     </div>
   );
 }

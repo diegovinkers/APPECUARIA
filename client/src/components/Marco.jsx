@@ -53,7 +53,7 @@ export function SelectorEstancia() {
       value={valor}
       onChange={(e) => setCampoId([TODAS, FEEDLOTS].includes(e.target.value) ? e.target.value : Number(e.target.value))}
       aria-label="Estancia"
-      className="max-w-[45vw] truncate rounded-full border-0 bg-white/15 px-3 py-1 text-sm text-white outline-none focus:ring-2 focus:ring-trigo-400 [&_option]:text-suelo-900 [&_optgroup]:text-suelo-900"
+      className="min-w-0 max-w-[45vw] truncate rounded-full border-0 bg-white/15 px-3 py-1 text-sm text-white outline-none focus:ring-2 focus:ring-trigo-400 [&_option]:text-suelo-900 [&_optgroup]:text-suelo-900"
     >
       {feedlots.length === 0 ? (
         opciones(estancias, TODAS, 'Todas las estancias')
@@ -98,6 +98,26 @@ export function SelectorTema() {
         ))}
       </div>
     </div>
+  );
+}
+
+// El botón de la barra de arriba, solo en el celular (24/11, pedido de
+// Diego): pasa de claro a oscuro y al revés. El ícono dice cómo está la
+// pantalla (sol = claro, luna = oscuro). "Automático" queda en el menú ☰.
+export function BotonTema() {
+  const { tema, elegir } = useTema();
+  const oscuro = tema === 'oscuro';
+  return (
+    <button
+      type="button"
+      onClick={() => elegir(oscuro ? 'claro' : 'oscuro')}
+      aria-label={oscuro ? 'Pantalla oscura: pasar a clara' : 'Pantalla clara: pasar a oscura'}
+      title={oscuro ? 'Pasar a pantalla clara' : 'Pasar a pantalla oscura'}
+      className="flex h-9 w-8 shrink-0 items-center justify-center rounded-md text-white/90 hover:bg-white/15 lg:hidden"
+      data-testid="boton-tema"
+    >
+      <Icono nombre={oscuro ? 'luna' : 'sol'} className="h-5 w-5" />
+    </button>
   );
 }
 
@@ -275,9 +295,11 @@ function MarcoInterno() {
     // Fijo a la pantalla (fixed inset-0): arrastrar de más no corre la barra de
     // abajo (pedido de Diego, 19/11).
     <div className="fixed inset-0 flex flex-col">
-      <header className="relative z-30 flex shrink-0 items-center gap-2 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4">
+      {/* En el celular entran logo, estancia, tema y ☰ a 360 px: logo un poco
+          más bajo y menos espacio entre cosas (24/11). */}
+      <header className="relative z-30 flex shrink-0 items-center gap-1.5 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4">
         <Link to="/pecuaria/resumen" className="flex shrink-0 items-center" aria-label="SAPSA, ir al inicio">
-          <Logo />
+          <Logo className="h-6 w-auto lg:h-7" />
         </Link>
         <SelectorEstancia />
         <nav aria-label="Principal" className="ml-3 hidden items-center gap-1 lg:flex">
@@ -298,6 +320,7 @@ function MarcoInterno() {
           </button>
         )}
         <span className="hidden text-sm text-white/80 lg:inline">{user.nombre}</span>
+        <BotonTema />
         <button
           type="button"
           onClick={() => setMenuAbierto((a) => !a)}

@@ -10,8 +10,8 @@ import { PantallaTabla, SinEstancia } from './comun';
 // pantalla no scrollea: solo la tabla.
 // Sin título ni estancia arriba (pedido de Diego, 24/11): la estancia ya está
 // en la barra de arriba y la pantalla, marcada en la de abajo. Tampoco está
-// "+ Corral". Arriba de la tabla, el buscador y el botón de los filtros
-// (PotrerosLista).
+// "+ Corral". Abajo de la tabla (cerca del pulgar), el buscador y el botón
+// de los filtros (PotrerosLista).
 export default function PotrerosPage() {
   const { campoId, todas, grupo } = useEstancia();
   const { potreros, errors } = usePotreros(campoId, todas, grupo);

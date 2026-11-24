@@ -97,4 +97,14 @@ describe('Registro: pestañas Movimientos y Eventos (20/11)', () => {
     act(() => pestania('Eventos').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
     expect(anotar()).toBe(true);
   });
+
+  it('las pestañas, "Anotar" y los filtros van abajo, después de la tabla, y se esconden acostado (24/11)', () => {
+    montar('/pecuaria/registro?ver=eventos');
+    const barra = contenedor.querySelector('[data-testid="barra-registro"]');
+    expect(barra.querySelector('nav[aria-label="Pestañas del registro"]')).not.toBeNull();
+    expect([...barra.querySelectorAll('button')].some((b) => b.textContent === 'Anotar evento')).toBe(true);
+    expect(barra.className).toMatch(/acostado:hidden/);
+    // La barra es lo último de la pantalla.
+    expect(barra.nextElementSibling).toBeNull();
+  });
 });

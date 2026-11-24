@@ -90,17 +90,25 @@ async function montar(ruta = '/pecuaria/procesos') {
 }
 const lista = () => contenedor.querySelector('[data-testid="lista"]')?.textContent;
 const seccion = (clave) => contenedor.querySelector(`[data-testid="seccion-${clave}"]`);
+// Las secciones arrancan cerradas: abrir una (o varias) para ver sus tarjetas.
+const abrir = (...claves) => claves.forEach((c) => act(() => seccion(c).querySelector('h2 button').click()));
 
 describe('la página Procesos', () => {
-  it('título con la estancia, "+ Nuevo proceso" y el tablero de los procesos abiertos', async () => {
+  it('sin título a la vista; abajo (después del tablero) Tablero / Todos y "+ Nuevo" (24/11)', async () => {
     await montar();
-    expect(contenedor.querySelector('h1').textContent).toBe('ProcesosLa Gateada');
-    expect(contenedor.querySelector('a[href="/pecuaria/procesos/nuevo"]')).not.toBeNull();
+    // El título queda solo para los lectores de pantalla; la estancia ya está arriba.
+    expect(contenedor.querySelector('h1').className).toMatch(/sr-only/);
+    expect(contenedor.textContent).not.toMatch(/La Gateada/);
+    const barra = contenedor.querySelector('[data-testid="barra-procesos"]');
+    const tablero = contenedor.querySelector('[data-testid="tablero"]');
+    expect(tablero.compareDocumentPosition(barra) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect([...barra.querySelectorAll('nav[aria-label="Vista"] button')].map((b) => b.textContent)).toEqual(['Tablero', 'Todos']);
+    expect(barra.querySelector('a[href="/pecuaria/procesos/nuevo"]')).not.toBeNull();
     expect(api.getProcesos).toHaveBeenCalledWith(1, { estado: 'ABIERTO' });
     expect(lista()).toBeUndefined();
   });
 
-  it('las 4 secciones una debajo de la otra, abiertas, con sus cabezas (acordeón)', async () => {
+  it('las 4 secciones arrancan cerradas y se reparten el alto, con sus cabezas (acordeón)', async () => {
     await montar();
     const titulos = [...contenedor.querySelectorAll('[data-testid="tablero"] h2 button')];
     expect(titulos.map((b) => b.textContent.replace(/\s+/g, ' '))).toEqual([
@@ -109,27 +117,36 @@ describe('la página Procesos', () => {
       '3PreñadasHasta el parto165cab · 1 grupo',
       '4Con cría al pieHasta el destete0cab',
     ]);
-    expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'true')).toBe(true);
+    expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true);
+    // Todas cerradas: cada una es un bloque que ocupa una parte igual del alto.
+    expect(['iatf', 'entore', 'prenadas', 'cria'].every((c) => /\bflex-1\b/.test(seccion(c).className))).toBe(true);
+    expect(contenedor.querySelector('[data-testid="tarjeta-grupo"]')).toBeNull();
+    abrir('prenadas', 'entore', 'cria');
     // Una tarjeta por grupo: la misma IATF está en Preñadas y en Entore (sus vacías).
     expect(seccion('prenadas').textContent).toMatch(/IATF 2026/);
     expect(seccion('entore').textContent).toMatch(/IATF 2026/);
     expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
   });
 
-  it('tocar el encabezado pliega la sección (y se recuerda)', async () => {
+  it('la que se abre ocupa el lugar libre y se scrollea adentro; las otras quedan como encabezado', async () => {
     await montar();
     const boton = () => seccion('prenadas').querySelector('h2 button');
     act(() => boton().click());
-    expect(boton().getAttribute('aria-expanded')).toBe('false');
-    expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).toBeNull();
-    expect(JSON.parse(localStorage.getItem('procesos-plegadas'))).toEqual(['prenadas']);
-    act(() => boton().click());
+    expect(boton().getAttribute('aria-expanded')).toBe('true');
+    expect(seccion('prenadas').className).toMatch(/\bflex-1\b/);
+    expect(seccion('iatf').className).toMatch(/\bshrink-0\b/);
+    expect(seccion('iatf').className).not.toMatch(/\bflex-1\b/);
+    expect(contenedor.querySelector('[data-testid="contenido-prenadas"]').className).toMatch(/overflow-y-auto/);
     expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).not.toBeNull();
-    expect(JSON.parse(localStorage.getItem('procesos-plegadas'))).toEqual([]);
+    // Cerrarla vuelve a los cuatro bloques.
+    act(() => boton().click());
+    expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).toBeNull();
+    expect(seccion('iatf').className).toMatch(/\bflex-1\b/);
   });
 
   it('cada tarjeta: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {
     await montar();
+    abrir('iatf', 'entore', 'prenadas');
     const servicio = seccion('iatf').querySelector('[data-testid="tarjeta-grupo"]');
     expect(servicio.textContent).toMatch(/En servicio · Inseminación · P2/);
     expect(servicio.textContent).toMatch(/atrasada 2 días/);
@@ -144,6 +161,7 @@ describe('la página Procesos', () => {
 
   it('lo que viene de una IATF va en Entore con otro color y la etiqueta "viene de IATF"', async () => {
     await montar();
+    abrir('entore');
     const tarjetas = [...seccion('entore').querySelectorAll('[data-testid="tarjeta-grupo"]')];
     const deIatf = tarjetas.find((t) => t.dataset.deIatf);
     const comun = tarjetas.find((t) => !t.dataset.deIatf);
@@ -166,6 +184,7 @@ describe('la página Procesos', () => {
     estancia.todas = true;
     await montar();
     expect(api.getProcesosTodas).toHaveBeenCalledWith({ estado: 'ABIERTO' }, 'estancias');
+    abrir('iatf');
     expect(seccion('iatf').textContent).toMatch(/EG IATF vaquillonas/);
   });
 });

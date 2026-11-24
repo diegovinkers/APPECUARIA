@@ -33,45 +33,37 @@ export function useTablero({ campoId, todas, grupo }) {
   return { tablero, errors };
 }
 
-// Las secciones plegadas se recuerdan en este navegador (solo una comodidad:
-// sin el dato, arrancan todas abiertas).
-const CLAVE_PLEGADAS = 'procesos-plegadas';
-function leerPlegadas() {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(CLAVE_PLEGADAS) ?? '[]'));
-  } catch {
-    return new Set();
-  }
-}
-function guardarPlegadas(plegadas) {
-  try {
-    localStorage.setItem(CLAVE_PLEGADAS, JSON.stringify([...plegadas]));
-  } catch {
-    // Sin almacenamiento (ventana privada): no se recuerda, nada más.
-  }
-}
-
 // Las 4 secciones una debajo de la otra, como un acordeón (el dibujo de
-// Diego: todo el ciclo a la vista). Tocar el encabezado pliega o despliega.
+// Diego: todo el ciclo a la vista). Pedido del 24/11: arrancan cerradas y se
+// reparten todo el alto de la pantalla (cuatro bloques grandes); la que se
+// abre ocupa el lugar libre y sus tarjetas se scrollean adentro (si hay dos
+// abiertas, se reparten el lugar). Las cerradas quedan como encabezado.
 export default function TableroProcesos({ tablero, errors, todas }) {
-  const [plegadas, setPlegadas] = useState(leerPlegadas);
+  const [abiertas, setAbiertas] = useState(() => new Set());
   const alternar = (clave) =>
-    setPlegadas((antes) => {
+    setAbiertas((antes) => {
       const nuevas = new Set(antes);
       nuevas.has(clave) ? nuevas.delete(clave) : nuevas.add(clave);
-      guardarPlegadas(nuevas);
       return nuevas;
     });
   if (errors.length) return <ErrorList errors={errors} />;
   if (!tablero) return <p className="text-suelo-600">Cargando…</p>;
+  const ninguna = abiertas.size === 0;
   return (
-    <div className="min-h-0 flex-1 space-y-2 overflow-auto pb-4" data-testid="tablero">
+    <div className="flex min-h-0 flex-1 flex-col gap-2" data-testid="tablero">
       {SECCIONES_TABLERO.map((s, i) => {
-        const abierta = !plegadas.has(s.clave);
+        const abierta = abiertas.has(s.clave);
         const grupos = tablero[s.clave];
+        // Todas cerradas: cada una es un bloque que ocupa un cuarto del alto.
+        const bloque = ninguna;
         return (
-          <section key={s.clave} aria-label={s.nombre} className="overflow-hidden rounded-lg border border-suelo-300 bg-superficie" data-testid={`seccion-${s.clave}`}>
-            <h2>
+          <section
+            key={s.clave}
+            aria-label={s.nombre}
+            className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-suelo-300 bg-superficie ${bloque || abierta ? 'flex-1' : 'shrink-0'}`}
+            data-testid={`seccion-${s.clave}`}
+          >
+            <h2 className={bloque ? 'flex flex-1' : 'shrink-0'}>
               <button
                 type="button"
                 onClick={() => alternar(s.clave)}
@@ -79,13 +71,13 @@ export default function TableroProcesos({ tablero, errors, todas }) {
                 aria-controls={`seccion-${s.clave}-contenido`}
                 className="flex w-full items-center gap-3 bg-suelo-100 px-3 py-2.5 text-left hover:bg-suelo-200/70"
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-boton text-sm font-bold text-white">{i + 1}</span>
+                <span className={`flex shrink-0 items-center justify-center rounded-full bg-boton font-bold text-white ${bloque ? 'h-9 w-9' : 'h-7 w-7 text-sm'}`}>{i + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-semibold leading-tight">{s.nombre}</span>
+                  <span className={`block font-semibold leading-tight ${bloque ? 'text-lg' : ''}`}>{s.nombre}</span>
                   <span className="block truncate text-xs text-suelo-500">{s.sub}</span>
                 </span>
                 <span className="shrink-0 text-right leading-tight">
-                  <span className="block font-bold tabular-nums" data-testid={`total-${s.clave}`}>
+                  <span className={`block font-bold tabular-nums ${bloque ? 'text-2xl' : ''}`} data-testid={`total-${s.clave}`}>
                     {formatNumero(tablero.totales[s.clave])}
                   </span>
                   <span className="text-xs text-suelo-500">
@@ -101,7 +93,7 @@ export default function TableroProcesos({ tablero, errors, todas }) {
               </button>
             </h2>
             {abierta && (
-              <div id={`seccion-${s.clave}-contenido`} className="p-2">
+              <div id={`seccion-${s.clave}-contenido`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" data-testid={`contenido-${s.clave}`}>
                 {grupos.length === 0 ? (
                   <p className="px-2 py-3 text-center text-sm text-suelo-500">{s.vacio}</p>
                 ) : (

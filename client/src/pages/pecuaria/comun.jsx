@@ -30,6 +30,18 @@ export function PantallaTabla({ children }) {
   return <main className="mx-auto flex h-full max-w-5xl flex-col px-4 pt-3 sm:pt-5 lg:pb-4 acostado:pr-14 acostado:pt-2">{children}</main>;
 }
 
+// La barra de las opciones de una pantalla, abajo de todo y a lo ancho, cerca
+// del pulgar (pedido de Diego, 24/11; como el buscador de Potreros). Va
+// después del contenido; con poco contenido queda igual abajo (mt-auto).
+// acostado: se esconde con el celular horizontal (las tablas primero).
+export function BarraAbajo({ children, acostado = false, ...resto }) {
+  return (
+    <div className={`mt-auto flex shrink-0 items-center gap-2 pt-2 ${acostado ? 'acostado:hidden' : ''}`} {...resto}>
+      {children}
+    </div>
+  );
+}
+
 // Mientras no haya estancia elegida: cargando, error o "importá la planilla".
 export function SinEstancia() {
   const { campos, errors } = useEstancia();

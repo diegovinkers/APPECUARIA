@@ -4,12 +4,14 @@ import usePuede from '../../hooks/usePuede';
 import { Notice } from '../../components/ui';
 import ProcesosLista from '../../components/ProcesosLista';
 import TableroProcesos, { useTablero } from '../../components/TableroProcesos';
-import { Encabezado, PantallaTabla, SinEstancia } from './comun';
+import { BarraAbajo, PantallaTabla, SinEstancia } from './comun';
+import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 
 // Procesos (24/11, dibujo de Diego): el tablero con las 4 secciones del ciclo
-// de la vaca una debajo de la otra, como un acordeón (En servicio, Reentore,
+// de la vaca una debajo de la otra, como un acordeón (Inseminación, Entore,
 // Preñadas, Con cría al pie), y aparte "Todos" (la lista de siempre, con
-// cerrados y anulados). Lo que se ve va en la URL (?ver=todos).
+// cerrados y anulados). Lo que se ve va en la URL (?ver=todos). Abajo, a lo
+// ancho: Tablero / Todos, los filtros (en Todos) y "+ Nuevo".
 export default function ProcesosPage() {
   const location = useLocation();
   const puedo = usePuede();
@@ -30,27 +32,24 @@ export default function ProcesosPage() {
       },
       { replace: true },
     );
-  const opcion = (activa) => `flex-1 rounded-md px-3 py-1.5 text-sm font-semibold ${activa ? 'bg-boton text-white' : 'text-suelo-700 hover:bg-suelo-200/70'}`;
+  const opcion = (activa) => `flex-1 rounded-md px-3 py-1.5 text-sm font-semibold ${activa ? 'bg-boton text-white shadow-sm' : 'text-suelo-700 hover:bg-suelo-300/60'}`;
 
   return (
     <PantallaTabla>
-      <Encabezado titulo="Procesos">
-        {puedo('pecuaria:CREAR') && (
-          // En el celular, "+ Nuevo" (así entra al lado del botón Filtros de "Todos").
-          <Link
-            to="/pecuaria/procesos/nuevo"
-            aria-label="Nuevo proceso"
-            className="inline-flex min-h-10 items-center whitespace-nowrap rounded-md bg-boton px-3 py-2 text-sm font-semibold text-white hover:bg-boton-hover"
-          >
-            + Nuevo<span className="hidden sm:inline">&nbsp;proceso</span>
-          </Link>
-        )}
-      </Encabezado>
+      {/* Sin título ni estancia arriba (24/11): la estancia ya está en la barra
+          de arriba. Las opciones van abajo, cerca del pulgar. */}
+      <h1 className="sr-only">Procesos</h1>
       <Notice tone="ok">{location.state?.aviso}</Notice>
       {!hayEstancia && <SinEstancia />}
+      {hayEstancia &&
+        (verTodos ? (
+          <ProcesosLista campoId={campoId} todas={todas} grupo={grupo} conNuevo={false} />
+        ) : (
+          <TableroProcesos tablero={tablero} errors={errors} todas={todas} />
+        ))}
       {hayEstancia && (
-        <>
-          <nav aria-label="Vista" className="mb-2 flex shrink-0 gap-1 rounded-lg bg-suelo-100 p-1 sm:max-w-xs">
+        <BarraAbajo data-testid="barra-procesos">
+          <nav aria-label="Vista" className="flex min-w-0 flex-1 gap-1 rounded-lg bg-suelo-200/70 p-1">
             <button type="button" onClick={() => ver(false)} aria-pressed={!verTodos} className={opcion(!verTodos)}>
               Tablero
             </button>
@@ -58,12 +57,18 @@ export default function ProcesosPage() {
               Todos
             </button>
           </nav>
-          {verTodos ? (
-            <ProcesosLista campoId={campoId} todas={todas} grupo={grupo} conNuevo={false} />
-          ) : (
-            <TableroProcesos tablero={tablero} errors={errors} todas={todas} />
+          {/* En "Todos", el botón de los filtros (la lista los manda acá). */}
+          <DestinoBotonFiltros />
+          {puedo('pecuaria:CREAR') && (
+            <Link
+              to="/pecuaria/procesos/nuevo"
+              aria-label="Nuevo proceso"
+              className="inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-md bg-boton px-3 py-2 text-sm font-semibold text-white hover:bg-boton-hover"
+            >
+              + Nuevo<span className="hidden sm:inline">&nbsp;proceso</span>
+            </Link>
           )}
-        </>
+        </BarraAbajo>
       )}
     </PantallaTabla>
   );

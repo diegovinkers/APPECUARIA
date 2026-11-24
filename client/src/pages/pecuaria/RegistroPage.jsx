@@ -5,8 +5,7 @@ import { ErrorList, Notice } from '../../components/ui';
 import MovimientosLista from '../../components/MovimientosLista';
 import BotonEventos from '../../components/BotonEventos';
 import { DestinoBotonFiltros } from '../../components/PanelFiltros';
-import { nombreGrupo } from '../../navegacion/grupos';
-import { PantallaTabla, SinEstancia } from './comun';
+import { BarraAbajo, PantallaTabla, SinEstancia } from './comun';
 
 // Las pestañas (pedido de Diego, 20/11). `?ver=eventos` abre Eventos; sin
 // nada, Movimientos. Procesos era la tercera: desde el 23/11 es una página
@@ -28,7 +27,7 @@ export const pestaniaDe = (params) => (params.get('ver') === 'eventos' ? 'evento
 export default function RegistroPage() {
   const location = useLocation();
   const [params] = useSearchParams();
-  const { campo, campoId, todas, grupo } = useEstancia();
+  const { campoId, todas, grupo } = useEstancia();
   const { potreros, errors } = usePotreros(campoId, todas, grupo);
   const ver = pestaniaDe(params);
   const aProcesos = params.get('ver') === 'procesos';
@@ -53,16 +52,23 @@ export default function RegistroPage() {
 
   return (
     <PantallaTabla>
-      <div className="mb-2 flex shrink-0 items-center gap-2">
-        <h1 className="sr-only">Registro</h1>
-        <nav aria-label="Pestañas del registro" className="flex rounded-lg bg-suelo-200/70 p-1">
+      <h1 className="sr-only">Registro</h1>
+      <Notice tone="ok">{location.state?.aviso}</Notice>
+      <ErrorList errors={errors} />
+      {!campoId && !todas && <SinEstancia />}
+      {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {potreros && <MovimientosLista key={ver} ver={ver} campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
+      {/* Abajo, a lo ancho y cerca del pulgar (24/11): las pestañas, "Anotar"
+          (en Eventos) y los filtros. Con el celular acostado se esconde. */}
+      <BarraAbajo acostado data-testid="barra-registro">
+        <nav aria-label="Pestañas del registro" className="flex min-w-0 flex-1 rounded-lg bg-suelo-200/70 p-1">
           {PESTANIAS.map(([valor, texto]) => (
             <Link
               key={valor}
               to={enlace(valor)}
               replace
               aria-current={ver === valor ? 'page' : undefined}
-              className={`rounded-md px-3 py-1.5 text-sm font-semibold sm:px-4 sm:text-base ${
+              className={`min-w-0 flex-1 truncate rounded-md px-1.5 py-1.5 text-center text-sm font-semibold sm:px-3 sm:text-base ${
                 ver === valor ? 'bg-boton text-white shadow-sm' : 'text-suelo-700 hover:bg-suelo-300/60'
               }`}
             >
@@ -70,18 +76,9 @@ export default function RegistroPage() {
             </Link>
           ))}
         </nav>
-        {/* La estancia ya está arriba en el selector: en el celular no se repite. */}
-        {(campo || todas) && <span className="hidden text-sm text-suelo-600 sm:inline">{todas ? nombreGrupo(grupo) : campo.nombre}</span>}
-        <div className="ml-auto flex items-center gap-2">
-          {ver === 'eventos' && <BotonEventos />}
-          <DestinoBotonFiltros />
-        </div>
-      </div>
-      <Notice tone="ok">{location.state?.aviso}</Notice>
-      <ErrorList errors={errors} />
-      {!campoId && !todas && <SinEstancia />}
-      {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
-      {potreros && <MovimientosLista key={ver} ver={ver} campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
+        {ver === 'eventos' && <BotonEventos corto />}
+        <DestinoBotonFiltros />
+      </BarraAbajo>
     </PantallaTabla>
   );
 }

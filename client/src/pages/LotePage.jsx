@@ -6,7 +6,6 @@ import { ErrorList, Notice, inputClass } from '../components/ui';
 import { formatFecha, formatNumero, EnProceso } from '../components/pecuaria';
 import { EventoItem, MovimientoItem } from '../components/movimientos';
 import usePuede from '../hooks/usePuede';
-import BotonEventos from '../components/BotonEventos';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -173,7 +172,6 @@ export default function LotePage() {
         </Link>
       </p>
       <EnProceso procesos={procesos} />
-      {lote.activo && <BotonEventos contexto={{ lote: lote.id }} className="mt-3" />}
 
       {actual ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-suelo-200 bg-superficie px-4 py-3">

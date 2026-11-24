@@ -11,8 +11,6 @@ vi.mock('../../context/EstanciaContext', () => ({
 vi.mock('../../hooks/usePotreros', () => ({ default: () => ({ errors: [], potreros: [] }) }));
 // La lista se prueba aparte: acá solo importa qué pestaña recibe.
 vi.mock('../../components/MovimientosLista', () => ({ default: ({ ver }) => <p data-testid="lista">{ver}</p> }));
-// "Anotar evento" se prueba aparte (BotonEventos.test.jsx).
-vi.mock('../../components/BotonEventos', () => ({ default: () => <button type="button">Anotar evento</button> }));
 
 const { default: RegistroPage } = await import('./RegistroPage.jsx');
 const { RedirigirA } = await import('./comun.jsx');
@@ -89,20 +87,22 @@ describe('Registro: pestañas Movimientos y Eventos (20/11)', () => {
     expect(lista()).toBe('página procesos');
   });
 
-  it('las pestañas son dos, y "Anotar evento" está solo en la de Eventos', () => {
-    const anotar = () => [...contenedor.querySelectorAll('button')].some((b) => b.textContent === 'Anotar evento');
+  it('las pestañas son dos y la barra no cambia al pasar a Eventos: anotar va en el "+" (24/11)', () => {
     montar('/pecuaria/registro');
     expect([...contenedor.querySelectorAll('nav[aria-label="Pestañas del registro"] a')].map((a) => a.textContent)).toEqual(['Movimientos', 'Eventos']);
-    expect(anotar()).toBe(false);
+    const barra = () => contenedor.querySelector('[data-testid="barra-registro"]');
+    const hijos = () => [...barra().children].map((c) => c.tagName);
+    const antes = hijos();
     act(() => pestania('Eventos').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
-    expect(anotar()).toBe(true);
+    expect(hijos()).toEqual(antes);
+    expect(barra().querySelectorAll('button')).toHaveLength(0);
+    expect(contenedor.textContent).not.toMatch(/Anotar/);
   });
 
-  it('las pestañas, "Anotar" y los filtros van abajo, después de la tabla, y se esconden acostado (24/11)', () => {
+  it('las pestañas y los filtros van abajo, después de la tabla, y se esconden acostado (24/11)', () => {
     montar('/pecuaria/registro?ver=eventos');
     const barra = contenedor.querySelector('[data-testid="barra-registro"]');
     expect(barra.querySelector('nav[aria-label="Pestañas del registro"]')).not.toBeNull();
-    expect([...barra.querySelectorAll('button')].some((b) => b.textContent === 'Anotar evento')).toBe(true);
     expect(barra.className).toMatch(/acostado:hidden/);
     // La barra es lo último de la pantalla.
     expect(barra.nextElementSibling).toBeNull();

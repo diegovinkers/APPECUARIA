@@ -16,7 +16,6 @@ import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { EnProceso, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, formatNumero, formatUsd } from '../components/pecuaria';
 import usePuede from '../hooks/usePuede';
 import { EventoItem } from '../components/movimientos';
-import BotonEventos from '../components/BotonEventos';
 import HistorialPotrero from '../components/HistorialPotrero';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
@@ -103,10 +102,7 @@ export default function PotreroPage() {
         <Link to="/pecuaria/potreros" className="text-sm text-campo-600 hover:underline">
           ← Potreros
         </Link>
-        <div className="flex items-center gap-2">
-          <BotonEventos contexto={{ potrero: potrero.id }} />
-          <MenuAcciones acciones={acciones} onElegir={setModo} />
-        </div>
+        <MenuAcciones acciones={acciones} onElegir={setModo} />
       </div>
       <h1 className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-bold">
         {potrero.nombre}

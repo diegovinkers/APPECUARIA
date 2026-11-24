@@ -1,18 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { getTiposMovimiento } from '../api/pecuaria';
-import { getErrorMessages } from '../api/axios';
 import { ICONO_EVENTO, agruparEventos, nombreCorto } from '../navegacion/eventos';
-import { rutaEvento } from '../navegacion/menu';
-import { ErrorList } from './ui';
 import Icono from './Icono';
 
-// La hoja del botón "Eventos": qué les hiciste (sin moverlos). Los tipos salen
-// del catálogo (efecto REGISTRO y activos); Pesada y Recuento arriba y
-// grandes, después Sanidad, Reproducción, Manejo y Otros. Al elegir uno va al
-// camino de 4 pasos (EventoPage). contexto: { potrero, lote } de la pantalla
-// donde estabas, para que el camino arranque con eso elegido.
-// En el celular sube desde abajo; en la compu es una ventana al medio.
+// La lista de eventos: qué les hiciste (sin moverlos). Los tipos salen del
+// catálogo (efecto REGISTRO y activos); Pesada y Recuento arriba y grandes,
+// después Sanidad, Reproducción, Manejo y Otros. Al elegir uno va al camino de
+// 4 pasos (EventoPage). La usan la pestaña Eventos del "+" (HojaRegistrar,
+// 24/11) y EventoPage.
 export function ListaEventos({ tipos, onElegir }) {
   const { destacados, grupos } = agruparEventos(tipos);
   if (!destacados.length && !grupos.length) return <p className="py-4 text-sm text-suelo-600">No hay eventos activos (Configuración → Tipos de movimiento).</p>;
@@ -50,49 +43,6 @@ export function ListaEventos({ tipos, onElegir }) {
           </div>
         </section>
       ))}
-    </div>
-  );
-}
-
-export default function HojaEventos({ onCerrar, contexto = {} }) {
-  const navigate = useNavigate();
-  const [tipos, setTipos] = useState(null);
-  const [errors, setErrors] = useState([]);
-
-  useEffect(() => {
-    getTiposMovimiento()
-      .then(({ data }) => setTipos(data))
-      .catch((error) => setErrors(getErrorMessages(error, 'No se pudieron cargar los eventos')));
-  }, []);
-
-  useEffect(() => {
-    const tecla = (e) => e.key === 'Escape' && onCerrar();
-    document.addEventListener('keydown', tecla);
-    return () => document.removeEventListener('keydown', tecla);
-  }, [onCerrar]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center">
-      <button type="button" aria-label="Cerrar" onClick={onCerrar} className="absolute inset-0 bg-black/40" />
-      <div
-        role="dialog"
-        aria-label="Eventos"
-        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-superficie px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
-      >
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-suelo-300 lg:hidden" aria-hidden="true" />
-        <div className="mb-3 flex items-center gap-2">
-          <h2 className="flex-1 text-base font-semibold">
-            ¿Qué les hiciste?
-            <span className="block text-xs font-normal text-suelo-500">Siguen donde estaban. Para moverlos, el botón +.</span>
-          </h2>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="rounded-md p-1 text-suelo-500 hover:bg-suelo-200/70">
-            <Icono nombre="cerrar" />
-          </button>
-        </div>
-        <ErrorList errors={errors} />
-        {!tipos && !errors.length && <p className="py-4 text-sm text-suelo-600">Cargando…</p>}
-        {tipos && <ListaEventos tipos={tipos} onElegir={(t) => navigate(rutaEvento(t.id, contexto))} />}
-      </div>
     </div>
   );
 }

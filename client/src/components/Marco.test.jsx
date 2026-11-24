@@ -381,6 +381,72 @@ describe('Marco: el botón +', () => {
   });
 });
 
+describe('Marco: el "+" también anota eventos (24/11)', () => {
+  const hoja = () => contenedor.querySelector('[role="dialog"]');
+  const pestanias = () => [...hoja().querySelectorAll('nav[aria-label="Qué registrar"] button')];
+  const abrirEventos = async () => {
+    click(boton('Registrar'));
+    await act(async () => pestanias()[1].click());
+  };
+  const elegir = (nombre) => click([...hoja().querySelectorAll('button')].find((b) => b.textContent.trim() === nombre));
+
+  it('arriba, Movimientos / Eventos; arranca en Movimientos', () => {
+    montar();
+    click(boton('Registrar'));
+    expect(pestanias().map((b) => b.textContent)).toEqual(['Movimientos', 'Eventos']);
+    expect(pestanias()[0].getAttribute('aria-pressed')).toBe('true');
+    expect(hoja().textContent).toContain('Mover de potrero');
+  });
+
+  it('Eventos: Pesada y Recuento grandes, después los grupos; sin los inactivos ni los que mueven', async () => {
+    montar();
+    await abrirEventos();
+    expect(hoja().textContent).not.toContain('Mover de potrero');
+    expect([...hoja().querySelectorAll('.grid button')].map((b) => b.textContent.trim())).toEqual(['Pesada', 'Recuento']);
+    const grupos = [...hoja().querySelectorAll('section')].map((g) => [g.querySelector('p').textContent, [...g.querySelectorAll('button')].map((b) => b.textContent)]);
+    expect(grupos).toEqual([
+      ['Sanidad', ['Vacuna aftosa']],
+      ['Reproducción (hembras)', ['Ecografía']],
+      ['Otros', ['Baño']],
+    ]);
+    expect(hoja().textContent).not.toContain('Dosificación');
+    expect(hoja().textContent).not.toContain('Sumar a otro lote');
+  });
+
+  it('elegir un evento lleva al camino de 4 pasos', async () => {
+    montar();
+    await abrirEventos();
+    elegir('Pesada');
+    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=15');
+  });
+
+  it('desde la ficha de un potrero o de un lote, arranca con eso elegido', async () => {
+    montar('/pecuaria/potreros/10');
+    await abrirEventos();
+    elegir('Vacuna aftosa');
+    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=24&potrero=10');
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    montar('/pecuaria/lotes/7');
+    await abrirEventos();
+    elegir('Recuento');
+    expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=27&lote=7');
+  });
+
+  it('desde Registro → Eventos, el "+" abre en Eventos', async () => {
+    montar('/pecuaria/registro?ver=eventos');
+    await act(async () => boton('Registrar').click());
+    expect(pestanias()[1].getAttribute('aria-pressed')).toBe('true');
+    expect(hoja().textContent).toContain('Pesada');
+  });
+
+  it('quien no registra (Dirección) no tiene el "+"', () => {
+    estado.user = direccion;
+    montar();
+    expect(boton('Registrar')).toBeUndefined();
+  });
+});
+
 describe('Marco: Procesos en lugar de Eventos (23/11)', () => {
   it('Procesos lleva a su página', () => {
     montar();
@@ -388,7 +454,7 @@ describe('Marco: Procesos en lugar de Eventos (23/11)', () => {
     expect(link.getAttribute('href')).toBe('/pecuaria/procesos');
   });
 
-  it('ya no hay botón Eventos en las barras (está en Registro y en las fichas)', () => {
+  it('ya no hay botón Eventos en las barras (está adentro del "+")', () => {
     montar();
     expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Eventos')).toBe(false);
   });

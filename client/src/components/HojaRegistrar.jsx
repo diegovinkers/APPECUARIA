@@ -2,8 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useEstancia } from '../context/EstanciaContext';
 import usePotreros from '../hooks/usePotreros';
+import { getTiposMovimiento } from '../api/pecuaria';
+import { getErrorMessages } from '../api/axios';
+import { rutaEvento } from '../navegacion/menu';
 import { ErrorList } from './ui';
 import { formatNumero, queHayYUso } from './pecuaria';
+import { ListaEventos } from './HojaEventos';
 import Icono from './Icono';
 
 const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -67,11 +71,39 @@ const TONO = {
   correccion: 'text-tierra-600',
 };
 
-// La hoja del botón "+": qué registrar → en qué potrero → (si hace falta) qué
-// lote. Después lleva a la pantalla que ya existe para eso.
+// Los eventos del "+" (24/11): los tipos del catálogo se piden la primera vez
+// que se abre la pestaña Eventos.
+function EventosDelMas({ contexto, onElegir }) {
+  const [tipos, setTipos] = useState(null);
+  const [errors, setErrors] = useState([]);
+  useEffect(() => {
+    getTiposMovimiento()
+      .then(({ data }) => setTipos(data))
+      .catch((error) => setErrors(getErrorMessages(error, 'No se pudieron cargar los eventos')));
+  }, []);
+  return (
+    <>
+      <ErrorList errors={errors} />
+      {!tipos && !errors.length && <p className="py-4 text-sm text-suelo-600">Cargando…</p>}
+      {tipos && <ListaEventos tipos={tipos} onElegir={(t) => onElegir(rutaEvento(t.id, contexto))} />}
+    </>
+  );
+}
+
+const VISTAS = [
+  { clave: 'mover', texto: 'Movimientos', ayuda: 'Cambian de lugar, entran o salen.' },
+  { clave: 'eventos', texto: 'Eventos', ayuda: 'Les hiciste algo y siguen donde estaban.' },
+];
+
+// La hoja del botón "+": todo lo que se registra, en un solo lugar (24/11).
+// Arriba, Movimientos / Eventos. Movimientos: qué → en qué potrero → (si hace
+// falta) qué lote, y lleva a la pantalla que ya existe para eso. Eventos: el
+// tipo, y el camino de 4 pasos (arranca con el potrero o el lote de la ficha
+// donde estabas: `contexto`). `inicial`: con qué pestaña abre.
 // En el celular sube desde abajo; en la compu es una ventana al medio.
-export default function HojaRegistrar({ acciones, onCerrar }) {
+export default function HojaRegistrar({ acciones, onCerrar, eventos = false, contexto = {}, inicial = 'mover' }) {
   const navigate = useNavigate();
+  const [vista, setVista] = useState(eventos ? inicial : 'mover');
   const estancia = useEstancia();
   // Con "Todas las estancias" o "Todos los feedlots" elegido, primero se pide
   // cuál (de ese grupo).
@@ -142,7 +174,27 @@ export default function HojaRegistrar({ acciones, onCerrar }) {
           </button>
         </div>
 
-        {!accion && <Acciones acciones={acciones} onElegir={(a) => (a.pide ? setAccion(a) : navigate(a.destino()))} />}
+        {!accion && eventos && (
+          <>
+            <nav aria-label="Qué registrar" className="flex gap-1 rounded-lg bg-suelo-200/70 p-1">
+              {VISTAS.map((v) => (
+                <button
+                  key={v.clave}
+                  type="button"
+                  onClick={() => setVista(v.clave)}
+                  aria-pressed={vista === v.clave}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-sm font-semibold ${vista === v.clave ? 'bg-boton text-white shadow-sm' : 'text-suelo-700 hover:bg-suelo-300/60'}`}
+                >
+                  {v.texto}
+                </button>
+              ))}
+            </nav>
+            <p className="mb-2 mt-1.5 px-1 text-xs text-suelo-500">{VISTAS.find((v) => v.clave === vista).ayuda}</p>
+          </>
+        )}
+
+        {!accion && vista === 'mover' && <Acciones acciones={acciones} onElegir={(a) => (a.pide ? setAccion(a) : navigate(a.destino()))} />}
+        {!accion && vista === 'eventos' && <EventosDelMas contexto={contexto} onElegir={(ruta) => navigate(ruta)} />}
 
         {pideEstancia && (
           <ul className="-mx-1 divide-y divide-suelo-200">

@@ -104,17 +104,10 @@ describe('la ficha del lote', () => {
     expect(enlace.getAttribute('href')).toBe('/pecuaria/procesos/7');
   });
 
-  it('"Anotar evento" (23/11): en un lote activo sí, en uno cerrado no', async () => {
-    const anotar = () => [...contenedor.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Anotar evento');
+  it('sin "Anotar evento": los eventos se anotan desde el "+" (24/11)', async () => {
     api.getLote.mockResolvedValue({ data: datos(null) });
     await montar();
-    expect(anotar()).toBe(true);
-    const cerrado = datos(null);
-    api.getLote.mockResolvedValue({ data: { ...cerrado, lote: { ...cerrado.lote, activo: false } } });
-    act(() => root.unmount());
-    root = createRoot(contenedor);
-    await montar();
-    expect(anotar()).toBe(false);
+    expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Anotar evento')).toBe(false);
   });
 });
 

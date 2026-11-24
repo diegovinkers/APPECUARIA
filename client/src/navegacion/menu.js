@@ -137,10 +137,9 @@ export const REGISTRAR = [
   },
 ];
 
-// Botón "Eventos" = anotar: les hiciste algo y siguen donde estaban (pesada,
-// recuento, vacuna...). Desde el 23/11 se abre con "Anotar evento" en la
-// pestaña Eventos de Registro y en las fichas del potrero y del lote
-// (components/BotonEventos.jsx); los de un proceso, desde su página.
+// Eventos = anotar: les hiciste algo y siguen donde estaban (pesada,
+// recuento, vacuna...). Desde el 24/11 están en el "+", en la pestaña Eventos
+// (HojaRegistrar); los de un proceso, desde su página.
 export const EVENTOS = { clave: 'eventos', texto: 'Eventos', icono: 'eventos', requiere: 'pecuaria:CREAR' };
 
 // La pantalla de un evento (el camino de 4 pasos). contexto: { potrero, lote }

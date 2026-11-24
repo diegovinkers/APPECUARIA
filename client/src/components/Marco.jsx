@@ -15,8 +15,8 @@ import Icono from './Icono';
 //   perfil, salir);
 // - abajo, en el celular: Resumen · Potreros · + · Registro · Procesos (23/11:
 //   Procesos va donde estaba "Eventos"; el menú sigue en el ☰ de arriba, y
-//   quien no registra, sin "+", ve además "Menú"). "Eventos" pasó adentro de
-//   Registro y a las fichas (BotonEventos);
+//   quien no registra, sin "+", ve además "Menú"). Desde el 24/11 el "+"
+//   tiene todo: Movimientos y Eventos (HojaRegistrar);
 // - panel izquierdo: los filtros de la pantalla donde estás (PanelFiltros).
 //   En la compu, fijo; en el celular, se abre con la flechita del borde, con
 //   el botón "Filtros" o deslizando desde el borde. Sin filtros, no aparece.
@@ -211,6 +211,20 @@ export default function Marco() {
       <MarcoInterno />
     </PanelFiltrosProvider>
   );
+}
+
+// El "+" sabe dónde estás (24/11): desde la ficha de un potrero o de un lote,
+// los eventos arrancan con eso elegido; desde Registro → Eventos, abre en
+// Eventos.
+export function contextoDe(pathname) {
+  const potrero = pathname.match(/^\/pecuaria\/potreros\/(\d+)/);
+  if (potrero) return { potrero: Number(potrero[1]) };
+  const lote = pathname.match(/^\/pecuaria\/lotes\/(\d+)/);
+  if (lote) return { lote: Number(lote[1]) };
+  return {};
+}
+export function vistaInicial({ pathname, search }) {
+  return pathname === '/pecuaria/registro' && new URLSearchParams(search).get('ver') === 'eventos' ? 'eventos' : 'mover';
 }
 
 function MarcoInterno() {
@@ -441,7 +455,15 @@ function MarcoInterno() {
         )}
       </nav>
 
-      {registrarAbierto && <HojaRegistrar acciones={menu.registrar} onCerrar={() => setRegistrarAbierto(false)} />}
+      {registrarAbierto && (
+        <HojaRegistrar
+          acciones={menu.registrar}
+          eventos={Boolean(menu.eventos)}
+          contexto={contextoDe(location.pathname)}
+          inicial={vistaInicial(location)}
+          onCerrar={() => setRegistrarAbierto(false)}
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,6 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, Notice } from '../../components/ui';
 import MovimientosLista from '../../components/MovimientosLista';
-import BotonEventos from '../../components/BotonEventos';
 import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 import { BarraAbajo, PantallaTabla, SinEstancia } from './comun';
 
@@ -21,9 +20,9 @@ export const pestaniaDe = (params) => (params.get('ver') === 'eventos' ? 'evento
 //   múltiples, cambio de categoría, entradas, salidas, destete) y los eventos
 //   que cambiaron las cabezas (un recuento con diferencia).
 // - Eventos: todo lo que se anotó (pesada, vacuna, ecografía...).
-//   Arriba, "Anotar evento" abre la hoja Eventos (antes, en la barra de abajo).
-// Con "Todas las estancias", lo de todas (cada potrero con su sigla). Se
-// registra desde el "+" y desde "Anotar evento". La pantalla no scrollea: solo la tabla.
+// Con "Todas las estancias", lo de todas (cada potrero con su sigla). Todo se
+// registra desde el "+" (24/11: Movimientos y Eventos; desde la pestaña Eventos
+// abre en Eventos). La pantalla no scrollea: solo la tabla.
 export default function RegistroPage() {
   const location = useLocation();
   const [params] = useSearchParams();
@@ -58,8 +57,9 @@ export default function RegistroPage() {
       {!campoId && !todas && <SinEstancia />}
       {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
       {potreros && <MovimientosLista key={ver} ver={ver} campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
-      {/* Abajo, a lo ancho y cerca del pulgar (24/11): las pestañas, "Anotar"
-          (en Eventos) y los filtros. Con el celular acostado se esconde. */}
+      {/* Abajo, a lo ancho y cerca del pulgar (24/11): las pestañas y los
+          filtros, iguales en las dos (anotar va en el "+"). Con el celular
+          acostado se esconde. */}
       <BarraAbajo acostado data-testid="barra-registro">
         <nav aria-label="Pestañas del registro" className="flex min-w-0 flex-1 rounded-lg bg-suelo-200/70 p-1">
           {PESTANIAS.map(([valor, texto]) => (
@@ -76,7 +76,6 @@ export default function RegistroPage() {
             </Link>
           ))}
         </nav>
-        {ver === 'eventos' && <BotonEventos corto />}
         <DestinoBotonFiltros />
       </BarraAbajo>
     </PantallaTabla>

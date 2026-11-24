@@ -10,7 +10,7 @@ import { ListaEventos } from '../../components/HojaEventos';
 import { ErrorList, Notice, inputClass } from '../../components/ui';
 import { formatNumero } from '../../components/pecuaria';
 import Icono from '../../components/Icono';
-import { formularioDe, guardarRecientes, leerRecientes, tiposDeEvento } from '../../navegacion/eventos';
+import { esDestete, formularioDe, guardarRecientes, leerRecientes, potrerosParaDestete, rutaDestete, tiposDeEvento } from '../../navegacion/eventos';
 import {
   SIN_ELEGIR,
   buscar,
@@ -240,11 +240,11 @@ export default function EventoPage() {
       titulo={tipo?.nombre ?? 'Anotar un evento'}
       actual={paso}
       onIr={irA}
-      onSeguir={paso === 0 || preguntaProceso ? null : seguir}
+      onSeguir={paso === 0 || preguntaProceso || esDestete(tipo) ? null : seguir}
       textoSeguir={paso === 3 ? 'Confirmar' : paso === 2 ? 'Revisar' : 'Seguir'}
       puedeSeguir={!seguirDeshabilitado}
       ocupado={ocupado}
-      ayuda={paso >= 1 ? textoElegidos : null}
+      ayuda={paso >= 1 && !esDestete(tipo) ? textoElegidos : null}
     >
       <div className="mt-2">
         <ErrorList errors={[...errors, ...errorsPotreros]} />
@@ -301,7 +301,17 @@ export default function EventoPage() {
       )}
 
       {cargandoProcesos && <p className="text-suelo-600">Cargando…</p>}
-      {paso === 1 && tipo && !preguntaProceso && !cargandoProcesos && (
+      {paso === 1 && esDestete(tipo) && !preguntaProceso && !cargandoProcesos && (
+        <PasoDestete
+          estancia={estancia}
+          sinCampo={!campoId && campoContexto !== undefined}
+          onElegirEstancia={setElegida}
+          potreros={potreros}
+          potreroInicial={contexto.potrero}
+          onElegir={(potreroId, loteId) => navigate(rutaDestete(potreroId, loteId))}
+        />
+      )}
+      {paso === 1 && tipo && !esDestete(tipo) && !preguntaProceso && !cargandoProcesos && (
         <PasoAQuien
           tipo={tipo}
           estancia={estancia}
@@ -354,6 +364,56 @@ export default function EventoPage() {
 }
 
 // Un botón grande que se prende y se apaga (lo elegido).
+// Destete sin proceso: el potrero donde están las madres con los terneros y el
+// lote de los terneros; después, la pantalla del destete (MoverPage ?destete=1).
+export function PasoDestete({ estancia, sinCampo, onElegirEstancia, potreros, potreroInicial, onElegir }) {
+  const [potreroId, setPotreroId] = useState(potreroInicial ?? null);
+  if (sinCampo) {
+    const lista = estancia.camposDelGrupo ?? estancia.campos ?? [];
+    return (
+      <section aria-label="Destete" className="space-y-2">
+        <p className="text-sm text-suelo-700">{estancia.esFeedlot ? '¿En qué feedlot?' : '¿En qué estancia?'}</p>
+        {lista.map((c) => (
+          <Opcion key={c.id} activa={false} onClick={() => onElegirEstancia(c)}>
+            {c.nombre}
+          </Opcion>
+        ))}
+      </section>
+    );
+  }
+  if (!potreros) return <p className="text-suelo-600">Cargando…</p>;
+  const lista = potrerosParaDestete(potreros);
+  const potrero = lista.find((p) => p.id === potreroId);
+  if (!potrero) {
+    return (
+      <section aria-label="Destete" className="space-y-2" data-testid="destete-potrero">
+        <p className="text-sm text-suelo-700">¿En qué potrero están los terneros con las madres?</p>
+        {lista.length === 0 && <p className="text-sm text-suelo-600">No hay potreros con dos lotes o más (las madres y los terneros juntos).</p>}
+        {lista.map((p) => (
+          <Opcion key={p.id} activa={false} onClick={() => setPotreroId(p.id)} detalle={`${formatNumero(p.stock?.cabezas ?? 0)} cab`}>
+            {p.nombre}
+          </Opcion>
+        ))}
+      </section>
+    );
+  }
+  return (
+    <section aria-label="Destete" className="space-y-2" data-testid="destete-lote">
+      <p className="text-sm text-suelo-700">¿Cuál es el lote de los terneros?</p>
+      {potrero.stock.lotes
+        .filter((l) => l.cabezas > 0)
+        .map((l) => (
+          <Opcion key={l.loteId} activa={false} onClick={() => onElegir(potrero.id, l.loteId)} detalle={`${formatNumero(l.cabezas)} ${l.categoria}`}>
+            {l.lote}
+          </Opcion>
+        ))}
+      <button type="button" onClick={() => setPotreroId(null)} className="min-h-11 px-1 text-sm text-campo-700 hover:underline">
+        Elegir otro potrero
+      </button>
+    </section>
+  );
+}
+
 function Opcion({ activa, onClick, children, detalle }) {
   return (
     <button

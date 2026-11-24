@@ -55,6 +55,10 @@ TIPOS.push(
   tipo(24, 'VACUNA_AFTOSA', 'Vacuna aftosa'),
   tipo(27, 'RECUENTO', 'Recuento', { niveles: ['CAMPO', 'POTRERO', 'LOTE'] }),
   tipo(18, 'ENTORE', 'Entore o servicio', { niveles: ['POTRERO', 'CATEGORIA', 'LOTE', 'PARTE_LOTE'] }),
+  // Mueve, pero se anota desde Eventos (24/11: salió del "+").
+  tipo(30, 'DESTETE', 'Destete', { efecto: 'MUEVE', niveles: ['POTRERO', 'LOTE', 'PARTE_LOTE'] }),
+  // Los demás que mueven no están en Eventos.
+  tipo(31, 'VENTA', 'Venta', { efecto: 'SALE' }),
 );
 
 let contenedor;
@@ -386,5 +390,51 @@ describe('procesos: ¿de qué proceso?', () => {
     await montar('/pecuaria/eventos/nuevo?tipo=16');
     expect(contenedor.querySelector('[data-testid="de-proceso"]')).toBeNull();
     expect(pasoActual()).toMatch(/2A quién/);
+  });
+});
+
+describe('el destete (24/11: es un evento, salió del "+")', () => {
+  const conCrias = [
+    { id: 9, nombre: 'Servicio 2025-26 · Vacas', etapa: 'CRIA', textoEtapa: 'Con cría al pie', cabezas: 120, loteIds: [101, 102] },
+    { id: 8, nombre: 'Servicio 2026-27 · Vaquillonas', etapa: 'SERVICIO', textoEtapa: 'En servicio', cabezas: 30, loteIds: [] },
+  ];
+
+  it('está en Eventos (Reproducción); la venta, que también mueve, no', async () => {
+    await montar('/pecuaria/eventos/nuevo');
+    expect(boton('Destete')).toBeTruthy();
+    expect(boton('Venta')).toBeUndefined();
+  });
+
+  it('pregunta de qué proceso: elegirlo lleva al destete de ese proceso', async () => {
+    api.getProcesos.mockResolvedValue({ data: conCrias });
+    await montar('/pecuaria/eventos/nuevo?tipo=30');
+    const opciones = [...contenedor.querySelectorAll('[data-testid="de-proceso"] button')].map((b) => b.textContent);
+    // Solo el que tiene crías al pie (el que está en servicio, no).
+    expect(opciones.filter((t) => t.includes('Servicio 2026-27'))).toHaveLength(0);
+    expect(opciones[0]).toContain('destete');
+    await click(boton('Servicio 2025-26 · Vacas'));
+    expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/procesos/9/etapa/DESTETE');
+  });
+
+  it('"Destetar sin proceso": potrero con las madres al lado → lote de los terneros → la pantalla del destete', async () => {
+    api.getProcesos.mockResolvedValue({ data: conCrias });
+    await montar('/pecuaria/eventos/nuevo?tipo=30');
+    await click(boton('Destetar sin proceso'));
+    // El 12 tiene un solo lote: no está.
+    const potreros = [...contenedor.querySelectorAll('[data-testid="destete-potrero"] button')].map((b) => b.textContent);
+    expect(potreros.some((t) => t.startsWith('10.3'))).toBe(true);
+    expect(potreros.some((t) => t.startsWith('12'))).toBe(false);
+    await click(boton('10.3'));
+    expect(texto()).toContain('¿Cuál es el lote de los terneros?');
+    await click(boton('10.3 · Terneros'));
+    expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/mover?potrero=10&lote=101&destete=1');
+  });
+
+  it('sin procesos con crías, va directo a elegir el potrero', async () => {
+    await montar('/pecuaria/eventos/nuevo?tipo=30');
+    expect(contenedor.querySelector('[data-testid="de-proceso"]')).toBeNull();
+    expect(contenedor.querySelector('[data-testid="destete-potrero"]')).toBeTruthy();
+    // No hay botón "Seguir": se avanza eligiendo.
+    expect(boton('Seguir')).toBeUndefined();
   });
 });

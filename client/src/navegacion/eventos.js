@@ -15,6 +15,7 @@ export const GRUPO_EVENTO = {
   ENTORE: 'Reproducción',
   ABORTO: 'Reproducción',
   FIN_SERVICIO: 'Reproducción',
+  DESTETE: 'Reproducción',
   CASTRACION: 'Manejo',
   IDENTIFICACION: 'Manejo',
   // En el boceto aprobado, la alimentación va con el manejo.
@@ -47,8 +48,17 @@ export const grupoDe = (tipo) => GRUPO_EVENTO[tipo.clave] ?? 'Otros';
 export const nombreCorto = (tipo) => CORTO[tipo.clave] ?? tipo.nombre;
 
 // Los eventos que se pueden anotar: efecto REGISTRO y activos. La parición no:
-// mueve animales y se carga desde su proceso (Registro → Procesos).
-export const tiposDeEvento = (tipos = []) => tipos.filter((t) => t.efecto === 'REGISTRO' && t.activo !== false && t.clave !== 'PARICION');
+// mueve animales y se carga desde su proceso (Registro → Procesos). El destete
+// sí, aunque mueve (pedido de Diego, 24/11: salió del "+"): pregunta de qué
+// proceso es y, si es suelto, va a la pantalla del destete (no al camino).
+export const esDestete = (tipo) => tipo?.clave === 'DESTETE';
+export const tiposDeEvento = (tipos = []) =>
+  tipos.filter((t) => (t.efecto === 'REGISTRO' || esDestete(t)) && t.activo !== false && t.clave !== 'PARICION');
+
+// Destete suelto: los potreros con las madres al lado de los terneros (dos
+// lotes o más), y a dónde va después de elegir el lote de los terneros.
+export const potrerosParaDestete = (potreros = []) => potreros.filter((p) => (p.stock?.lotes ?? []).filter((l) => l.cabezas > 0).length >= 2);
+export const rutaDestete = (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}&destete=1`;
 
 // { destacados: [tipos], grupos: [{ grupo, titulo, tipos }] } (los vacíos no van).
 export function agruparEventos(tipos = []) {

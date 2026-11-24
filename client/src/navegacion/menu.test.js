@@ -96,9 +96,8 @@ describe('la lista', () => {
     expect(por.venta.destino(3, 7)).toBe('/pecuaria/registrar?efecto=SALE&potrero=3&lote=7&tipo=VENTA');
     expect(por.perdida.destino(3, 7)).toBe('/pecuaria/registrar?efecto=SALE&potrero=3&lote=7&tipo=PERDIDA');
     expect(por.correccion.destino(3)).toBe('/pecuaria/potreros/3');
-    // Destete (eventos, paso 5): el lote de los terneros, en un potrero con las madres.
-    expect(por.destete.destino(3, 7)).toBe('/pecuaria/mover?potrero=3&lote=7&destete=1');
-    expect(por.destete.minLotes).toBe(2);
+    // El destete no está en el "+" (es un evento: se hace desde su proceso).
+    expect(por.destete).toBeUndefined();
     // Paso 5: van directo a su pantalla (cada una pregunta lo suyo).
     expect(por.entreCampos.pide).toBeUndefined();
     expect(por.entreCampos.destino()).toBe('/pecuaria/mover-entre-campos');
@@ -109,7 +108,7 @@ describe('la lista', () => {
 describe('el "+" ordenado y el botón Eventos (20/11)', () => {
   it('el "+" en el orden del boceto: mover arriba (el primero grande), entra y sale, y la corrección abajo', () => {
     const de = (seccion) => REGISTRAR.filter((a) => a.seccion === seccion).map((a) => a.texto);
-    expect(de('mover')).toEqual(['Mover de potrero', 'Cambio de categoría', 'Destete', 'Mover entre campos', 'Movimiento múltiple']);
+    expect(de('mover')).toEqual(['Mover de potrero', 'Cambio de categoría', 'Mover entre campos', 'Movimiento múltiple']);
     expect(de('entra')).toEqual(['Nacimiento', 'Compra', 'Traslado']);
     expect(de('sale')).toEqual(['Venta', 'Muerte', 'Traslado', 'Consumo', 'Pérdida']);
     expect(de('otro')).toEqual(['Corrección de stock']);

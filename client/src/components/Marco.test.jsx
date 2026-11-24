@@ -313,19 +313,13 @@ describe('Marco: el botón +', () => {
     montar();
     click(boton('Registrar'));
     const hoja = contenedor.querySelector('[role="dialog"]');
-    expect(hoja.textContent).toMatch(/Mover.*Mover de potrero.*Cambio de categoría.*Destete.*Mover entre campos.*Movimiento múltiple.*Entra.*Nacimiento.*Compra.*Traslado.*Sale.*Venta.*Muerte.*Traslado.*Consumo.*Pérdida.*Corrección de stock/);
+    expect(hoja.textContent).toMatch(/Mover.*Mover de potrero.*Cambio de categoría.*Mover entre campos.*Movimiento múltiple.*Entra.*Nacimiento.*Compra.*Traslado.*Sale.*Venta.*Muerte.*Traslado.*Consumo.*Pérdida.*Corrección de stock/);
   });
 
-  it('Destete: solo potreros con las madres al lado (dos lotes o más) → el lote de los terneros', () => {
+  it('el "+" no tiene Destete (es un evento, va desde su proceso)', () => {
     montar();
     click(boton('Registrar'));
-    elegir('Destete');
-    const opciones = [...contenedor.querySelectorAll('[role="dialog"] li button')].map((b) => b.textContent);
-    expect(opciones).toHaveLength(1);
-    elegir('10.3');
-    expect(texto()).toContain('¿Cuál es el lote de los terneros?');
-    elegir('10.3 · Terneros');
-    expect(donde()).toBe('/pecuaria/mover?potrero=10&lote=101&destete=1');
+    expect(contenedor.querySelector('[role="dialog"]').textContent).not.toContain('Destete');
   });
 
   it('Mover entre campos y Movimiento múltiple van directo a su pantalla', () => {

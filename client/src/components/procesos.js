@@ -177,6 +177,8 @@ const ETAPA_DEL_EVENTO = {
   FIN_SERVICIO: { SERVICIO: 'FIN_SERVICIO' },
   ECOGRAFIA: { SERVICIO: 'DIAGNOSTICO', ESPERA_DIAGNOSTICO: 'DIAGNOSTICO', PRENEZ: 'REVISION', PARICION: 'REVISION' },
   ABORTO: { PRENEZ: 'ABORTO', PARICION: 'ABORTO' },
+  // Con crías al pie (desde que empiezan a parir).
+  DESTETE: { PARICION: 'DESTETE', CRIA: 'DESTETE' },
 };
 export const NOMBRE_ETAPA = {
   INICIO: 'inicio del servicio',
@@ -187,6 +189,7 @@ export const NOMBRE_ETAPA = {
   DIAGNOSTICO: 'diagnóstico',
   REVISION: 'revisión del diagnóstico',
   ABORTO: 'aborto',
+  DESTETE: 'destete',
 };
 
 // Los procesos abiertos donde ese evento tiene sentido, con la etapa que le
@@ -205,7 +208,8 @@ export const EVENTOS_DE_PROCESO = new Set(Object.keys(ETAPA_DEL_EVENTO));
 export const ofreceNuevoServicio = (tipo) => tipo?.clave === 'ENTORE' || tipo?.clave === 'INSEMINACION';
 
 // "Anotarla suelta" / "Anotarlo suelto", según el evento.
-export const textoSuelto = (tipo) => (['ECOGRAFIA', 'INSEMINACION', 'PESADA'].includes(tipo?.clave) ? 'Anotarla suelta' : 'Anotarlo suelto');
+export const textoSuelto = (tipo) =>
+  tipo?.clave === 'DESTETE' ? 'Destetar sin proceso' : ['ECOGRAFIA', 'INSEMINACION', 'PESADA'].includes(tipo?.clave) ? 'Anotarla suelta' : 'Anotarlo suelto';
 
 // --- Sugerencias y cronograma (docs/PECUARIA.md §9, fase 5) ---
 

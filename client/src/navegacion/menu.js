@@ -95,20 +95,8 @@ export const REGISTRAR = [
     destino: (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}&cambio=categoria`,
     requiere: 'pecuaria:CREAR',
   },
-  {
-    clave: 'destete',
-    texto: 'Destete',
-    detalle: 'los terneros se van de al lado de las madres',
-    seccion: 'mover',
-    icono: 'destete',
-    pide: 'lote',
-    pregunta: '¿En qué potrero están los terneros?',
-    pideLote: '¿Cuál es el lote de los terneros?',
-    // Con las madres al lado: el potrero tiene que tener al menos dos lotes.
-    minLotes: 2,
-    destino: (potreroId, loteId) => `/pecuaria/mover?potrero=${potreroId}&lote=${loteId}&destete=1`,
-    requiere: 'pecuaria:CREAR',
-  },
+  // El destete no va en el "+" (pedido de Diego, 24/11: es un evento): se
+  // hace desde su proceso (Procesos → ficha → Destete).
   {
     clave: 'entreCampos',
     texto: 'Mover entre campos',

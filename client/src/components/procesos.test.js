@@ -176,6 +176,11 @@ describe('¿de qué proceso? (Eventos)', () => {
       [3, 'ABORTO'],
       [4, 'ABORTO'],
     ]);
+    // El destete, desde que empiezan a parir (24/11).
+    expect(de('DESTETE')).toEqual([
+      [4, 'DESTETE'],
+      [5, 'DESTETE'],
+    ]);
     expect(de('INSEMINACION')).toEqual([]);
     expect(de('VACUNA_AFTOSA')).toEqual([]);
   });

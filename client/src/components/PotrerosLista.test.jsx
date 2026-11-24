@@ -181,10 +181,10 @@ describe('la tabla de potreros', () => {
     expect(anchos).toEqual(['50%', '100%', '75%']);
   });
 
-  it('los filtros van al panel izquierdo, con el botón "Filtros" y cuántos hay puestos', () => {
+  it('los filtros van al panel izquierdo; el botón es solo el ícono, con cuántos hay puestos', () => {
     montar([potrero(1, '1', 10, 5)], '/pecuaria/potreros?grupo=CN&categoria=9');
-    const botonFiltros = [...contenedor.querySelectorAll('button')].find((b) => b.textContent.startsWith('Filtros'));
-    expect(botonFiltros.textContent).toBe('Filtros2');
+    const botonFiltros = contenedor.querySelector('button[aria-label="Filtros"]');
+    expect(botonFiltros.textContent).toBe('2');
   });
 
   it('filtro por uso de suelo (Sorgo, Raigrás…): con un grupo elegido, solo los usos de ese grupo', () => {

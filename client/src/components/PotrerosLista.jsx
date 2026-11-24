@@ -196,7 +196,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PanelFiltros activos={activos} onLimpiar={limpiar}>
+      <PanelFiltros activos={activos} onLimpiar={limpiar} compacto>
         <input
           type="search"
           value={f.q}

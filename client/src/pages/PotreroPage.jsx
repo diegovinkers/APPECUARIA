@@ -129,11 +129,10 @@ export default function PotreroPage() {
             ? `Stock al ${formatFecha(stock.fecha)} · ${ORIGEN[stock.origen]}${stock.usuario ? ` (${stock.usuario})` : ''}`
             : 'Sin datos de stock todavía'}
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-3 gap-3">
           <Dato valor={formatNumero(stock?.cabezas ?? 0)} etiqueta="cabezas" />
           <Dato valor={formatNumero(stock?.cabHa, 2)} etiqueta="cab./ha" />
           <Dato valor={aprox(stock?.kilosEstimados, formatNumero(stock?.kgPvHa, 1))} etiqueta="kg PV/ha" />
-          <Dato valor={aprox(stock?.kilosEstimados, formatNumero(stock?.ugHa, 2))} etiqueta={`UG/ha (1 UG = ${formatNumero(potrero.kgPorUg)} kg)`} />
         </div>
         {stock?.valorUsd > 0 && (
           <p className="mt-3 text-sm" data-testid="valor-potrero">
@@ -148,7 +147,7 @@ export default function PotreroPage() {
           <p className="mt-3 text-sm text-amber-800">Sin hectáreas confirmadas: no se calculan los valores por hectárea.</p>
         )}
         {stock && !stock.kilosCompletos && (
-          <p className="mt-3 text-sm text-amber-800">Hay categorías sin peso promedio: los kilos y las UG están incompletos.</p>
+          <p className="mt-3 text-sm text-amber-800">Hay categorías sin peso promedio: los kilos están incompletos.</p>
         )}
         {stock?.lineas.length > 0 && (
           <ul className="mt-4 space-y-2 text-sm">
@@ -485,7 +484,7 @@ function CampoArea({ valor, onChange, potrero, mal, etiqueta = 'Área utilizable
       <span className="mt-1 block text-xs text-suelo-500">
         {mal
           ? <span className="text-red-700">Tiene que ser mayor que cero y no más que las hectáreas ({formatNumero(potrero.hectareas, 2)}).</span>
-          : 'La carga (cab/ha, UG/ha) se calcula sobre esta área.'}
+          : 'La carga (cab/ha, kg/ha) se calcula sobre esta área.'}
       </span>
     </label>
   );

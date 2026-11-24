@@ -511,9 +511,6 @@ function ComoQueda({ previa: p }) {
       <p>
         Cab/ha: <strong>{p.despues.cabHa == null ? '—' : cambio(p.antes.cabHa, p.despues.cabHa, 2)}</strong>
       </p>
-      <p>
-        UG/ha: <strong>{p.despues.ugHa == null ? '—' : cambio(p.antes.ugHa, p.despues.ugHa, 2)}</strong>
-      </p>
       {p.valorVentaUsd != null && (
         <p>
           Valor de la venta: <strong>{formatUsd(p.valorVentaUsd)}</strong>

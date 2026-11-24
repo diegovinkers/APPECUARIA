@@ -15,7 +15,7 @@ export function formatUsdCorto(n) {
   return formatNumero(n);
 }
 
-// Kilos, kg/ha o UG/ha que salen (en parte) del peso promedio de la
+// Kilos o kg/ha que salen (en parte) del peso promedio de la
 // categoría: con "≈" adelante.
 export const aprox = (estimado, texto) => (estimado ? `≈${texto}` : texto);
 

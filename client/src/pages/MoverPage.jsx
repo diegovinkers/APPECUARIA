@@ -426,7 +426,6 @@ function Impacto({ previa }) {
             <p className="mb-2 text-lg font-semibold">{l.potrero}</p>
             <p>Cabezas: <strong>{cambio(l.antes.cabezas, l.despues.cabezas)}</strong></p>
             <p>Cab/ha: <strong>{l.despues.cabHa == null ? '—' : cambio(l.antes.cabHa, l.despues.cabHa, 2)}</strong></p>
-            <p>UG/ha: <strong>{l.despues.ugHa == null ? '—' : cambio(l.antes.ugHa, l.despues.ugHa, 2)}</strong></p>
             <ul className="mt-2 text-suelo-600">
               {l.lineas.map((x) => (
                 <li key={x.loteId ?? 'nuevo'}>

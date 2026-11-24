@@ -10,7 +10,6 @@ import {
   getParametros,
   getTiposMovimiento,
   getUsosSuelo,
-  setParametro,
   setParametros,
 } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
@@ -49,11 +48,10 @@ const separarAlias = (texto) =>
     .map((a) => a.trim())
     .filter(Boolean);
 
-// Configuración de Pecuaria: kg por UG, usos de suelo (y su columna en el
+// Configuración de Pecuaria: usos de suelo (y su columna en el
 // resumen), categorías (con su sexo), tipos de movimiento y causas. Cada
 // cambio queda en la auditoría.
 export default function ConfiguracionPecuariaPage() {
-  const [kgPorUg, setKgPorUg] = useState('');
   const [gmd, setGmd] = useState('');
   const [ciclo, setCiclo] = useState('');
   const [adaptacion, setAdaptacion] = useState('');
@@ -68,7 +66,6 @@ export default function ConfiguracionPecuariaPage() {
   const cargar = useCallback(async () => {
     const [p, u, c, t, ca] = await Promise.all([getParametros(), getUsosSuelo(), getCategorias(), getTiposMovimiento(), getCausas()]);
     const valor = (clave) => String(p.data.find((x) => x.clave === clave)?.valor ?? '').replace('.', ',');
-    setKgPorUg(valor('KG_POR_UG'));
     setGmd(valor('GMD_FEEDLOT_KG'));
     setCiclo(valor('CICLO_FEEDLOT_DIAS'));
     setAdaptacion(valor('FEEDLOT_ADAPTACION_DIAS'));
@@ -107,31 +104,6 @@ export default function ConfiguracionPecuariaPage() {
       <h1 className="mb-6 mt-2 text-3xl font-bold">Configuración</h1>
       <ErrorList errors={errors} />
       <Notice tone="ok">{aviso}</Notice>
-
-      <section className="mb-8 rounded-lg border border-suelo-200 p-4">
-        <h2 className="mb-1 text-lg font-semibold">Unidad ganadera</h2>
-        <p className="mb-3 text-sm text-suelo-600">Cuántos kilos de peso vivo son 1 UG. Cambia todos los cálculos de UG/ha.</p>
-        <form
-          className="flex flex-wrap items-center gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            guardar(() => setParametro('KG_POR_UG', Number(kgPorUg.replace(',', '.'))), `Listo: 1 UG = ${kgPorUg} kg.`);
-          }}
-        >
-          <span className="text-sm">1 UG =</span>
-          <input
-            inputMode="decimal"
-            value={kgPorUg}
-            onChange={(e) => setKgPorUg(e.target.value)}
-            aria-label="Kilos por UG"
-            className={`${inputClass.replace('w-full', '')} w-24`}
-          />
-          <span className="text-sm">kg de peso vivo</span>
-          <button type="submit" className={boton} disabled={!(Number(kgPorUg.replace(',', '.')) > 0)}>
-            Guardar
-          </button>
-        </form>
-      </section>
 
       <section className="mb-8 rounded-lg border border-suelo-200 p-4" aria-label="Procesos">
         <h2 className="mb-1 text-lg font-semibold">Procesos (reproducción)</h2>

@@ -219,22 +219,14 @@ export function TablaResumen({ resumen }) {
                     {g.cabHa == null ? (
                       <span className="text-suelo-500">Sin hectáreas: no se calcula la carga</span>
                     ) : (
-                      <>
-                        {formatNumero(g.cabHa, 2)} cab/ha ·{' '}
-                        {g.kilosCompletos ? (
-                          `${g.kilosEstimados ? '≈' : ''}${formatNumero(g.ugHa, 2)} UG/ha`
-                        ) : (
-                          <span className="text-amber-800">UG incompletas (faltan pesos)</span>
-                        )}
-                      </>
+                      `${formatNumero(g.cabHa, 2)} cab/ha`
                     )}
                   </p>
                 </Link>
               ))}
           </div>
           <p className="mt-2 text-xs text-suelo-500">
-            La carga se calcula solo con los potreros que tienen hectáreas confirmadas. 1 UG = {formatNumero(resumen.kgPorUg)} kg de peso vivo. ≈: algunos
-            lotes no tienen peso y se usa el peso promedio de su categoría.
+            La carga se calcula solo con los potreros que tienen hectáreas confirmadas.
           </p>
         </section>
       )}

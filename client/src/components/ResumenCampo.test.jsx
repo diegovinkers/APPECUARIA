@@ -83,7 +83,7 @@ describe('valor del ganado', () => {
     );
   const cuadro = () => contenedor.querySelector('[data-testid="valor-ganado"]');
 
-  it('muestra el valor, avisa si está incompleto, y el UG/ha estimado con ≈', () => {
+  it('muestra el valor, avisa si está incompleto; la carga en cab/ha, sin UG/ha', () => {
     montar({
       ...RESUMEN,
       valor: { usd: 93500, completo: false },
@@ -91,7 +91,8 @@ describe('valor del ganado', () => {
     });
     expect(cuadro().textContent).toMatch(/USD 93\.500/);
     expect(cuadro().textContent).toMatch(/Incompleto/);
-    expect(contenedor.textContent).toMatch(/≈0,8 UG\/ha/);
+    expect(contenedor.textContent).toMatch(/1,8 cab\/ha/);
+    expect(contenedor.textContent).not.toMatch(/UG/);
   });
 
   it('sin precios cargados, manda a Configuración', () => {

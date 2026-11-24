@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UsoBadge, aprox, cabezasPorCategoria, formatNumero, nombreConSigla } from './pecuaria';
 import { porEstanciaYPlanilla } from '../hooks/usePotreros';
-import { Paginador, TituloOrdenable, celda, paginar, useFilasQueEntran } from './tabla';
+import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros from './PanelFiltros';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
@@ -28,7 +28,7 @@ const ANIMALES = [
 const COLUMNAS = [
   ['potrero', 'Potrero', false, null, false],
   ['uso', 'Uso', false, (p) => p.usoActual?.nombre ?? null, true],
-  ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas), true],
+  ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas), false],
   ['cabezas', 'Cabezas', true, (p) => p.stock?.cabezas ?? 0, false],
   ['categorias', 'Categorías', false, (p) => (p.stock?.cabezas ? cabezasPorCategoria(p.stock.lotes) : null), true],
   ['peso', 'Peso prom.', true, (p) => pesoPromedio(p), false],
@@ -44,11 +44,10 @@ const SOLO_COMPU = 'hidden md:table-cell';
 // con "…"), en la compu una.
 const celdaFila = celda.replace('align-top', 'align-middle');
 const ALTO_FILA = 'h-[4.5rem] md:h-10';
-// El mismo alto en px, para calcular cuántas filas entran.
-const altoBase = () => (window.matchMedia?.('(min-width: 768px)').matches ? 40 : 72);
 // En el celular la tabla tiene ancho fijo: Cabezas y cab/ha con su ancho, y
 // Potrero lo que queda (así el "…" corta adentro de la celda).
 const ANCHO_CELULAR = {
+  hectareas: 'w-11 md:w-auto',
   cabezas: 'w-[3.25rem] md:w-auto',
   peso: 'w-11 md:w-auto',
   kgHa: 'w-12 md:w-auto',
@@ -95,8 +94,9 @@ export function ordenarPotreros(lista, { col, dir }) {
 }
 
 // Lista de potreros como una tabla tipo Excel (pedido de Diego, 19/11), con
-// filtros arriba, totales abajo y paginador. Los filtros, el orden y la página
-// viven en la dirección (?grupo=VERDEO&orden=cabezas&pagina=2): al volver de
+// filtros, totales abajo y todos los potreros juntos (sin paginado: pedido de
+// Diego, 24/11; se baja con el dedo). Los filtros y el orden viven en la
+// dirección (?grupo=VERDEO&orden=cabezas): al volver de
 // un potrero siguen puestos. todas: "Todas las estancias" elegido arriba (cada
 // potrero con la sigla de su estancia).
 export default function PotrerosLista({ potreros, todas = false }) {
@@ -112,14 +112,13 @@ export default function PotrerosLista({ potreros, todas = false }) {
     categoria: params.get('categoria') ?? '',
     incompletos: params.get('incompletos') === '1',
     orden: { col, dir: params.get('dir') ?? (NUMERICAS.has(col) ? 'desc' : 'asc') },
-    pagina: Number(params.get('pagina')) || 1,
   };
-  // Cambiar un filtro o el orden vuelve a la página 1.
   const poner = (cambios) =>
     setParams(
       (actual) => {
         const nuevo = new URLSearchParams(actual);
-        if (!('pagina' in cambios)) nuevo.delete('pagina');
+        // ?pagina= de cuando había paginado: ya no se usa.
+        nuevo.delete('pagina');
         for (const [k, v] of Object.entries(cambios)) v ? nuevo.set(k, v) : nuevo.delete(k);
         return nuevo;
       },
@@ -193,15 +192,6 @@ export default function PotrerosLista({ potreros, todas = false }) {
     () => Math.max(0, ...potreros.filter((p) => p.stock?.cabezas && p.stock?.cabHa != null).map((p) => p.stock.cabHa)),
     [potreros],
   );
-  // Tantas filas por página como entran en la pantalla.
-  const [caja, setCaja] = useState(null);
-  const [hayPaginador, setHayPaginador] = useState(false);
-  const { filas: porPagina, medido, alto } = useFilasQueEntran(caja, hayPaginador, altoBase);
-  const altoFila = medido && alto ? { height: alto } : undefined;
-  const pagina = paginar(visibles, f.pagina, porPagina);
-  if (hayPaginador !== pagina.total > 1) setHayPaginador(pagina.total > 1);
-  // En la última página, filas vacías hasta completar: la planilla queda derecha.
-  const relleno = medido ? Math.max(0, porPagina - pagina.filas.length) : 0;
   const pie = `${celda} sticky bottom-0 border-t-2 border-t-suelo-300 bg-suelo-100`;
 
   return (
@@ -237,9 +227,8 @@ export default function PotrerosLista({ potreros, todas = false }) {
       {visibles.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">Ningún potrero cumple esos filtros.</p>
       ) : (
-        // La caja ocupa el alto libre (tabla + paginador); la tabla mide lo que
-        // sus filas, así el paginador queda pegado debajo.
-        <div ref={setCaja} className="flex min-h-0 flex-1 flex-col" data-testid="caja-potreros">
+        // La caja ocupa el alto libre; la tabla scrollea adentro (títulos y Total fijos).
+        <div className="flex min-h-0 flex-1 flex-col" data-testid="caja-potreros">
           <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-potreros">
             <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm md:min-w-[44rem] md:table-auto">
               <thead className="text-xs text-suelo-600">
@@ -268,16 +257,8 @@ export default function PotrerosLista({ potreros, todas = false }) {
                 </tr>
               </thead>
               <tbody>
-                {pagina.filas.map((p, n) => (
-                  <PotreroFila key={p.id} potrero={p} todas={todas} par={n % 2 === 1} cargaMaxima={cargaMaxima} estilo={altoFila} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
-                ))}
-                {Array.from({ length: relleno }, (_, n) => (
-                  <tr key={`vacia${n}`} aria-hidden="true" className={ALTO_FILA} style={altoFila} data-testid="fila-vacia">
-                    {/* Una celda por columna (con las mismas que se esconden en el celular). */}
-                    {COLUMNAS.map(([c, , , , soloCompu]) => (
-                      <td key={c} className={`border-b border-suelo-100 ${soloCompu ? SOLO_COMPU : ''}`} />
-                    ))}
-                  </tr>
+                {visibles.map((p, n) => (
+                  <PotreroFila key={p.id} potrero={p} todas={todas} par={n % 2 === 1} cargaMaxima={cargaMaxima} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
                 ))}
               </tbody>
               <tfoot>
@@ -286,12 +267,12 @@ export default function PotrerosLista({ potreros, todas = false }) {
                     Total{hayFiltros ? ' filtrado' : ''}
                     <span className="text-xs font-normal text-suelo-600 md:hidden">
                       {' · '}
-                      {hayFiltros ? `${visibles.length} de ${potreros.length}` : visibles.length} · {formatNumero(resumen.hectareas)} ha
+                      {hayFiltros ? `${visibles.length} de ${potreros.length}` : visibles.length}
                       {nombreCategoria && ` · ${nombreCategoria}`}
                     </span>
                   </td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 whitespace-nowrap font-normal text-suelo-600`}>{visibles.length} de {potreros.length} potreros</td>
-                  <td className={`${pie} ${SOLO_COMPU} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
+                  <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
                   <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.cabezas)}</td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>
                   <td className={`${pie} z-10 text-right tabular-nums`}>{resumen.peso == null ? '—' : formatNumero(resumen.peso, 0)}</td>
@@ -301,7 +282,6 @@ export default function PotrerosLista({ potreros, todas = false }) {
               </tfoot>
             </table>
           </div>
-          <Paginador {...pagina} de={visibles.length} onCambiar={(n) => poner({ pagina: n > 1 ? String(n) : '' })} />
         </div>
       )}
     </div>
@@ -341,14 +321,14 @@ function Select({ etiqueta, valor, onChange, opciones }) {
 }
 
 // Una fila: tocarla abre la ficha del potrero.
-function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
+function PotreroFila({ potrero: p, todas, par, cargaMaxima, onAbrir }) {
   const cabezas = p.stock?.cabezas ?? 0;
   const vacio = cabezas === 0;
   const fondo = par ? 'bg-suelo-50' : 'bg-superficie';
   const sinPeso = p.stock && cabezas > 0 && !p.stock.kilosCompletos;
   const celda = celdaFila;
   return (
-    <tr onClick={onAbrir} style={estilo} className={`${ALTO_FILA} cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
+    <tr onClick={onAbrir} className={`${ALTO_FILA} cursor-pointer hover:[&>td]:bg-campo-50 ${vacio ? 'text-suelo-500' : ''}`}>
       <td className={`${celda} ${fondo} sticky left-0 z-[5] font-semibold md:whitespace-nowrap`}>
         {/* Arriba el nombre; abajo, en el celular, el uso y qué hay. Lo que no entra se corta con "…". */}
         <div className="flex min-w-0 items-center gap-1.5">
@@ -357,17 +337,6 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
             {p.nombre}
           </Link>
           {p.tipo === 'CORRAL' && <span className="shrink-0 text-xs font-medium text-amber-800">corral</span>}
-          {/* En el celular, las hectáreas al lado del nombre (en la compu tienen su columna). */}
-          {/* Si no entra, se corta la hectárea, nunca el nombre. */}
-          <span className="min-w-0 truncate text-xs font-normal text-suelo-500 md:hidden" data-testid="ha-celular">
-            {p.hectareasAConfirmar ? (
-              <span className="text-amber-800">ha ?</span>
-            ) : p.hectareas != null ? (
-              `${p.areaUtilizable != null ? `${formatNumero(p.areaUtilizable, 0)}/` : ''}${formatNumero(p.hectareas, 0)} ha`
-            ) : (
-              ''
-            )}
-          </span>
         </div>
         {/* Debajo, en renglones propios: el uso y lo que hay (pedido de Diego, 19/11). */}
         <div className="mt-0.5 text-xs font-normal leading-4 text-suelo-600 md:hidden" data-testid="linea-celular">
@@ -380,16 +349,23 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
       <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`}>
         <UsoBadge uso={usoDe(p)} />
       </td>
-      <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap text-right tabular-nums`}>
+      {/* Hectáreas, también en el celular (pedido de Diego, 24/11): ahí sin decimales. */}
+      <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`} data-testid="celda-ha">
         {p.hectareasAConfirmar ? (
-          <span className="text-xs text-amber-800">a confirmar</span>
+          <span className="text-xs text-amber-800">
+            <span className="hidden md:inline">a confirmar</span>
+            <span className="md:hidden">?</span>
+          </span>
         ) : p.areaUtilizable != null ? (
-          // Con área utilizable: "40 de 50" (la carga se calcula sobre 40).
+          // Con área utilizable: "40 de 50" (la carga se calcula sobre 40). En el celular, "de 50" abajo.
           <span title="Área utilizable de las hectáreas del potrero">
-            {formatNumero(p.areaUtilizable, 2)} <span className="text-xs text-suelo-500">de {formatNumero(p.hectareas, 2)}</span>
+            <Ha valor={p.areaUtilizable} />{' '}
+            <span className="block text-xs text-suelo-500 md:inline">
+              de <Ha valor={p.hectareas} />
+            </span>
           </span>
         ) : (
-          formatNumero(p.hectareas, 2)
+          <Ha valor={p.hectareas} />
         )}
       </td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right font-semibold tabular-nums`}>
@@ -418,5 +394,15 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, estilo, onAbrir }) {
         </span>
       </td>
     </tr>
+  );
+}
+
+// Hectáreas: con dos decimales en la compu y sin decimales en el celular.
+function Ha({ valor }) {
+  return (
+    <>
+      <span className="hidden md:inline">{formatNumero(valor, 2)}</span>
+      <span className="md:hidden">{formatNumero(valor, 0)}</span>
+    </>
   );
 }

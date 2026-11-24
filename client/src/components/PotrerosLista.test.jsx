@@ -8,6 +8,13 @@ import { ConPanel, textoCompu } from '../test-utils.jsx';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+// El texto como se ve en el celular: sin lo que solo aparece en la compu.
+const textoCelular = (el) => {
+  const copia = el.cloneNode(true);
+  for (const e of copia.querySelectorAll('.hidden')) e.remove();
+  return copia.textContent;
+};
+
 const CN = { grupo: 'CN', nombre: 'Campo natural' };
 const potrero = (id, nombre, cabezas, hectareas, extra = {}) => ({
   id,
@@ -72,7 +79,7 @@ describe('la tabla de potreros', () => {
         </MemoryRouter>,
       ),
     );
-  const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr:not([data-testid="fila-vacia"])')].map((tr) => tr.querySelector('td a').textContent);
+  const primeraColumna = () => [...contenedor.querySelectorAll('tbody tr')].map((tr) => tr.querySelector('td a').textContent);
   const titulo = (t) => [...contenedor.querySelectorAll('thead button')].find((b) => b.textContent.startsWith(t));
   const donde = () => contenedor.querySelector('[data-testid="donde"]').textContent;
 
@@ -101,7 +108,7 @@ describe('la tabla de potreros', () => {
     montar([potrero(1, '1', 100, 50, { areaUtilizable: 40 }), potrero(2, '2', 20, 20)]);
     const [fila] = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
     expect(fila[2]).toBe('40 de 50');
-    expect(contenedor.querySelector('[data-testid="ha-celular"]').textContent).toBe('40/50 ha');
+    expect(textoCelular(contenedor.querySelector('[data-testid="celda-ha"]'))).toBe('40 de 50');
     expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/70.*120.*cabezas.*\b2\b/);
   });
 
@@ -149,8 +156,8 @@ describe('la tabla de potreros', () => {
     montar([potrero(2, '2', 50, 10), dos, arroz]);
     const lineas = [...contenedor.querySelectorAll('[data-testid="linea-celular"]')].map((l) => l.textContent);
     expect(lineas).toEqual(['Campo naturalVacas', 'Campo natural40 Vacas · 25 Terneros', 'Arroz']);
-    // Las hectáreas, al lado del nombre (solo en el celular).
-    expect([...contenedor.querySelectorAll('[data-testid="ha-celular"]')].map((e) => e.textContent)).toEqual(['10 ha', '10 ha', '30 ha']);
+    // Las hectáreas tienen su columna también en el celular (sin decimales).
+    expect([...contenedor.querySelectorAll('[data-testid="celda-ha"]')].map(textoCelular)).toEqual(['10', '10', '30']);
     // El uso va como etiqueta de color.
     expect(contenedor.querySelector('[data-testid="linea-celular"] span').className).toContain('bg-lime');
     const cabezas = contenedor.querySelectorAll('tbody tr')[0].querySelectorAll('td')[3];
@@ -161,42 +168,7 @@ describe('la tabla de potreros', () => {
     for (const tr of contenedor.querySelectorAll('tbody tr')) expect(tr.className).toContain('h-[4.5rem]');
     expect(contenedor.querySelector('[data-testid="linea-celular"] span.truncate')).not.toBeNull();
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
-    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías']);
-  });
-
-  it('por página, tantos potreros como entran en la pantalla; la última se completa con filas vacías', () => {
-    // La caja mide 30 (títulos) + 40 (total) + 5 filas de 72 (el alto fijo del celular) + 10 de sobra.
-    const alto = { TR: 72, THEAD: 30, TFOOT: 40 };
-    const original = {
-      ro: globalThis.ResizeObserver,
-      offset: Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight'),
-      client: Object.getOwnPropertyDescriptor(Element.prototype, 'clientHeight'),
-    };
-    globalThis.ResizeObserver = class {
-      observe() {}
-      disconnect() {}
-    };
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return alto[this.tagName] ?? 0; } });
-    Object.defineProperty(Element.prototype, 'clientHeight', {
-      configurable: true,
-      get() { return this.dataset?.testid === 'caja-potreros' ? 30 + 40 + 5 * 72 + 10 : 0; },
-    });
-    try {
-      const doce = Array.from({ length: 12 }, (_, i) => potrero(i + 1, String(i + 1), 10, 5));
-      montar(doce);
-      expect(primeraColumna()).toEqual(['1', '2', '3', '4', '5']);
-      expect(contenedor.querySelector('nav[aria-label="Páginas"]').textContent).toContain('1–5 de 12');
-      // En el celular el "1–5 de 12" no se muestra, para que el paginador entre en un renglón.
-      expect(contenedor.querySelector('nav[aria-label="Páginas"] p').className).toMatch(/(^| )hidden .*sm:block/);
-      const tres = [...contenedor.querySelectorAll('nav[aria-label="Páginas"] button')].find((b) => b.textContent === '3');
-      act(() => tres.click());
-      expect(primeraColumna()).toEqual(['11', '12']);
-      expect(contenedor.querySelectorAll('[data-testid="fila-vacia"]')).toHaveLength(3);
-    } finally {
-      globalThis.ResizeObserver = original.ro;
-      if (original.offset) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', original.offset);
-      if (original.client) Object.defineProperty(Element.prototype, 'clientHeight', original.client);
-    }
+    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'Categorías']);
   });
 
   it('la barra de carga (cab/ha) se llena según el potrero más cargado; no pide peso', () => {
@@ -241,13 +213,13 @@ describe('la tabla de potreros', () => {
     expect(primeraColumna()).toEqual(['1']);
   });
 
-  it('de a 50 por página; cambiar un filtro vuelve a la 1', () => {
+  it('sin paginado: todos los potreros en la tabla (un ?pagina= viejo no cambia nada)', () => {
     const muchos = Array.from({ length: 60 }, (_, i) => potrero(i + 1, String(i + 1), 1, 1));
     montar(muchos, '/pecuaria/potreros?pagina=2');
-    expect(primeraColumna()).toHaveLength(10);
-    expect(primeraColumna()[0]).toBe('51');
+    expect(primeraColumna()).toHaveLength(60);
+    expect(contenedor.querySelector('nav[aria-label="Páginas"]')).toBeNull();
+    // Al cambiar un filtro, el ?pagina= viejo se va de la dirección.
     act(() => [...contenedor.querySelectorAll('[role="group"] button')].find((b) => b.textContent === 'CN').click());
     expect(donde()).toBe('?grupo=CN');
-    expect(primeraColumna()).toHaveLength(50);
   });
 });

@@ -1,7 +1,6 @@
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList } from '../../components/ui';
-import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 import PotrerosLista from '../../components/PotrerosLista';
 import { PantallaTabla, SinEstancia } from './comun';
 
@@ -10,17 +9,15 @@ import { PantallaTabla, SinEstancia } from './comun';
 // estancia (pedido de Diego, 19/11). Tocar un potrero abre su ficha. La
 // pantalla no scrollea: solo la tabla.
 // Sin título ni estancia arriba (pedido de Diego, 24/11): la estancia ya está
-// en la barra de arriba y la pantalla, marcada en la de abajo. Solo queda el
-// botón de los filtros (el ícono), en el celular. Tampoco está "+ Corral".
+// en la barra de arriba y la pantalla, marcada en la de abajo. Tampoco está
+// "+ Corral". Arriba de la tabla, el buscador y el botón de los filtros
+// (PotrerosLista).
 export default function PotrerosPage() {
   const { campoId, todas, grupo } = useEstancia();
   const { potreros, errors } = usePotreros(campoId, todas, grupo);
 
   return (
     <PantallaTabla>
-      <div className="mb-2 flex shrink-0 items-center lg:hidden" data-testid="barra-potreros">
-        <DestinoBotonFiltros />
-      </div>
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
       {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}

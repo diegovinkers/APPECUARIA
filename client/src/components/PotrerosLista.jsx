@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UsoBadge, aprox, cabezasPorCategoria, formatNumero, nombreConSigla } from './pecuaria';
 import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { TituloOrdenable, celda } from './tabla';
-import PanelFiltros from './PanelFiltros';
+import PanelFiltros, { DestinoBotonFiltros } from './PanelFiltros';
+import Icono from './Icono';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -134,7 +135,10 @@ export default function PotrerosLista({ potreros, todas = false }) {
     f.uso && (!grupo || potreros.some((p) => p.usoActual?.nombre === f.uso && grupoDe(p) === grupo)) ? f.uso : '';
   const activos = [f.q, f.grupo, f.uso, f.animales, f.categoria, f.incompletos].filter(Boolean).length;
   const hayFiltros = activos > 0;
-  const limpiar = () => setParams({}, { replace: true });
+  // El buscador está a la vista (arriba de la tabla): el número del botón
+  // Filtros y "Limpiar filtros" son solo los del panel (la búsqueda queda).
+  const activosPanel = activos - (f.q ? 1 : 0);
+  const limpiar = () => setParams(f.q ? { q: f.q } : {}, { replace: true });
 
   // Las categorías que hay hoy en el campo, para el filtro.
   const categorias = useMemo(() => {
@@ -196,15 +200,36 @@ export default function PotrerosLista({ potreros, todas = false }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PanelFiltros activos={activos} onLimpiar={limpiar} compacto>
-        <input
-          type="search"
-          value={f.q}
-          onChange={(e) => poner({ q: e.target.value })}
-          placeholder="Buscar potrero o lote…"
-          aria-label="Buscar potrero o lote"
-          className="w-full rounded-md border border-suelo-300 bg-superficie px-3 py-2 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
-        />
+      {/* Arriba de la tabla: el buscador ocupa el ancho y el botón Filtros
+          va a la derecha (pedido de Diego, 24/11). En la compu el panel está
+          fijo a la izquierda y el botón no aparece. */}
+      <div className="mb-2 flex shrink-0 items-center gap-2" data-testid="barra-potreros">
+        <div className="relative min-w-0 flex-1">
+          <Icono nombre="buscar" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-suelo-400" />
+          <input
+            type="text"
+            inputMode="search"
+            enterKeyHint="search"
+            value={f.q}
+            onChange={(e) => poner({ q: e.target.value })}
+            placeholder="Buscar potrero o lote…"
+            aria-label="Buscar potrero o lote"
+            className="block w-full rounded-md border border-suelo-300 bg-superficie py-1.5 pl-8 pr-8 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:border-campo-500 focus:ring-2 focus:ring-campo-500/40"
+          />
+          {f.q && (
+            <button
+              type="button"
+              onClick={() => poner({ q: '' })}
+              aria-label="Borrar la búsqueda"
+              className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded text-suelo-500 hover:bg-suelo-100 hover:text-suelo-800"
+            >
+              <Icono nombre="cerrar" className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <DestinoBotonFiltros />
+      </div>
+      <PanelFiltros activos={activosPanel} onLimpiar={limpiar} compacto>
         {/* Los grupos bajan de renglón si no entran (nada de scroll de costado). */}
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Grupo de uso de suelo">
           {GRUPOS.map(([valor, texto]) => (

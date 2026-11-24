@@ -54,6 +54,7 @@ let root;
 beforeEach(() => {
   estancia.campoId = 1;
   estancia.todas = false;
+  localStorage.clear();
   api.getProcesos.mockResolvedValue({ data: procesos });
   api.getProcesosTodas.mockResolvedValue({ data: procesos });
   contenedor = document.createElement('div');
@@ -81,7 +82,6 @@ async function montar(ruta = '/pecuaria/procesos') {
 }
 const lista = () => contenedor.querySelector('[data-testid="lista"]')?.textContent;
 const seccion = (clave) => contenedor.querySelector(`[data-testid="seccion-${clave}"]`);
-const pestana = (texto) => [...contenedor.querySelectorAll('nav[aria-label="Secciones"] button')].find((b) => b.textContent.startsWith(texto));
 
 describe('la página Procesos', () => {
   it('título con la estancia, "+ Nuevo proceso" y el tablero de los procesos abiertos', async () => {
@@ -92,25 +92,32 @@ describe('la página Procesos', () => {
     expect(lista()).toBeUndefined();
   });
 
-  it('las pestañas muestran las cabezas de cada sección; arranca en En servicio', async () => {
+  it('las 4 secciones una debajo de la otra, abiertas, con sus cabezas (acordeón)', async () => {
     await montar();
-    expect(pestana('Servicio').textContent).toBe('Servicio80');
-    expect(pestana('Reentore').textContent).toBe('Reentore35');
-    expect(pestana('Preñadas').textContent).toBe('Preñadas165');
-    expect(pestana('Cría').textContent).toBe('Cría0');
-    expect(seccion('servicio').className).toMatch(/\bblock\b/);
-    expect(seccion('prenadas').className).toMatch(/\bhidden\b/);
+    const titulos = [...contenedor.querySelectorAll('[data-testid="tablero"] h2 button')];
+    expect(titulos.map((b) => b.textContent.replace(/\s+/g, ' '))).toEqual([
+      '1En servicioEntore · IATF80cab · 1 grupo',
+      '2ReentoreVacías que se vuelven a servir35cab · 1 grupo',
+      '3PreñadasHasta el parto165cab · 1 grupo',
+      '4Con cría al pieHasta el destete0cab',
+    ]);
+    expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'true')).toBe(true);
     // Una tarjeta por grupo: el mismo entore está en Preñadas y en Reentore.
     expect(seccion('prenadas').textContent).toMatch(/Entore 2026/);
     expect(seccion('reentore').textContent).toMatch(/Entore 2026/);
     expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
   });
 
-  it('tocar una pestaña muestra esa sección', async () => {
+  it('tocar el encabezado pliega la sección (y se recuerda)', async () => {
     await montar();
-    act(() => pestana('Preñadas').click());
-    expect(seccion('prenadas').className).toMatch(/\bblock\b/);
-    expect(seccion('servicio').className).toMatch(/\bhidden\b/);
+    const boton = () => seccion('prenadas').querySelector('h2 button');
+    act(() => boton().click());
+    expect(boton().getAttribute('aria-expanded')).toBe('false');
+    expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).toBeNull();
+    expect(JSON.parse(localStorage.getItem('procesos-plegadas'))).toEqual(['prenadas']);
+    act(() => boton().click());
+    expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem('procesos-plegadas'))).toEqual([]);
   });
 
   it('cada tarjeta: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {
@@ -124,11 +131,11 @@ describe('la página Procesos', () => {
     const vacias = seccion('reentore').querySelector('[data-tipo="VACIAS_REENTORE"]');
     expect(vacias.querySelector('a[href="/pecuaria/procesos/nuevo?desde=7"]').textContent).toBe('Empezar el reentore');
     // La parición es una ventana.
-    expect(seccion('prenadas').textContent).toMatch(/entre 10\/10\/2026 y 10\/12\/2026/);
+    expect(seccion('prenadas').textContent).toMatch(/10\/10\/2026 a 10\/12\/2026/);
   });
 
   it('"Todos" muestra la lista de siempre', async () => {
-    await montar('/pecuaria/procesos?seccion=todos');
+    await montar('/pecuaria/procesos?ver=todos');
     expect(lista()).toBe('campo 1');
     expect(contenedor.querySelector('[data-testid="tablero"]')).toBeNull();
   });

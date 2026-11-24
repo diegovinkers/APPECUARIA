@@ -4,15 +4,15 @@ import { getProcesos, getProcesosTodas } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
 import usePuede from '../hooks/usePuede';
 import { ErrorList } from './ui';
+import Icono from './Icono';
 import { formatFecha, formatNumero } from './pecuaria';
 import { diasCorto, estiloSugerencia, nombreProceso, textoTipo } from './procesos';
 import { SECCIONES_TABLERO, TEXTO_GRUPO, accionDeGrupo, armarTablero, avance } from './tablero';
 
 const hoyIso = () => new Date().toLocaleDateString('sv-SE');
 
-// El tablero de Procesos (24/11): en el celular, una sección por vez (la
-// elige la pestaña de ProcesosPage); en la compu, las 4 columnas juntas.
-// Los datos son la lista de procesos abiertos (cada uno trae sus grupos).
+// El tablero de Procesos (24/11). Los datos son la lista de procesos
+// abiertos (cada uno trae sus grupos).
 export function useTablero({ campoId, todas, grupo }) {
   const [datos, setDatos] = useState(null);
   const [errors, setErrors] = useState([]);
@@ -33,35 +33,86 @@ export function useTablero({ campoId, todas, grupo }) {
   return { tablero, errors };
 }
 
-export default function TableroProcesos({ tablero, errors, seccion, todas }) {
+// Las secciones plegadas se recuerdan en este navegador (solo una comodidad:
+// sin el dato, arrancan todas abiertas).
+const CLAVE_PLEGADAS = 'procesos-plegadas';
+function leerPlegadas() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(CLAVE_PLEGADAS) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+function guardarPlegadas(plegadas) {
+  try {
+    localStorage.setItem(CLAVE_PLEGADAS, JSON.stringify([...plegadas]));
+  } catch {
+    // Sin almacenamiento (ventana privada): no se recuerda, nada más.
+  }
+}
+
+// Las 4 secciones una debajo de la otra, como un acordeón (el dibujo de
+// Diego: todo el ciclo a la vista). Tocar el encabezado pliega o despliega.
+export default function TableroProcesos({ tablero, errors, todas }) {
+  const [plegadas, setPlegadas] = useState(leerPlegadas);
+  const alternar = (clave) =>
+    setPlegadas((antes) => {
+      const nuevas = new Set(antes);
+      nuevas.has(clave) ? nuevas.delete(clave) : nuevas.add(clave);
+      guardarPlegadas(nuevas);
+      return nuevas;
+    });
   if (errors.length) return <ErrorList errors={errors} />;
   if (!tablero) return <p className="text-suelo-600">Cargando…</p>;
   return (
-    <div className="min-h-0 flex-1 overflow-auto pb-4 md:grid md:grid-cols-4 md:gap-3" data-testid="tablero">
-      {SECCIONES_TABLERO.map((s) => (
-        <section key={s.clave} aria-label={s.nombre} className={`${s.clave === seccion ? 'block' : 'hidden'} min-w-0 md:block`} data-testid={`seccion-${s.clave}`}>
-          {/* El título de la columna, solo en la compu (en el celular lo dice la pestaña). */}
-          <header className="mb-2 hidden rounded-md bg-suelo-100 px-2.5 py-1.5 md:block">
-            <p className="flex items-baseline justify-between gap-2 font-semibold">
-              {s.nombre}
-              <span className="text-sm tabular-nums text-suelo-600">{formatNumero(tablero.totales[s.clave])}</span>
-            </p>
-            <p className="text-xs text-suelo-500">{s.sub}</p>
-          </header>
-          <p className="mb-2 text-xs text-suelo-500 md:hidden">{s.sub}</p>
-          {tablero[s.clave].length === 0 ? (
-            <p className="rounded-lg border border-dashed border-suelo-300 p-4 text-center text-sm text-suelo-500">{s.vacio}</p>
-          ) : (
-            <ul className="space-y-2">
-              {tablero[s.clave].map((g) => (
-                <li key={g.clave}>
-                  <TarjetaGrupo g={g} todas={todas} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+    <div className="min-h-0 flex-1 space-y-2 overflow-auto pb-4" data-testid="tablero">
+      {SECCIONES_TABLERO.map((s, i) => {
+        const abierta = !plegadas.has(s.clave);
+        const grupos = tablero[s.clave];
+        return (
+          <section key={s.clave} aria-label={s.nombre} className="overflow-hidden rounded-lg border border-suelo-300 bg-superficie" data-testid={`seccion-${s.clave}`}>
+            <h2>
+              <button
+                type="button"
+                onClick={() => alternar(s.clave)}
+                aria-expanded={abierta}
+                aria-controls={`seccion-${s.clave}-contenido`}
+                className="flex w-full items-center gap-3 bg-suelo-100 px-3 py-2.5 text-left hover:bg-suelo-200/70"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-boton text-sm font-bold text-white">{i + 1}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold leading-tight">{s.nombre}</span>
+                  <span className="block truncate text-xs text-suelo-500">{s.sub}</span>
+                </span>
+                <span className="shrink-0 text-right leading-tight">
+                  <span className="block font-bold tabular-nums" data-testid={`total-${s.clave}`}>
+                    {formatNumero(tablero.totales[s.clave])}
+                  </span>
+                  <span className="text-xs text-suelo-500">
+                    cab{grupos.length ? ` · ${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}` : ''}
+                  </span>
+                </span>
+                <Icono nombre="abajo" className={`h-5 w-5 shrink-0 text-suelo-500 transition-transform ${abierta ? 'rotate-180' : ''}`} />
+              </button>
+            </h2>
+            {abierta && (
+              <div id={`seccion-${s.clave}-contenido`} className="p-2">
+                {grupos.length === 0 ? (
+                  <p className="px-2 py-3 text-center text-sm text-suelo-500">{s.vacio}</p>
+                ) : (
+                  <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {grupos.map((g) => (
+                      <li key={g.clave}>
+                        <TarjetaGrupo g={g} todas={todas} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -76,26 +127,28 @@ function TarjetaGrupo({ g, todas }) {
   const estilo = estiloSugerencia(prox?.estado);
   const parte = avance(g.desde, prox?.fecha, hoyIso());
   const accion = puedo('pecuaria:CREAR') ? accionDeGrupo(p.id, g) : null;
+  // El botón resalta cuando ya toca (hoy, atrasada) o cuando no hay fecha (vacías).
+  const urgente = !prox || prox.estado === 'ATRASADA' || prox.estado === 'HOY';
+  // Compacta (24/11, captura de Diego): nombre y cabezas; qué grupo y dónde;
+  // lo que sigue con los días y la barra; las fechas y el botón, chico, al lado.
   return (
-    <article className="rounded-lg border border-suelo-300 bg-superficie p-3" data-testid="tarjeta-grupo" data-tipo={g.tipo}>
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <Link to={`/pecuaria/procesos/${p.id}`} className="block truncate font-semibold text-campo-800 hover:underline">
-            {nombreProceso(p, todas)}
-          </Link>
-          <p className="truncate text-sm text-suelo-600">
-            {TEXTO_GRUPO[g.tipo]}
-            {g.tipo === 'VIENTRES' && ` · ${textoTipo(p.modalidad)}`}
-            {g.potreros.length ? ` · ${g.potreros.join(', ')}` : ''}
-          </p>
-        </div>
-        <p className="shrink-0 text-right leading-tight">
-          <span className="block text-lg font-bold tabular-nums">{formatNumero(g.cabezas)}</span>
-          <span className="text-xs text-suelo-500">{g.terneros ? `+ ${formatNumero(g.terneros)} terneros` : 'cab'}</span>
-        </p>
+    <article className="rounded-lg border border-suelo-300 bg-superficie px-3 py-2" data-testid="tarjeta-grupo" data-tipo={g.tipo}>
+      <div className="flex items-baseline gap-2">
+        <Link to={`/pecuaria/procesos/${p.id}`} className="min-w-0 flex-1 truncate font-semibold text-campo-800 hover:underline">
+          {nombreProceso(p, todas)}
+        </Link>
+        <span className="shrink-0 font-bold tabular-nums">
+          {formatNumero(g.cabezas)} <span className="text-xs font-normal text-suelo-500">cab</span>
+        </span>
       </div>
+      <p className="truncate text-xs text-suelo-600">
+        {TEXTO_GRUPO[g.tipo]}
+        {g.tipo === 'VIENTRES' && ` · ${textoTipo(p.modalidad)}`}
+        {g.potreros.length ? ` · ${g.potreros.join(', ')}` : ''}
+        {g.terneros ? ` · ${formatNumero(g.terneros)} terneros` : ''}
+      </p>
       {prox && (
-        <div className="mt-2" data-estado={prox.estado}>
+        <div className="mt-1.5" data-estado={prox.estado}>
           <div className="flex items-baseline justify-between gap-2 text-sm">
             <span className="min-w-0 truncate text-suelo-700">{prox.nombre}</span>
             <span className={`shrink-0 font-semibold ${prox.estado === 'ATRASADA' ? 'text-red-700' : prox.estado === 'PROXIMA' || prox.estado === 'HOY' ? 'text-campo-700' : 'text-suelo-700'}`}>
@@ -107,19 +160,22 @@ function TarjetaGrupo({ g, todas }) {
               <div className={`h-full rounded-full ${prox.estado === 'ATRASADA' ? 'bg-red-600' : 'bg-campo-500'}`} style={{ width: `${Math.round(parte * 100)}%` }} />
             </div>
           )}
-          <p className="mt-0.5 text-xs text-suelo-500">
-            {g.desde ? `Desde ${formatFecha(g.desde)} · ` : ''}
-            {prox.hasta ? `entre ${formatFecha(prox.fecha)} y ${formatFecha(prox.hasta)}` : `estimado ${formatFecha(prox.fecha)}`}
-          </p>
         </div>
       )}
-      {accion && (
-        <Link
-          to={accion.ruta}
-          className={`mt-2 block rounded-md px-3 py-2 text-center text-sm font-semibold ${prox?.estado === 'ATRASADA' || prox?.estado === 'HOY' || !prox ? 'bg-boton text-white hover:bg-boton-hover' : `border ${estilo.tarjeta} text-campo-700 hover:border-campo-500`}`}
-        >
-          {accion.texto}
-        </Link>
+      {(prox || accion) && (
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <p className="min-w-0 truncate text-xs text-suelo-500">
+            {prox && (prox.hasta ? `${formatFecha(prox.fecha)} a ${formatFecha(prox.hasta)}` : `Estimado ${formatFecha(prox.fecha)}`)}
+          </p>
+          {accion && (
+            <Link
+              to={accion.ruta}
+              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold ${urgente ? 'bg-boton text-white hover:bg-boton-hover' : `border ${estilo.tarjeta} text-campo-700 hover:border-campo-500`}`}
+            >
+              {accion.texto}
+            </Link>
+          )}
+        </div>
       )}
     </article>
   );

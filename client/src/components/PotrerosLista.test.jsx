@@ -187,6 +187,21 @@ describe('la tabla de potreros', () => {
     expect(botonFiltros.textContent).toBe('2');
   });
 
+  it('arriba de la tabla: el buscador ocupa el ancho y el botón Filtros va a la derecha (24/11)', () => {
+    montar([potrero(1, '8.1', 10, 5), potrero(2, '10.2', 10, 5)], '/pecuaria/potreros?q=8&grupo=CN');
+    const barra = contenedor.querySelector('[data-testid="barra-potreros"]');
+    const buscador = barra.querySelector('input[aria-label="Buscar potrero o lote"]');
+    expect(buscador.value).toBe('8');
+    // El botón queda después del buscador (a la derecha).
+    expect(barra.lastElementChild.querySelector('button[aria-label="Filtros"]')).not.toBeNull();
+    // La búsqueda se ve: el número del botón cuenta solo los filtros del panel.
+    expect(barra.querySelector('button[aria-label="Filtros"]').textContent).toBe('1');
+    expect(primeraColumna()).toEqual(['8.1']);
+    // La ✕ borra la búsqueda.
+    act(() => barra.querySelector('button[aria-label="Borrar la búsqueda"]').click());
+    expect(donde()).toBe('?grupo=CN');
+  });
+
   it('filtro por uso de suelo (Sorgo, Raigrás…): con un grupo elegido, solo los usos de ese grupo', () => {
     const verdeo = (nombre) => ({ grupo: 'VERDEO', nombre });
     montar([

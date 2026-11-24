@@ -2,46 +2,47 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePuede from '../../hooks/usePuede';
 import { Notice } from '../../components/ui';
-import { formatNumero } from '../../components/pecuaria';
 import ProcesosLista from '../../components/ProcesosLista';
 import TableroProcesos, { useTablero } from '../../components/TableroProcesos';
-import { SECCIONES_TABLERO, esSeccion } from '../../components/tablero';
 import { Encabezado, PantallaTabla, SinEstancia } from './comun';
 
-// Procesos (24/11, dibujo de Diego): un tablero con las 4 secciones del ciclo
-// de la vaca (En servicio, Reentore, Preñadas, Con cría al pie) y, aparte,
-// "Todos" (la lista de siempre, con cerrados y anulados). En el celular, una
-// pestaña por sección con sus cabezas; en la compu, las 4 columnas juntas.
-// La pestaña va en la URL (?seccion=).
+// Procesos (24/11, dibujo de Diego): el tablero con las 4 secciones del ciclo
+// de la vaca una debajo de la otra, como un acordeón (En servicio, Reentore,
+// Preñadas, Con cría al pie), y aparte "Todos" (la lista de siempre, con
+// cerrados y anulados). Lo que se ve va en la URL (?ver=todos).
 export default function ProcesosPage() {
   const location = useLocation();
   const puedo = usePuede();
   const [params, setParams] = useSearchParams();
   const { campoId, todas, grupo } = useEstancia();
   const hayEstancia = Boolean(campoId || todas);
-  const pedida = params.get('seccion');
-  const seccion = pedida === 'todos' || esSeccion(pedida) ? pedida : 'servicio';
-  const verTodos = seccion === 'todos';
+  // ?seccion=todos es de la primera versión (con pestañas).
+  const verTodos = params.get('ver') === 'todos' || params.get('seccion') === 'todos';
   const { tablero, errors } = useTablero({ campoId: hayEstancia ? campoId : null, todas, grupo });
 
-  const elegir = (clave) =>
+  const ver = (todos) =>
     setParams(
       (actual) => {
         const nuevo = new URLSearchParams(actual);
-        clave === 'servicio' ? nuevo.delete('seccion') : nuevo.set('seccion', clave);
+        nuevo.delete('seccion');
+        todos ? nuevo.set('ver', 'todos') : nuevo.delete('ver');
         return nuevo;
       },
       { replace: true },
     );
-  const pestana = (activa) =>
-    `flex min-w-0 flex-1 flex-col items-center rounded-md px-1 py-1.5 text-xs leading-tight ${activa ? 'bg-boton text-white' : 'text-suelo-700 hover:bg-suelo-200/70'}`;
+  const opcion = (activa) => `flex-1 rounded-md px-3 py-1.5 text-sm font-semibold ${activa ? 'bg-boton text-white' : 'text-suelo-700 hover:bg-suelo-200/70'}`;
 
   return (
     <PantallaTabla>
       <Encabezado titulo="Procesos">
         {puedo('pecuaria:CREAR') && (
-          <Link to="/pecuaria/procesos/nuevo" className="inline-flex min-h-11 items-center rounded-md bg-boton px-4 py-2 text-sm font-semibold text-white hover:bg-boton-hover">
-            + Nuevo proceso
+          // En el celular, "+ Nuevo" (así entra al lado del botón Filtros de "Todos").
+          <Link
+            to="/pecuaria/procesos/nuevo"
+            aria-label="Nuevo proceso"
+            className="inline-flex min-h-10 items-center whitespace-nowrap rounded-md bg-boton px-3 py-2 text-sm font-semibold text-white hover:bg-boton-hover"
+          >
+            + Nuevo<span className="hidden sm:inline">&nbsp;proceso</span>
           </Link>
         )}
       </Encabezado>
@@ -49,26 +50,18 @@ export default function ProcesosPage() {
       {!hayEstancia && <SinEstancia />}
       {hayEstancia && (
         <>
-          <nav aria-label="Secciones" className="mb-2 flex shrink-0 gap-1 rounded-lg bg-suelo-100 p-1">
-            {/* En el celular, una pestaña por sección; en la compu, "Tablero" (las 4 juntas). */}
-            {SECCIONES_TABLERO.map((s) => (
-              <button key={s.clave} type="button" onClick={() => elegir(s.clave)} aria-pressed={seccion === s.clave} className={`${pestana(seccion === s.clave)} md:hidden`}>
-                <span className="font-semibold">{s.corto}</span>
-                <span className="tabular-nums opacity-80">{tablero ? formatNumero(tablero.totales[s.clave]) : '…'}</span>
-              </button>
-            ))}
-            <button type="button" onClick={() => elegir('servicio')} aria-pressed={!verTodos} className={`${pestana(!verTodos)} hidden md:flex`}>
-              <span className="font-semibold">Tablero</span>
+          <nav aria-label="Vista" className="mb-2 flex shrink-0 gap-1 rounded-lg bg-suelo-100 p-1 sm:max-w-xs">
+            <button type="button" onClick={() => ver(false)} aria-pressed={!verTodos} className={opcion(!verTodos)}>
+              Tablero
             </button>
-            <button type="button" onClick={() => elegir('todos')} aria-pressed={verTodos} className={pestana(verTodos)}>
-              <span className="font-semibold">Todos</span>
-              <span className="opacity-80 md:hidden">lista</span>
+            <button type="button" onClick={() => ver(true)} aria-pressed={verTodos} className={opcion(verTodos)}>
+              Todos
             </button>
           </nav>
           {verTodos ? (
             <ProcesosLista campoId={campoId} todas={todas} grupo={grupo} conNuevo={false} />
           ) : (
-            <TableroProcesos tablero={tablero} errors={errors} seccion={seccion} todas={todas} />
+            <TableroProcesos tablero={tablero} errors={errors} todas={todas} />
           )}
         </>
       )}

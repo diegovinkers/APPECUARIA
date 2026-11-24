@@ -220,6 +220,9 @@ function MarcoInterno() {
   const filtros = usePanelFiltros();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [registrarAbierto, setRegistrarAbierto] = useState(false);
+  // Celular acostado: las barras de arriba y de abajo se esconden; el botón
+  // flotante las trae y tocar la pantalla (o cambiar de página) las esconde.
+  const [barras, setBarras] = useState(false);
   const contenido = useRef(null);
   const conMenu = Boolean(user && !user.debeCambiarPassword);
   const menu = menuPara(user);
@@ -238,6 +241,7 @@ function MarcoInterno() {
     setMenuAbierto(false);
     setFiltrosAbierto(false);
     setRegistrarAbierto(false);
+    setBarras(false);
   }, [location.pathname, setFiltrosAbierto]);
 
   // Deslizar desde el borde izquierdo abre los filtros (celular).
@@ -297,7 +301,7 @@ function MarcoInterno() {
     <div className="fixed inset-0 flex flex-col">
       {/* En el celular entran logo, estancia, tema y ☰ a 360 px: logo un poco
           más bajo y menos espacio entre cosas (24/11). */}
-      <header className="relative z-30 flex shrink-0 items-center gap-1.5 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4">
+      <header className={`relative z-30 flex shrink-0 items-center gap-1.5 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4 ${barras ? '' : 'acostado:hidden'}`}>
         <Link to="/pecuaria/resumen" className="flex shrink-0 items-center" aria-label="SAPSA, ir al inicio">
           <Logo className="h-6 w-auto lg:h-7" />
         </Link>
@@ -366,7 +370,12 @@ function MarcoInterno() {
           <DestinoFiltros />
         </aside>
         {/* pb-5: que el "+" de la barra de abajo (sobresale) no tape lo último. */}
-        <div ref={contenido} className="min-w-0 flex-1 overflow-y-auto pb-5 lg:pb-0" data-testid="contenido">
+        <div
+          ref={contenido}
+          onPointerDown={() => barras && setBarras(false)}
+          className="min-w-0 flex-1 overflow-y-auto pb-5 lg:pb-0 acostado:pb-1"
+          data-testid="contenido"
+        >
           <Outlet />
         </div>
       </div>
@@ -383,9 +392,22 @@ function MarcoInterno() {
         </button>
       )}
 
+      {/* Celular acostado: el botón que trae las barras (solo con las barras escondidas). */}
+      {!barras && (
+        <button
+          type="button"
+          onClick={() => setBarras(true)}
+          aria-label="Mostrar el menú"
+          className="fixed right-2 top-2 z-40 hidden h-9 w-9 items-center justify-center rounded-full bg-barra text-white shadow-md acostado:flex"
+          data-testid="mostrar-barras"
+        >
+          <Icono nombre="menu" className="h-5 w-5" />
+        </button>
+      )}
+
       <nav
         aria-label="Barra de abajo"
-        className="relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-superficie pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className={`relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-superficie pb-[env(safe-area-inset-bottom)] lg:hidden ${barras ? '' : 'acostado:hidden'}`}
       >
         {menu.principal.slice(0, 2).map((item) => (
           <NavLink key={item.clave} to={item.ruta} className={linkAbajo}>

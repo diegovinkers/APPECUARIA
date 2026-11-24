@@ -257,7 +257,8 @@ export default function PotrerosLista({ potreros, todas = false }) {
                   <PotreroFila key={p.id} potrero={p} todas={todas} par={n % 2 === 1} cargaMaxima={cargaMaxima} onAbrir={() => navigate(`/pecuaria/potreros/${p.id}`)} />
                 ))}
               </tbody>
-              <tfoot>
+              {/* Acostado, sin el Total: más lugar para los potreros. */}
+              <tfoot className="acostado:hidden">
                 <tr className="font-semibold">
                   <td className={`${pie} left-0 z-20`}>
                     Total{hayFiltros ? ' filtrado' : ''}
@@ -284,7 +285,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
           buscador ocupa el ancho y el botón Filtros va a la derecha. Con pocos
           potreros (o ninguno) queda igual abajo de todo (mt-auto). En la
           compu el panel está fijo a la izquierda y el botón no aparece. */}
-      <div className="mt-auto flex shrink-0 items-center gap-2 pt-2" data-testid="barra-potreros">
+      <div className="mt-auto flex shrink-0 items-center gap-2 pt-2 acostado:hidden" data-testid="barra-potreros">
         <div className="relative min-w-0 flex-1">
           <Icono nombre="buscar" className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-suelo-400" />
           <input

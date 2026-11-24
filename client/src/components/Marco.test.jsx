@@ -405,3 +405,26 @@ describe('direcciones viejas', () => {
     expect(donde()).toBe('/pecuaria/resumen');
   });
 });
+
+// El celular acostado (24/11): las barras se esconden (clase acostado:hidden,
+// que la pantalla aplica solo horizontal y bajita); el botón flotante las trae
+// y tocar la pantalla las vuelve a esconder.
+describe('el celular acostado', () => {
+  it('las barras se esconden; el botón flotante las trae y tocar el contenido las esconde', () => {
+    estado.user = capataz;
+    estado.campos = [EG];
+    montar('/pecuaria/potreros');
+    const arriba = () => contenedor.querySelector('header');
+    const abajo = () => contenedor.querySelector('nav[aria-label="Barra de abajo"]');
+    expect(arriba().className).toMatch(/acostado:hidden/);
+    expect(abajo().className).toMatch(/acostado:hidden/);
+    const flotante = contenedor.querySelector('[data-testid="mostrar-barras"]');
+    expect(flotante.className).toMatch(/\bhidden\b.*acostado:flex/);
+    click(flotante);
+    expect(arriba().className).not.toMatch(/acostado:hidden/);
+    expect(abajo().className).not.toMatch(/acostado:hidden/);
+    expect(contenedor.querySelector('[data-testid="mostrar-barras"]')).toBeNull();
+    act(() => contenedor.querySelector('[data-testid="contenido"]').dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(arriba().className).toMatch(/acostado:hidden/);
+  });
+});

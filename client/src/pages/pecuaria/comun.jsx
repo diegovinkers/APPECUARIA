@@ -25,7 +25,9 @@ export function Encabezado({ titulo, children }) {
 // el Marco; el título y el paginador quedan fijos y solo scrollea la tabla
 // (pedido de Diego, 19/11). La lista adentro usa flex-1 + min-h-0.
 export function PantallaTabla({ children }) {
-  return <main className="mx-auto flex h-full max-w-5xl flex-col px-4 pt-3 sm:pt-5 lg:pb-4">{children}</main>;
+  // Acostado (celular horizontal): casi sin margen arriba y lugar a la
+  // derecha para el botón flotante que trae las barras.
+  return <main className="mx-auto flex h-full max-w-5xl flex-col px-4 pt-3 sm:pt-5 lg:pb-4 acostado:pr-14 acostado:pt-2">{children}</main>;
 }
 
 // Mientras no haya estancia elegida: cargando, error o "importá la planilla".

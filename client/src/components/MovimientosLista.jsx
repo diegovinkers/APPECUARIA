@@ -495,7 +495,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                 );
               })}
             </tbody>
-            <tfoot>
+            <tfoot className="acostado:hidden">
               <tr>
                 <td colSpan={columnas} className="sticky bottom-0 left-0 z-20 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
                   <span className="sticky left-3">

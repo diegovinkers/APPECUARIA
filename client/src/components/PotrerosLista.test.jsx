@@ -91,7 +91,7 @@ describe('la tabla de potreros', () => {
   it('una fila por potrero con cabezas de qué, y los totales abajo', () => {
     montar([potrero(1, '1', 10, 5), potrero(2, '2', 50, 10), potrero(3, '3', 0, 4)]);
     const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '—', '5', '—', '—']);
+    expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '—', '—', '5']);
     expect(filas[2][4]).toBe('vacío');
     expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/Total.*3 potreros.*19.*60.*cabezas.*3,16/);
   });
@@ -105,12 +105,13 @@ describe('la tabla de potreros', () => {
     expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/70.*120.*cabezas.*\b2\b/);
   });
 
-  it('con kilos estimados (peso de la categoría): "≈" en peso, kg/ha y UG/ha', () => {
+  it('con kilos estimados (peso de la categoría): "≈" en peso y kg/ha; cab/ha al final, sin UG/ha', () => {
     const p = potrero(1, '1', 100, 50);
     p.stock = { ...p.stock, kilos: 19000, kilosCompletos: true, kilosEstimados: true, kgPvHa: 380, ugHa: 1 };
     montar([p]);
     const [fila] = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    expect(fila.slice(5)).toEqual(['≈190', '2', '≈380', '≈1']);
+    expect(fila.slice(5)).toEqual(['≈190', '≈380', '2']);
+    expect(contenedor.querySelector('thead').textContent).not.toMatch(/UG/);
   });
 
   it('peso promedio y kg/ha (sin peso en algún lote: —); el total promedia los lotes con peso', () => {
@@ -121,10 +122,10 @@ describe('la tabla de potreros', () => {
     };
     montar([conPeso(1, 100, 300, 20), conPeso(2, 50, 400, 10), conPeso(3, 40, 0, 10, false)]);
     const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    // Columnas: potrero, uso, ha, cabezas, categorías, peso, cab/ha, kg/ha, UG/ha.
-    expect([filas[0][5], filas[0][7]]).toEqual(['300', '1.500']);
-    expect([filas[1][5], filas[1][7]]).toEqual(['400', '2.000']);
-    expect([filas[2][5], filas[2][7]]).toEqual(['—', '—']);
+    // Columnas: potrero, uso, ha, cabezas, categorías, peso, kg/ha, cab/ha.
+    expect([filas[0][5], filas[0][6]]).toEqual(['300', '1.500']);
+    expect([filas[1][5], filas[1][6]]).toEqual(['400', '2.000']);
+    expect([filas[2][5], filas[2][6]]).toEqual(['—', '—']);
     // Total: (100×300 + 50×400) / 150 = 333.
     expect([...contenedor.querySelectorAll('tfoot td')].map(textoCompu)[5]).toBe('333');
   });
@@ -139,7 +140,7 @@ describe('la tabla de potreros', () => {
     expect(donde()).toBe('?orden=cabezas&dir=asc');
   });
 
-  it('en el celular: debajo del nombre el uso con color y qué hay, sin repetir las cabezas; cab/ha debajo de Cabezas', () => {
+  it('en el celular: debajo del nombre el uso con color y qué hay, sin repetir las cabezas; cab/ha en su columna', () => {
     const dos = { ...potrero(4, '4', 65, 10), stock: { ...potrero(4, '4', 65, 10).stock, lotes: [
       { loteId: 41, lote: '4 · Vacas', categoriaId: 9, categoria: 'Vacas', cabezas: 40 },
       { loteId: 42, lote: '4 · Terneros', categoriaId: 8, categoria: 'Terneros', cabezas: 25 },
@@ -153,14 +154,14 @@ describe('la tabla de potreros', () => {
     // El uso va como etiqueta de color.
     expect(contenedor.querySelector('[data-testid="linea-celular"] span').className).toContain('bg-lime');
     const cabezas = contenedor.querySelectorAll('tbody tr')[0].querySelectorAll('td')[3];
-    // cab/ha debajo de las cabezas, y todo centrado a lo alto.
-    expect(cabezas.textContent).toBe('505/ha');
+    // Solo las cabezas (cab/ha tiene su columna, también en el celular), y todo centrado a lo alto.
+    expect(cabezas.textContent).toBe('50');
     expect(cabezas.className).toContain('align-middle');
     // Todas las filas del mismo alto; lo largo se corta con "…" (no baja de renglón).
     for (const tr of contenedor.querySelectorAll('tbody tr')) expect(tr.className).toContain('h-[4.5rem]');
     expect(contenedor.querySelector('[data-testid="linea-celular"] span.truncate')).not.toBeNull();
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
-    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías', 'cab/ha']);
+    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'ha', 'Categorías']);
   });
 
   it('por página, tantos potreros como entran en la pantalla; la última se completa con filas vacías', () => {
@@ -198,14 +199,14 @@ describe('la tabla de potreros', () => {
     }
   });
 
-  it('la barra de carga se llena según el potrero más cargado (los sin peso no tienen barra)', () => {
-    const conUg = (id, ugHa, extra = {}) => {
+  it('la barra de carga (cab/ha) se llena según el potrero más cargado; no pide peso', () => {
+    const conCarga = (id, cabHa, extra = {}) => {
       const p = potrero(id, String(id), 10, 5);
-      return { ...p, stock: { ...p.stock, ugHa, ...extra } };
+      return { ...p, stock: { ...p.stock, cabHa, ...extra } };
     };
-    montar([conUg(1, 2), conUg(2, 4), conUg(3, 3, { kilosCompletos: false })]);
+    montar([conCarga(1, 2), conCarga(2, 4), conCarga(3, 3, { kilosCompletos: false })]);
     const anchos = [...contenedor.querySelectorAll('[data-testid="barra-carga"] > span')].map((b) => b.style.width);
-    expect(anchos).toEqual(['50%', '100%']);
+    expect(anchos).toEqual(['50%', '100%', '75%']);
   });
 
   it('los filtros van al panel izquierdo, con el botón "Filtros" y cuántos hay puestos', () => {

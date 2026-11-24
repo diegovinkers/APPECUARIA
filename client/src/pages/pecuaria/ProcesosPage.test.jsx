@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConPanel } from '../../test-utils.jsx';
 
-// Procesos como página propia (23/11).
+// Procesos (24/11): el tablero de 4 secciones y "Todos" (la lista de siempre).
 const estancia = vi.hoisted(() => ({ campoId: 1, todas: false }));
 vi.mock('../../context/EstanciaContext', () => ({
   useEstancia: () => ({
@@ -17,6 +17,9 @@ vi.mock('../../context/EstanciaContext', () => ({
     errors: [],
   }),
 }));
+const api = vi.hoisted(() => ({ getProcesos: vi.fn(), getProcesosTodas: vi.fn() }));
+vi.mock('../../api/pecuaria', () => api);
+vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { esSuperadmin: false, permisos: ['pecuaria:VER', 'pecuaria:CREAR'] } }) }));
 // La lista se prueba aparte (ProcesosLista.test.jsx): acá, qué recibe.
 vi.mock('../../components/ProcesosLista', () => ({
   default: ({ campoId, todas }) => <p data-testid="lista">{todas ? 'todas' : `campo ${campoId}`}</p>,
@@ -25,11 +28,34 @@ vi.mock('../../components/ProcesosLista', () => ({
 const { default: ProcesosPage } = await import('./ProcesosPage.jsx');
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+const proxima = (etapa, fecha, estado = 'PENDIENTE', extra = {}) => ({ etapa, fecha, estado, nombre: etapa, dias: 10, ...extra });
+const procesos = [
+  {
+    id: 7,
+    nombre: 'Entore 2026',
+    modalidad: 'TOROS',
+    campo: { sigla: 'EG' },
+    grupos: [
+      { seccion: 'prenadas', tipo: 'PRENADAS', cabezas: 165, potreros: ['P1'], desde: '2026-01-01', proxima: proxima('PARICION', '2026-10-10', 'PENDIENTE', { hasta: '2026-12-10' }) },
+      { seccion: 'reentore', tipo: 'VACIAS_REENTORE', cabezas: 35, potreros: ['P8'], desde: '2026-01-01', proxima: null },
+    ],
+  },
+  {
+    id: 9,
+    nombre: 'IATF vaquillonas',
+    modalidad: 'IATF',
+    campo: { sigla: 'EG' },
+    grupos: [{ seccion: 'servicio', tipo: 'VIENTRES', cabezas: 80, potreros: ['P2'], desde: '2026-11-01', proxima: proxima('DIAGNOSTICO', '2026-12-01', 'ATRASADA', { dias: -2 }) }],
+  },
+];
+
 let contenedor;
 let root;
 beforeEach(() => {
   estancia.campoId = 1;
   estancia.todas = false;
+  api.getProcesos.mockResolvedValue({ data: procesos });
+  api.getProcesosTodas.mockResolvedValue({ data: procesos });
   contenedor = document.createElement('div');
   document.body.appendChild(contenedor);
   root = createRoot(contenedor);
@@ -39,10 +65,10 @@ afterEach(() => {
   contenedor.remove();
 });
 
-function montar() {
+async function montar(ruta = '/pecuaria/procesos') {
   act(() =>
     root.render(
-      <MemoryRouter initialEntries={['/pecuaria/procesos']}>
+      <MemoryRouter initialEntries={[ruta]}>
         <ConPanel>
           <Routes>
             <Route path="/pecuaria/procesos" element={<ProcesosPage />} />
@@ -51,20 +77,67 @@ function montar() {
       </MemoryRouter>,
     ),
   );
+  await act(async () => {});
 }
 const lista = () => contenedor.querySelector('[data-testid="lista"]')?.textContent;
+const seccion = (clave) => contenedor.querySelector(`[data-testid="seccion-${clave}"]`);
+const pestana = (texto) => [...contenedor.querySelectorAll('nav[aria-label="Secciones"] button')].find((b) => b.textContent.startsWith(texto));
 
 describe('la página Procesos', () => {
-  it('título con la estancia y la lista de esa estancia', () => {
-    montar();
+  it('título con la estancia, "+ Nuevo proceso" y el tablero de los procesos abiertos', async () => {
+    await montar();
     expect(contenedor.querySelector('h1').textContent).toBe('ProcesosLa Gateada');
-    expect(lista()).toBe('campo 1');
+    expect(contenedor.querySelector('a[href="/pecuaria/procesos/nuevo"]')).not.toBeNull();
+    expect(api.getProcesos).toHaveBeenCalledWith(1, { estado: 'ABIERTO' });
+    expect(lista()).toBeUndefined();
   });
 
-  it('con "Todas las estancias", la lista de todas', () => {
+  it('las pestañas muestran las cabezas de cada sección; arranca en En servicio', async () => {
+    await montar();
+    expect(pestana('Servicio').textContent).toBe('Servicio80');
+    expect(pestana('Reentore').textContent).toBe('Reentore35');
+    expect(pestana('Preñadas').textContent).toBe('Preñadas165');
+    expect(pestana('Cría').textContent).toBe('Cría0');
+    expect(seccion('servicio').className).toMatch(/\bblock\b/);
+    expect(seccion('prenadas').className).toMatch(/\bhidden\b/);
+    // Una tarjeta por grupo: el mismo entore está en Preñadas y en Reentore.
+    expect(seccion('prenadas').textContent).toMatch(/Entore 2026/);
+    expect(seccion('reentore').textContent).toMatch(/Entore 2026/);
+    expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
+  });
+
+  it('tocar una pestaña muestra esa sección', async () => {
+    await montar();
+    act(() => pestana('Preñadas').click());
+    expect(seccion('prenadas').className).toMatch(/\bblock\b/);
+    expect(seccion('servicio').className).toMatch(/\bhidden\b/);
+  });
+
+  it('cada tarjeta: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {
+    await montar();
+    const servicio = seccion('servicio').querySelector('[data-testid="tarjeta-grupo"]');
+    expect(servicio.textContent).toMatch(/En servicio · Inseminación · P2/);
+    expect(servicio.textContent).toMatch(/atrasada 2 días/);
+    expect(servicio.querySelector('[data-testid="barra-tiempo"]')).not.toBeNull();
+    expect(servicio.querySelector('a[href="/pecuaria/procesos/9/etapa/DIAGNOSTICO"]').textContent).toBe('Ecografía');
+    expect(servicio.querySelector('a[href="/pecuaria/procesos/9"]').textContent).toBe('IATF vaquillonas');
+    const vacias = seccion('reentore').querySelector('[data-tipo="VACIAS_REENTORE"]');
+    expect(vacias.querySelector('a[href="/pecuaria/procesos/nuevo?desde=7"]').textContent).toBe('Empezar el reentore');
+    // La parición es una ventana.
+    expect(seccion('prenadas').textContent).toMatch(/entre 10\/10\/2026 y 10\/12\/2026/);
+  });
+
+  it('"Todos" muestra la lista de siempre', async () => {
+    await montar('/pecuaria/procesos?seccion=todos');
+    expect(lista()).toBe('campo 1');
+    expect(contenedor.querySelector('[data-testid="tablero"]')).toBeNull();
+  });
+
+  it('con "Todas las estancias", los procesos de todas', async () => {
     estancia.campoId = null;
     estancia.todas = true;
-    montar();
-    expect(lista()).toBe('todas');
+    await montar();
+    expect(api.getProcesosTodas).toHaveBeenCalledWith({ estado: 'ABIERTO' }, 'estancias');
+    expect(seccion('servicio').textContent).toMatch(/EG IATF vaquillonas/);
   });
 });

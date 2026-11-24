@@ -11,6 +11,7 @@
 //
 // La etapa actual, las próximas fechas y el embudo se calculan
 // (procesos.calculos.js); no se guardan.
+import { esReentore, gruposDelProceso } from './procesos.tablero.js';
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db.js';
 import { Prisma } from '../generated/prisma/client.ts';
@@ -265,6 +266,8 @@ async function crearEn(tx, body, usuarioId) {
         ...(plan.toros != null && { toros: plan.toros }),
         // Nuevo entore de paridas (fase 7): de qué proceso y mes de parto vienen.
         ...(plan.conCria.size && { conCria: [...new Map([...plan.conCria.values()].map((c) => [`${c.procesoId}:${c.mes}`, c])).values()] }),
+        // Reentore (tablero, 24/11): empieza con vacías que se vuelven a servir.
+        ...(plan.anteriores.size && { reentore: true }),
       },
       nota: plan.nota,
       procesoAnteriorId: [...plan.anteriores.values()][0] ?? [...plan.conCria.values()][0]?.procesoId ?? null,
@@ -1850,6 +1853,8 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
       prisma,
       activos.map((pl) => pl.lote),
     );
+    const cronograma = cronogramaDe(p, anclas, roles, parametros, hoy);
+    const reentore = esReentore(p);
     lista.push({
       id: p.id,
       nombre: p.nombre,
@@ -1863,7 +1868,18 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
       modalidad: p.datos?.modalidad ?? null,
       // Dónde están hoy los animales del proceso (sin repetir).
       potreros: [...new Set(activos.map((pl) => pl.lote.potrero.nombre))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })),
-      proxima: cronogramaDe(p, anclas, roles, parametros, hoy).proxima,
+      proxima: cronograma.proxima,
+      reentore,
+      // El tablero (24/11): cada grupo del proceso en su sección (procesos.tablero.js).
+      grupos:
+        p.estado === 'ABIERTO'
+          ? gruposDelProceso({
+              reentore,
+              fechaInicio: fechaISO(p.fechaInicio),
+              items: cronograma.items,
+              lotes: activos.map((pl) => ({ loteId: pl.loteId, rol: pl.rol, destino: pl.destino, cabezas: cabezas.get(pl.loteId) ?? 0, potrero: pl.lote.potrero.nombre })),
+            })
+          : [],
       embudoCorto: embudo(anclas).corto,
       lotes: activos.length,
       // Los lotes que están hoy en el proceso (Eventos: no ofrecer "empezar un

@@ -31,7 +31,8 @@ const selector = 'mt-1 block w-full rounded-md border border-suelo-300 bg-superf
 // están, las cabezas y el próximo evento con los días que faltan, del color
 // de su estado. Filtros en el panel (estado, campaña, etapa), en la URL.
 // Tocar la tarjeta abre la ficha. Con "Todas las estancias", la sigla adelante.
-export default function ProcesosLista({ campoId, todas = false, grupo = 'estancias' }) {
+// conNuevo: el botón "+ Nuevo proceso" (en la página Procesos ya está en el encabezado).
+export default function ProcesosLista({ campoId, todas = false, grupo = 'estancias', conNuevo = true }) {
   const puedo = usePuede();
   const [params, setParams] = useSearchParams();
   const f = { estado: params.get('pestado') || 'ABIERTO', campania: params.get('pcampania') ?? '', etapa: params.get('petapa') ?? '' };
@@ -107,7 +108,7 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
         </label>
       </PanelFiltros>
 
-      {puedo('pecuaria:CREAR') && (
+      {conNuevo && puedo('pecuaria:CREAR') && (
         <div className="mb-2 flex shrink-0 justify-end">
           <Link to="/pecuaria/procesos/nuevo" className="min-h-11 rounded-md bg-boton px-4 py-2.5 text-sm font-semibold text-white hover:bg-boton-hover">
             + Nuevo proceso

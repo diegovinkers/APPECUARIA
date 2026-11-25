@@ -117,6 +117,18 @@ import {
   alcanceSubirPlanilla,
   soloTodas,
 } from './alcance.js';
+import {
+  conToken,
+  getHistorial as getHistorialPrecios,
+  getImportaciones as getImportacionesPrecios,
+  getUltimos as getUltimosPrecios,
+  patchPrecio,
+  postActualizar as postActualizarPrecios,
+  postActualizarProgramado,
+  postAprobar as postAprobarPrecios,
+  postPrecio,
+} from './precios.controller.js';
+import { cargarPrecioSchema, corregirPrecioSchema } from './precios.schema.js';
 
 const router = Router();
 
@@ -129,6 +141,11 @@ const ver = requirePermission('pecuaria', 'VER');
 const registrar = requirePermission('pecuaria', 'CREAR');
 const revertir = requirePermission('pecuaria', 'ANULAR');
 const configurar = requirePermission('pecuaria', 'EDITAR');
+
+// Precios de INAC: GitHub Actions dispara la importación semanal con un token
+// (sin sesión). Va antes de authRequired; sin el encabezado Authorization sigue
+// a la ruta de abajo, la del botón (docs/PRECIOS_INAC.md).
+router.post('/precios/actualizar', conToken, postActualizarProgramado);
 
 router.use(authRequired);
 
@@ -244,5 +261,14 @@ router.post(
 router.get('/importaciones/:id', configurar, alcanceImportacion, getImportacion);
 router.post('/importaciones/:id/confirmar', configurar, alcanceImportacion, validateBody(confirmarImportacionSchema), confirmarImportacion);
 router.post('/importaciones/:id/descartar', configurar, alcanceImportacion, descartarImportacion);
+
+// Precios de mercado (INAC y cargados a mano). Comunes a todas las estancias.
+router.get('/precios', ver, getHistorialPrecios);
+router.get('/precios/ultimos', ver, getUltimosPrecios);
+router.get('/precios/importaciones', ver, getImportacionesPrecios);
+router.post('/precios/actualizar', registrar, postActualizarPrecios);
+router.post('/precios/importaciones/:id/aprobar', registrar, postAprobarPrecios);
+router.post('/precios', registrar, validateBody(cargarPrecioSchema), postPrecio);
+router.patch('/precios/:id', registrar, validateBody(corregirPrecioSchema), patchPrecio);
 
 export default router;

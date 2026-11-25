@@ -53,6 +53,19 @@ const schema = z.object({
   LOGIN_MAX_INTENTOS: entero(5, 1, 100),
   LOGIN_BLOQUEO_MINUTOS: entero(15, 1, 24 * 60),
   LOGIN_MAX_FALLOS_POR_IP: entero(100, 1, 100_000),
+
+  // Precios de INAC (docs/PRECIOS_INAC.md). El token lo manda GitHub Actions
+  // para disparar la importación semanal; vacío = esa ruta no anda.
+  PRECIOS_TOKEN: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || null)
+    .refine((value) => value == null || value.length >= 32, 'tiene que tener al menos 32 caracteres'),
+  // Opcional: un contacto para la identificación con que se bajan los archivos de INAC.
+  PRECIOS_CONTACTO: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || null),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -86,4 +99,9 @@ export const LOGIN = {
 
 // En producción el prefijo __Host- obliga a HTTPS y a que la cookie sea solo
 // de este dominio: ningún subdominio la puede pisar.
+export const PRECIOS = {
+  token: env.PRECIOS_TOKEN,
+  contacto: env.PRECIOS_CONTACTO,
+};
+
 export const COOKIE_NAME = IS_PRODUCTION ? '__Host-sapsa_sesion' : 'sapsa_sesion';

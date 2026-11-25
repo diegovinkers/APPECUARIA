@@ -1,0 +1,1211 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+  	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Precios</title>
+  	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  	<link href="/webinac/theme/css/style.css" rel="stylesheet" type="text/css">
+  	<link href="/webinac/theme/css/jsonform.css" rel="stylesheet" type="text/css">
+  	
+	<script src="/webinac/theme/js/jquery.min.js" type="text/javascript"></script>
+	<link rel="stylesheet" type="text/css" href="/webinac/theme/css/slick.css"/>
+  	<link rel="stylesheet" type="text/css" href="/webinac/theme/css/slick-theme.css"/>
+
+  
+</head>
+<body class="d-flex flex-column h-100">
+
+<style>
+main.min-height {
+	min-height:600px;
+}
+</style>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+	  let mainElement = document.querySelector("main");
+	  // Obtener todos los hijos directos del elemento main
+	  const children = mainElement.children;
+	  let lastHeight = null; // Almacenar la altura anterior del elemento main
+	  function calculateTotalHeight() {
+	    // Inicializar una variable para la suma de las alturas
+	    let totalHeight = 0;
+
+	    // Iterar sobre los hijos y sumar sus alturas
+	    for (let i = 0; i < children.length; i++) {
+	    	totalHeight += children[i].getBoundingClientRect().height;
+	    }
+	    totalHeight+=200; //Por si tiene margenes o algo
+	    let alturaMinima = 600;
+
+	    let classMinHeight = totalHeight > alturaMinima ? "" : "min-height";
+	    
+	    if(!lastHeight) {
+			mainElement.classList.add(classMinHeight);
+		    lastHeight = totalHeight;
+	    } else {
+			if(newHeight!=='') {
+				mainElement.classList.add(classMinHeight);
+			}   	
+	    }
+	  }
+
+	  // Calcular la altura total al cargar la página
+	  setTimeout(calculateTotalHeight,0);
+	  setTimeout(calculateTotalHeight,1000);
+	});
+
+</script>
+<header>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ <!-- Google tag (gtag.js) --> <script async src="https://www.googletagmanager.com/gtag/js?id=G-GM7FZ2K4QC"></script> <script>   window.dataLayer = window.dataLayer || [];   function gtag(){dataLayer.push(arguments);}   gtag('js', new Date());   gtag('config', 'G-GM7FZ2K4QC'); </script>
+
+<!--
+<script2>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-106789459-1', 'auto');
+  ga('send', 'pageview');
+
+</script2>
+-->
+
+
+
+
+
+
+
+	
+
+
+<!--  *************************************** COMIENZA EL TOPMENU ********************************************* -->
+	<div id="top-menu">
+		<div class="top-menu-item container-fluid text-center text-md-end mt-5">
+		
+<!-- 		
+		<span class="top-social">
+			<button type="button" class="btn btn-sm mt-1 mb-1 me-2 border-0">
+				<i class="bi bi-twitter-x fs-6"></i>			
+			</button>
+			<button type="button" class="btn btn-sm mt-1 mb-1 me-2 border-0">
+				<i class="bi bi-facebook fs-6"></i>			
+			</button>
+			<button type="button" class="btn btn-sm mt-1 mb-1 me-2 border-0">
+				<i class="bi bi-instagram fs-6"></i>			
+			</button>
+			<button type="button" class="btn btn-sm mt-1 mb-1 me-2 border-0">
+				<i class="bi bi-envelope fs-6"></i>
+			</button>
+		</span>
+-->
+		</div>
+		<div class="top-menu-item container-fluid text-end mt-1  d-flex justify-content-end">
+			<span class="top-flags">
+				<a href="/en" class="text-decoration-none mt-1 mb-1 me-2 opacity-25">
+					<img class="img-fluid" src="/webinac/theme/img/flag-eng.png"></img>			
+				</a>
+				<a href="/es" class="text-decoration-none mt-1 mb-1 me-2 ">
+					<img class="img-fluid" src="/webinac/theme/img/flag-spn.jpg"></img>			
+				</a>
+			</span>		
+		</div>	
+	</div>
+<!--  *************************************** FIN DEL TOPMENU ********************************************* -->
+	
+	
+	
+
+
+
+
+
+
+
+
+
+<nav id="header-navbar" class="navbar navbar-default navbar-expand-xxl text-uppercase pt-0">
+  	<div class="container-fluid">
+    	<div class="d-flex">
+			<a class="navbar-brand" href="/es">
+	    		<img id="logo1" src="/webinac/theme/img/logo.png?v=2" alt="" class="logo">
+	    	</a>
+	    </div>
+    	<div class="d-flex">
+    		<form action="/webinac/templates/search.jsp" method="post">
+				<button class="navbar-toggler bg-transparent border-0 text-primary-hover text-reset d-block d-xxl-none mt-1" type="submit">
+					<i class="bi bi-search"></i>
+				</button>
+	        	<input type="hidden" name="channel" value="innova.bs">
+	        	<input type="hidden" name="site" value="37">
+			</form>
+
+					<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+			      		<span class="navbar-toggler-icon"></span>
+			    	</button>
+
+	    </div>
+		<div class="collapse navbar-collapse" id="navbarNav">
+	  		<ul class="navbar-nav me-auto d-flex justify-content-end flex-grow-1">
+
+
+
+
+
+ 
+
+<li class="nav-item dropdown mega-menu me-1">
+	<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown26087" role="button" data-bs-toggle="dropdown" aria-expanded="false" >
+	  Institucional
+	</a>
+	<div class="dropdown-menu px-0" aria-labelledby="navbarDropdown26087">
+		<div class="container px-0 px-lg-3">
+		  <div class="row">
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/6108/37/innova.bs/integracion-de-junta" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/6108/1/fachada2.jpg" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Integración de Junta</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Acerca de nosotros</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/6108/37/innova.bs/integracion-de-junta" target="_self">Integración de Junta</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/28010/37/innova.bs/organizacion-interna" target="_self">Organización Interna</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/6109/37/innova.bs/organizacion-interna" target="_self">Organización Interna</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/1115/37/innova.bs/mision-y-vision" target="_self">Misión y Visión</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/4478/37/innova.bs/lineas-estrategicas" target="_self">Líneas Estratégicas</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/12974/37/innova.bs/memorias-institucionales" target="_self">Memorias Institucionales</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Marco Normativo</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/26390/1/decreto-ley-organico-del-inac.pdf" target="_blank">Decreto Ley Orgánico del INAC</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/26420/1/ley-n-19783.pdf" target="_blank">Ley de Promoción de la Inocuidad Alimentaria y Transparencia Comercial</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/26393/1/estatuto-carnicerias---oct-2025.pdf" target="_blank">Estatuto de las Carnicerías y Locales de Venta</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/27611/1/estatuto-vehiculos---oct-2025.pdf" target="_blank">Estatuto de Distribución de Carnes y Derivados</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27620/37/innova.bs/sistema-de-infracciones-y-sanciones" target="_self">Sistema de Infracciones y Sanciones</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="http://www.impo.com.uy/base-institucional/inac" target="_self">Búsqueda de Normativa de Interés de INAC</a></li>
+
+				  </ul>
+			    </div>
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/28010/37/innova.bs/organizacion-interna" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/28010/1/inac.jpg" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Organización Interna</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Transparencia</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26330/37/innova.bs/llamados-de-personal" target="_self">Llamados de personal</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26333/37/innova.bs/remuneraciones" target="_self">Remuneraciones</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26339/37/innova.bs/presupuesto-y-ejecucion" target="_self">Presupuesto y ejecución</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26348/37/innova.bs/llamado-a-proveedores" target="_self">Llamado a proveedores</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26363/37/innova.bs/solicitud-de-informacion-publica" target="_self">Solicitud de Información Pública</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26300/37/innova.bs/transparencia" target="_self">Ver más</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Publicaciones</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/6754/37/innova.bs/informes-estadisticos" target="_self">Informes estadísticos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/6719/37/innova.bs/publicaciones-tecnicas" target="_self">Publicaciones Técnicas</a></li>
+
+				  </ul>
+			    </div>
+
+		  </div>
+		</div>
+	</div>						 
+</li>
+
+
+
+
+ 
+
+<li class="nav-item dropdown mega-menu me-1">
+	<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown26090" role="button" data-bs-toggle="dropdown" aria-expanded="false" >
+	  Información y mercados
+	</a>
+	<div class="dropdown-menu px-0" aria-labelledby="navbarDropdown26090">
+		<div class="container px-0 px-lg-3">
+		  <div class="row">
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Faena</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18785/37/innova.bs/informe-de-faena" target="_self">Informe de faena</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/15531/37/innova.bs/rendimiento-y-dressing" target="_self">Rendimiento y Dressing</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Mercado Doméstico</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/17946/37/innova.bs/volumenes-comercializados" target="_self">Volúmenes Comercializados</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18014/37/innova.bs/importaciones-de-carne" target="_self">Importaciones de Carne</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/17945/37/innova.bs/precios-al-publico" target="_self">Precios al Público</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18275/37/innova.bs/consumo" target="_self">Consumo</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Precios e Indicadores</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/17274/37/innova.bs/precios-de-hacienda-bovinos-y-ovinos" target="_self">Precios de Hacienda Bovinos y Ovinos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18593/37/innova.bs/precios-de-hacienda-equinos" target="_self">Precios de Hacienda Equinos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/15205/37/innova.bs/relacion-hacienda_exportacion---rhe-bovinos" target="_self">Relación Hacienda/Exportación - RHE bovinos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/24311/37/innova.bs/relacion-hacienda_exportacion---rhe-ovinos" target="_self">Relación Hacienda/Exportación - RHE ovinos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20407/37/innova.bs/precios-de-carne-bovina-y-ovina-al-minorista" target="_self">Precios de Carne Bovina y Ovina al Minorista</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/2543/37/innova.bs/novillo-tipo" target="_self">Novillo Tipo</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/15501/37/innova.bs/precio-del-cuero-fresco" target="_self">Precio del Cuero Fresco</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Exportaciones</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18790/37/innova.bs/exportaciones" target="_self">Exportaciones</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20348/37/innova.bs/exportacion-de-ganado-en-pie" target="_self">Exportación de ganado en pie</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Publicaciones, Informes y Series</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26285/37/innova.bs/anuario-2025" target="_self">Anuario 2025</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/21966/37/innova.bs/anuario-agricola" target="_self">Anuario Agrícola</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/4290/37/innova.bs/anuarios-anteriores---ano-civil-y-ano-agricola" target="_self">Anuarios Anteriores - año civil y año agrícola</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/5538/37/innova.bs/series" target="_self">Series</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/inac/diae/" target="_self">Estadísticas Interactivas</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Acceso a mercados</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26450/37/innova.bs/analisis" target="_self">Análisis</a></li>
+
+				  </ul>
+			    </div>
+
+		  </div>
+		</div>
+	</div>						 
+</li>
+
+
+
+
+ 
+
+<li class="nav-item dropdown mega-menu me-1">
+	<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown26096" role="button" data-bs-toggle="dropdown" aria-expanded="false" >
+	  Trámites en línea
+	</a>
+	<div class="dropdown-menu px-0" aria-labelledby="navbarDropdown26096">
+		<div class="container px-0 px-lg-3">
+		  <div class="row">
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/26230/37/innova.bs/tramites-en-linea" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/26462/1/tramites_linea.jpg" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Tramites en Linea</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Carnicerías y Pollerías</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18799/37/innova.bs/habilitacion" target="_self">Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18813/37/innova.bs/renovacion-de-habilitacion" target="_self">Renovación de Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27829/37/innova.bs/aprobacion-urbanistica-definitiva" target="_self">Aprobación Urbanística Definitiva</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18811/37/innova.bs/ampliacion-o-reforma" target="_self">Ampliación o reforma</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18807/37/innova.bs/habilitacion-de-sectores-anexos" target="_self">Habilitación de Sectores Anexos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18815/37/innova.bs/transferencia-de-la-habilitacion" target="_self">Transferencia de la Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18816/37/innova.bs/clausura" target="_self">Clausura</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Local de Venta o Boutique de Carnes</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/25741/37/innova.bs/habilitacion" target="_self">Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/25780/37/innova.bs/renovacion-de-la-habilitacion" target="_self">Renovación de la Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18815/37/innova.bs/transferencia-de-la-habilitacion" target="_self">Transferencia de la Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18816/37/innova.bs/clausura" target="_self">Clausura</a></li>
+
+				  </ul>
+			    </div>
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/27829/37/innova.bs/aprobacion-urbanistica-definitiva" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/27829/1/web_caja-boton-menu@2x.png" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Aprobación Urbanística Definitiva</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Vehículos</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/23464/37/innova.bs/habilitacion" target="_self">Habilitación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20048/37/innova.bs/renovacion-o-cambio-de-chasis" target="_self">Renovación o Cambio de chasis</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26678/37/innova.bs/cambio-de-titularidad" target="_self">Cambio de titularidad</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26681/37/innova.bs/cambio-de-matricula" target="_self">Cambio de matrícula</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20045/37/innova.bs/baja" target="_self">Baja</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Otros Trámites</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18824/37/innova.bs/buscador-de-empresas-locales-y-vehiculos" target="_self">Buscador de empresas, locales y vehículos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27575/37/innova.bs/descargos-de-presuntas-infracciones" target="_self">Descargos de Presuntas Infracciones</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26456/37/innova.bs/establecimientos-habilitados-por-el-mgap" target="_self">Establecimientos habilitados por el MGAP</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26453/37/innova.bs/distribuidores-importadores-y-exportadores" target="_self">Distribuidores, Importadores y Exportadores</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20668/37/innova.bs/constitucion-de-domicilio-electronico" target="_self">Constitución de domicilio electrónico</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20665/37/innova.bs/constitucion-de-garantia" target="_self">Constitución de garantía</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18848/37/innova.bs/consulta-del-estado-de-un-tramite" target="_self">Consulta del estado de un trámite</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/18873/37/innova.bs/modificaciones-de-empresas-inscriptas" target="_self">Modificaciones de empresas inscriptas</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/26579/37/innova.bs/declaracion-jurada-de-07-tcf-resguardos-de-exportacion" target="_self">Declaración jurada de 0,7%, TCF, resguardos de exportación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/28422/37/innova.bs/certificado-de-vigencia" target="_self">Certificado de vigencia</a></li>
+
+				  </ul>
+			    </div>
+
+		  </div>
+		</div>
+	</div>						 
+</li>
+
+
+
+
+ 
+
+<li class="nav-item dropdown mega-menu me-1">
+	<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown26093" role="button" data-bs-toggle="dropdown" aria-expanded="false" >
+	  Recursos y Herramientas
+	</a>
+	<div class="dropdown-menu px-0" aria-labelledby="navbarDropdown26093">
+		<div class="container px-0 px-lg-3">
+		  <div class="row">
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/26423/37/innova.bs/politica-de-calidad" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/26423/1/slider_celumario.jpg" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Política de Calidad</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Reportes sobre Sostenibilidad</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/28684/1/inac_anuario_2025_web-eng.pdf" target="_blank">Second Annual Report on Sustainability 2025 ENG</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/28687/1/inac_anuario_2025_web-esp.pdf" target="_blank">Segundo Reporte Anual de Sostenibilidad 2025 ESP</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/27008/1/uruguay-beef---eudr.pdf" target="_blank">Uruguay Beef Compliance with European Union Deforestation- Free Regulation EUDR (ENG)</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/27005/1/annual-report-2024.pdf" target="_blank">2024 Annual Sustainability Report (ENG)</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/27011/1/eudr---uruguay-solution---paris.102024.pdf" target="_blank">EUDR Implementation (ENG)</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27014/37/innova.bs/video-presentacion-solucion-de-uruguay---eudr" target="_self">Video presentación solución de Uruguay - EUDR</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27023/37/innova.bs/video-de-la-presentacion-de-uruguay-en-paris--cumplimiento-reglamento-eudr" target="_self">Video de la presentación de Uruguay en París- cumplimiento reglamento EUDR</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Certificaciones</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/18672/1/politica-de-calidad.pdf" target="_blank">Política de Calidad de los Programas de Certificación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/24835/1/cartilla-pcc-3.pdf" target="_blank">Información general acerca de los Programas de Certificación de Carnes</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/9894/37/innova.bs/programa-de-carne-natural-certificada-del-uruguay---pcncu" target="_self">Programa de Carne Natural Certificada del Uruguay - PCNCU</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/11626/37/innova.bs/programa-de-bienestar-animal" target="_self">Programa de Bienestar Animal</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/9944/37/innova.bs/hilton" target="_self">Hilton</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Certicarnes</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/9652/1/certicarnes-pro-007-rev-4.pdf" target="_blank">Gestión de Reclamaciones, Apelaciones y Litigios -PRO-007-</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/9653/1/certicarnes-mac-03_rev__2.pdf" target="_blank">Operación de Procesos de Certificación -Mac-03-</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/1192/37/innova.bs/informacion-general" target="_self">Información General</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/11949/1/certicarnes-pro-001-rev-5.pdf" target="_blank">Procedimiento y Reglamento General para la Certificación -PRO-001-</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Manuales de Calidad</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/24733/1/manual_cortes.pdf" target="_blank">Manual de Cortes Bovinos - 2023</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/2043/1/manual_corregido_2a_edicion.pdf" target="_blank">Manual de Cortes Bovinos - Versión 2006 - Incluye cortes ovinos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/6726/1/manual_abasto_low.pdf" target="_blank">Manual Cortes Bovinos Abasto</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/7157/1/manual_de_carnes_alternativas.pdf" target="_blank">Manual Carnes Alternativas Abasto - (Conejo, cerdo, pollo, ovinos)</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/6894/1/manual_de_cortes_de_nandu.pdf" target="_blank">Manual de Cortes de Ñandú y subproductos</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/21420/1/manual-de-evaluacion-de-defectos-en-carnes-y-menudencias-1.pdf" target="_blank">Manual de evaluación de defectos en carnes y menudencias</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Clasificación y Tipificación de Carcasas</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/24487/1/manual-de-tipificacion_digital-1.pdf" target="_blank">Manual de Tipificación</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/24727/1/doc_2019083020194200141_001.pdf" target="_blank">Clasificación y Tipificación carne vacuna</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/24742/1/resolucion-65-97.pdf" target="_blank">Resolución "Sistema de Clasificación y Tipificación vacuna"</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/file/5844/1/resolucion-10-111.pdf" target="_blank">Resolución  "Sistema de Clasificación y Tipificación Ovina"</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Auditorías de Calidad</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/3014/37/innova.bs/auditorias-de-calidad" target="_self">Auditorías de Calidad</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/6338/37/innova.bs/identificacion-visual-para-las-cajas-de-exportacion" target="_self">Identificación visual para las cajas de exportación</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Calidad comercial</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/1090/37/innova.bs/control-oficial-de-calidad-comercial" target="_self">Control Oficial de Calidad Comercial</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/10605/37/innova.bs/sistema-de-registro-y-gestion-de-exportaciones-srge" target="_self">Sistema de Registro y Gestión de Exportaciones (SRGE)</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/22032/37/innova.bs/sistema-de-registro-y-gestion-del-abasto-srga" target="_self">Sistema de Registro y Gestión del Abasto (SRGA)</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Otras informaciones para operadores del mercado cárnico</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/1910/37/innova.bs/informacion-economico-financiera" target="_self">Información Económico Financiera</a></li>
+
+				  </ul>
+			    </div>
+
+		  </div>
+		</div>
+	</div>						 
+</li>
+
+
+
+
+ 
+
+<li class="nav-item dropdown mega-menu me-1">
+	<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown26099" role="button" data-bs-toggle="dropdown" aria-expanded="false" >
+	  Noticias
+	</a>
+	<div class="dropdown-menu px-0" aria-labelledby="navbarDropdown26099">
+		<div class="container px-0 px-lg-3">
+		  <div class="row">
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/15239/37/innova.bs/nutricion-y-salud" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/15239/1/embarzo1-1.jpg" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Nutrición y Salud</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Archivo de Noticias</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/29128/37/innova.bs/2026" target="_self">2026</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27392/37/innova.bs/2025" target="_self">2025</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/27389/37/innova.bs/noticias-2020-2024" target="_self">Noticias 2020-2024</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20386/37/innova.bs/noticias-2015-2019" target="_self">Noticias 2015-2019</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/11434/37/innova.bs/noticias-2006-2014" target="_self">Noticias 2006-2014</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Archivo de Audios</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20380/37/innova.bs/audios-2021" target="_self">Audios 2021</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/20383/37/innova.bs/audios-2020" target="_self">Audios 2020</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/11435/37/innova.bs/audios-2007-2016" target="_self">Audios (2007-2016)</a></li>
+
+				  </ul>
+			    </div>
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://ganaderiasostenible.inac.uy/institucional/" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/27196/1/logo-para-link-web-fondo-b@4x.png" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">FAO-INAC-MGAP</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">Videos</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/12415/37/innova.bs/documentales" target="_self">Documentales</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.youtube.com/playlist?list=PLnM3Yf2Bk1pZa587dE-0XTv4lfmXf9uVk" target="_self">Videos de Marketing</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/12416/37/innova.bs/promocionales" target="_self">Promocionales</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/12417/37/innova.bs/registros-de-actividades" target="_self">Registros de Actividades</a></li>
+
+				  </ul>
+			    </div>
+						
+			
+			    <div class="col col-12 col-lg-4">
+			      <h6 class="mb-0 mega-item-top text-wrap">World Meat Congress 2016</h6>
+			      <ul class="list-unstyled" >
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/14550/37/innova.bs/documentos-del-wmc-2016" target="_self">Documentos del WMC 2016</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/14914/37/innova.bs/proceedings" target="_self">Proceedings</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/14591/37/innova.bs/conferencias_conferences" target="_self">Conferencias/Conferences</a></li>
+	          
+						<li><a class="dropdown-item text-wrap" href="https://www.inac.uy/innovaportal/v/14733/37/innova.bs/entrevistas_interviews" target="_self">Entrevistas/Interviews</a></li>
+
+				  </ul>
+			    </div>
+
+		  </div>
+		</div>
+	</div>						 
+</li>
+
+
+
+
+ 
+
+<li class="nav-item dropdown mega-menu me-1">
+	<a class="nav-link dropdown-toggle" href="#" id="navbarDropdown26102" role="button" data-bs-toggle="dropdown" aria-expanded="false" >
+	  Links
+	</a>
+	<div class="dropdown-menu px-0" aria-labelledby="navbarDropdown26102">
+		<div class="container px-0 px-lg-3">
+		  <div class="row">
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://sitiodelganadero.inac.uy/" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/26021/1/666_redim.png" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Sitio del ganadero</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://uruguaymeats.uy/es/" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/14370/1/rotador-nueva-id.jpg" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Uruguay Meats Official Website</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+
+				<div class="col col-12 col-lg-4">
+					<a href="https://www.inac.uy/innovaportal/v/28822/37/innova.bs/pastizales-y-pastores" class="text-decoration-none text-black mega-item-card-side">
+						<div class="ratio ratio-16x9 card mb-2">
+							<img class="card-img" src="https://www.inac.uy/innovaportal/file/28822/1/banner_web_1024x576.png" alt="">
+							<div class="card-caption card-img-overlay">
+								<div class="position-absolute d-flex start-0 bottom-0 w-100">
+									<span class="card-title m-3 flex-grow-1 text-wrap">Pastizales y Pastores</span>
+									<div class="card-icon text-end m-3 flex-grow-1 d-flex align-items-end justify-content-end"><i class="bi bi-chevron-compact-right"></i></div>
+								</div>
+							</div>
+						</div>
+					</a>
+				</div>				
+
+		  </div>
+		</div>
+	</div>						 
+</li>	        
+				        <li class="nav-item me-1">
+				          <a class="nav-link" href="https://www.inac.uy/innovaportal/v/26155/37/innova.bs/necesitas-mas-informacion" target="_self">Contacto</a>
+				        </li>
+	   
+		        <li class="nav-item d-flex d-none d-xxl-flex">
+	        		<form action="/webinac/templates/search.jsp" method="post">
+						<button id="buscarb" class="bg-transparent border-0 text-primary-hover text-reset mt-1" type="submit">
+							<i class="bi bi-search"></i>
+						</button>
+			        	<input type="hidden" name="channel" value="innova.bs">
+			        	<input type="hidden" name="site" value="37">
+			      	</form>
+				</li>
+		     </ul>
+	    </div>
+	</div> 		   
+</nav>
+
+</header>
+
+
+<main class="d-flex flex-column">
+<div class="template my-3 mb-md-5">
+
+	<div class="container-fluid my-3">
+		<div class="row">
+		    <div class="col-12 mx-auto page-head mb-3">
+
+				<h1 class="page-title mb-2">Precios</h1>
+
+			</div>
+		</div>	
+	</div>
+
+	<div class="container-fluid">
+		<div class="row">
+		    <div class="col-12 mx-auto">
+				
+			</div>
+		</div>	
+	</div>	
+	<div class="modo mb-auto">
+
+
+
+
+
+
+
+
+
+		<div class="container-fluid list-component-container list">
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/10952/1/webinac---serie-semanal-precios-de-hacienda.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="10952">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie semanal precios de hacienda</h5>
+	        <p class="list-description text-secondary">Evolución semanal de precios de hacienda gorda. Novillos, vacas, vaquillonas y corderos en pie y cuarta balanza. (Archivo Excel)</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/10953/1/webinac---serie-mensual-precios-de-hacienda.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="10953">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie mensual precios de hacienda</h5>
+	        <p class="list-description text-secondary">Evolución mensual de precios de hacienda gorda. Novillos, vacas, vaquillonas y corderos en pie y en cuarta balanza. (Archivo Excel)</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/13413/1/serie-de-distribucion-de-frecuencia.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="13413">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie semanal de Distribución de Frecuencias</h5>
+	        <p class="list-description text-secondary">Evolución semanal de distribución de frecuencias de Novillos, vacas y vaquillonas en pie y en cuarta balanza. (Archivo Excel)</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/9799/1/evolucion-semanal-de-exportacion.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="9799">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie semanal Ingreso medio de exportación - Bovino, Ovino y Otros Productos</h5>
+	        <p class="list-description text-secondary">Información referida hasta la semana inmediata anterior</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/1288/1/precios-de-carne-bovina-y-ovina-al-minorista---evolucion-semanal.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="1288">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie semanal precios - mercado interno media res en gancho</h5>
+	        <p class="list-description text-secondary">Información referida hasta la semana inmediata anterior</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/5997/1/serie-mensual-precios-en-gancho-de-carniceria_c5997.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="5997">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie mensual precios - mercado interno media res en gancho</h5>
+	        <p class="list-description text-secondary">Datos desde Año 2000 - Archivo Excel</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/11140/1/serie-rhe-14-11-2026.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="11140">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie semanal Relación Hacienda/Exportación - RHE</h5>
+	        <p class="list-description text-secondary">Evolución semanal desde Año 2005. Archivo Excel</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/1310/1/evolucion-semanal-cuero.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="1310">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie semanal precios - cuero fresco bovino</h5>
+	        <p class="list-description text-secondary">Información referida hasta la semana inmediata anterior</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/1309/1/cuero-mensual.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="1309">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie mensual precios - cuero fresco bovino</h5>
+	        <p class="list-description text-secondary">Datos desde Año 2000 - Archivo  Excel</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-12 mx-auto">
+						<a href="https://www.inac.uy/innovaportal/file/26927/1/precios-de-carne-bovina-y-ovina-al-minorista---evolucion-semanal.xlsx" class="text-decoration-none">
+	<div class="list mb-3 border-0 rounded-0" id="26927">
+     	<div class="list-body pt-3">
+     		<h5 class="list-title h3 text-dark">Serie- Índice de precios al abasto carne ovina y porcina</h5>
+	        <p class="list-description text-secondary">Desde Año 2023</p>
+     	</div>
+		<hr class="text-secondary" style="margin: 0 0">
+	</div>
+</a>
+					</div>
+				</div>
+	
+		</div>
+
+	</div>
+</div>
+
+
+  
+</main>
+
+
+
+
+
+
+
+<footer class="footer mt-auto py-3">
+	<div class="container-fluid">
+		<div class="row justify-content-center">
+			<div class="col-11 col-md-12">
+				<div class="row mx-0 logos">
+					<div class="col-12 text-center">
+						<img class="img-fluid" alt="Logo INAC y Uruguay meats" src="/webinac/theme/img/logo doble.png?v=2">
+					</div>
+				</div>
+			</div>
+			<div class="col-12 col-md-11 text-center">
+				<div class="mx-0">
+
+					<div class="row mx-0 my-3 text-cta border-highlighted text-center">
+						<a href="https://www.inac.uy/innovaportal/v/26155/37/innova.bs/necesitas-mas-informacion"><span class="my-2 d-flex justify-content-center"> Necesitas más información?<i class="bi bi-chevron-compact-right ms-1"></i><i class="bi bi-chevron-compact-right"></i></span></a>
+					</div>
+
+					<div class="row mx-0 listados menu mt-md-4">
+	
+	
+
+						<div class="col-6 col-md-4 px-0">
+							<ul class="list-unstyled text-start">
+
+								<li><p class="px-0 m-0"><a href="https://www.inac.uy/innovaportal/v/26105/37/innova.bs/acerca-de-nosotros">Acerca de nosotros</a></p></li>
+
+								<li><p class="px-0 m-0"><a href="https://www.inac.uy/innovaportal/v/26300/37/innova.bs/transparencia">Transparencia</a></p></li>
+
+								<li><p class="px-0 m-0"><a href="https://www.inac.uy/innovaportal/v/26114/37/innova.bs/publicaciones">Publicaciones</a></p></li>
+
+								<li><p class="px-0 m-0"><a href="https://www.inac.uy/innovaportal/v/10732/37/innova.bs/marco-normativo">Marco Normativo</a></p></li>
+
+							</ul>
+						</div>
+
+
+						<div class="col-6 col-md-4 px-0">
+							<ul class="list-unstyled text-start">
+								<li><p class="px-0 m-0"><a href="https://maps.app.goo.gl/8uiJxxBWxDdafvUP7"><i class="bi bi-geo-alt-fill me-2"></i>Rincón 549, Montevideo, Uruguay</a></p></li>
+								<li><p class="px-0 m-0"><a href="tel:+59808004622"><i class="bi bi-telephone-inbound-fill me-2"></i> 0800 4622</a></p></li>
+								<li><p class="px-0 m-0"><a href="tel:+59829160430"><i class="bi bi-telephone-fill me-2"></i>(598) 29160430</a></p></li>
+								<li><p class="px-0 m-0"><a href="mailto:info@inac.uy"><i class="bi bi-envelope-fill me-2"></i>info@inac.uy</a></p></li>
+							</ul>
+						</div>
+						<div class="col-12 col-md-4 mt-4 mt-md-0">
+							<ul class="list-unstyled text-center ">
+
+								<li><span class="border-highlighted text-center py-2 px-4"><a href="https://www.inac.uy/webinac/templates/login.jsp?site=37&channel=innova.bs">Iniciar sesión</a></span></li>
+								<li><p></p></li>
+
+								<li class="mb-2 me-1"><span> Síguenos en:</span></li>
+								<li>
+									<span class="footer-redes">
+										<a href="https://x.com/INAC_Uruguay">
+											<button type="button" class="btn btn-sm m-1 border-0 rounded-5">
+												<i class="bi bi-twitter-x fs-6"></i>			
+											</button>
+										</a>
+										<a href="https://www.facebook.com/INAC.Uruguay">
+											<button type="button" class="btn btn-sm m-1 border-0 rounded-5">
+												<i class="bi bi-facebook fs-6"></i>		
+											</button>
+										</a>	
+										<a href="https://www.youtube.com/@institutonacionaldecarnes1643">
+											<button type="button" class="btn btn-sm m-1 border-0 rounded-5">
+												<i class="bi bi-youtube fs-6"></i>	
+											</button>
+										</a>		
+									</span>
+								</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</footer>
+	
+	
+
+
+<!-- Scripts al final de la pÃ¡gina -->
+
+<script data-cfasync="false" src="/webinac/theme/js/core.min.js"></script>
+<script type="text/javascript" src="//cdn.jsdelivr.net/npm/slick-carousel@1.8.1/slick/slick.min.js"></script>
+<script src="/webinac/theme/js/script.js"></script>
+<script>
+$('.carousel-brand').slick({
+	  infinite: true,
+	  slidesToShow: 3,
+	  slidesToScroll: 1,
+	  autoplay: true,
+	  autoplaySpeed: 2000,
+	  arrows: true, 
+	  prevArrow: $(".slick-custom-next"),
+	  nextArrow: $(".slick-custom-prev"),
+	  responsive: [
+		    {
+		        breakpoint: 992,
+		        settings: {
+		      	  slidesToShow: 2,
+		    	  slidesToScroll: 1,
+		    	  autoplay: true,
+		    	  autoplaySpeed: 2000,
+		    	  arrows: false 
+		        }
+		      },
+		      // You can unslick at a given breakpoint now by adding:
+		      // settings: "unslick"
+		      // instead of a settings object
+		    ]
+	});
+</script>
+
+</body>
+</html>
+
+
+
+
+
+

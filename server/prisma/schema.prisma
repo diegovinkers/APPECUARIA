@@ -66,6 +66,10 @@ model Usuario {
   eventosAnulados   EventoRegistro[]   @relation("EventoRegistroAnulador")
   procesos          Proceso[]
 
+  preciosCorregidos      PrecioMercado[]     @relation("PrecioCorregidoPor")
+  importacionesPrecio    ImportacionPrecio[] @relation("ImportacionPrecioUsuario")
+  importacionesAprobadas ImportacionPrecio[] @relation("ImportacionPrecioAprobador")
+
   @@map("usuario")
 }
 
@@ -1038,4 +1042,103 @@ model ProcesoToro {
   @@index([procesoId])
   @@index([toroId])
   @@map("proceso_toro")
+}
+
+// ============================================================================
+// Precios de mercado (docs/PRECIOS_INAC.md). Los baja un proceso una vez por
+// semana desde INAC; también se cargan o corrigen a mano. Uso interno.
+
+/// De dónde sale el precio. REMATE (Plaza Rural, Lote 21) se agrega más adelante.
+enum FuentePrecio {
+  INAC
+  MANUAL
+}
+
+/// USD por kilo: en pie, en cuarta balanza o en gancho (peso canal).
+enum UnidadPrecio {
+  USD_KG_PIE
+  USD_KG_4TA
+  USD_KG_GANCHO
+}
+
+/// Cómo se leyó: del Excel de INAC, del PDF, con Claude de respaldo o a mano.
+enum OrigenPrecio {
+  EXCEL
+  PDF
+  CLAUDE
+  MANUAL
+}
+
+/// EN_CURSO = corriendo ahora (evita dos corridas a la vez).
+/// EN_REVISION = guardada pero sin publicar: alguien la tiene que aprobar.
+enum EstadoImportacionPrecio {
+  EN_CURSO
+  OK
+  SIN_CAMBIOS
+  EN_REVISION
+  ERROR
+}
+
+/// Quién disparó la corrida: GitHub Actions, alguien al abrir la pantalla o el botón.
+enum DisparoImportacion {
+  PROGRAMADO
+  AL_ABRIR
+  BOTON
+}
+
+/// El precio de un indicador en una semana (de domingo a sábado).
+/// Las claves de los indicadores están en src/pecuaria/precios.indicadores.js.
+model PrecioMercado {
+  id             Int          @id @default(autoincrement())
+  fuente         FuentePrecio
+  indicador      String       @db.VarChar(40)
+  semanaDesde    DateTime     @map("semana_desde") @db.Date
+  semanaHasta    DateTime     @map("semana_hasta") @db.Date
+  valor          Decimal      @db.Decimal(8, 3)
+  unidad         UnidadPrecio
+  /// Opcional: el Excel de INAC no lo trae.
+  cabezas        Int?
+  origen         OrigenPrecio
+  /// false mientras su importación está en revisión.
+  publicado      Boolean      @default(true)
+  importacionId  Int?         @map("importacion_id")
+  /// Quién lo corrigió a mano (marca en la pantalla). La nota es obligatoria al corregir.
+  corregidoPorId Int?         @map("corregido_por_id")
+  nota           String?      @db.VarChar(255)
+  creadoEn       DateTime     @default(now()) @map("creado_en") @db.Timestamptz(3)
+  actualizadoEn  DateTime     @updatedAt @map("actualizado_en") @db.Timestamptz(3)
+
+  importacion  ImportacionPrecio? @relation(fields: [importacionId], references: [id], onDelete: Restrict)
+  corregidoPor Usuario?           @relation("PrecioCorregidoPor", fields: [corregidoPorId], references: [id], onDelete: Restrict)
+
+  @@unique([fuente, indicador, semanaDesde])
+  @@index([indicador, semanaDesde])
+  @@map("precio_mercado")
+}
+
+/// Cada corrida de la importación: qué se bajó, qué se leyó y cómo terminó.
+model ImportacionPrecio {
+  id            Int                     @id @default(autoincrement())
+  fuente        FuentePrecio
+  inicio        DateTime                @default(now()) @db.Timestamptz(3)
+  fin           DateTime?               @db.Timestamptz(3)
+  estado        EstadoImportacionPrecio @default(EN_CURSO)
+  origen        OrigenPrecio?
+  /// La semana más nueva que trajo (su domingo).
+  semanaDesde   DateTime?               @map("semana_desde") @db.Date
+  /// SHA-256 del archivo bajado: si es el de la última corrida OK, SIN_CAMBIOS.
+  hashArchivo   String?                 @map("hash_archivo") @db.Char(64)
+  /// Qué se leyó, qué falló, avisos y las marcas de la validación.
+  detalle       Json?
+  disparadoPor  DisparoImportacion      @map("disparado_por")
+  usuarioId     Int?                    @map("usuario_id")
+  aprobadaPorId Int?                    @map("aprobada_por_id")
+  aprobadaEn    DateTime?               @map("aprobada_en") @db.Timestamptz(3)
+
+  usuario     Usuario?        @relation("ImportacionPrecioUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
+  aprobadaPor Usuario?        @relation("ImportacionPrecioAprobador", fields: [aprobadaPorId], references: [id], onDelete: Restrict)
+  precios     PrecioMercado[]
+
+  @@index([fuente, inicio])
+  @@map("importacion_precio")
 }

@@ -90,6 +90,15 @@ export const ACCION = {
   // Toros (uno por uno). entidad = toro. detalle: { identificacion, campoId, ... } / { antes, despues }
   TORO_CREADO: 'TORO_CREADO',
   TORO_EDITADO: 'TORO_EDITADO',
+  // Precios de mercado (docs/PRECIOS_INAC.md). Una corrida de la importación:
+  // entidad = importacion_precio. detalle: { estado, origen, semana, semanasNuevas, disparadoPor, errores }
+  PRECIOS_IMPORTADOS: 'PRECIOS_IMPORTADOS',
+  // Una importación en revisión, aprobada. detalle: { semana, precios, marcas }
+  PRECIOS_APROBADOS: 'PRECIOS_APROBADOS',
+  // entidad = precio_mercado. detalle: { indicador, semana, antes: { valor, nota }, despues: { valor, nota } }
+  PRECIO_CORREGIDO: 'PRECIO_CORREGIDO',
+  // Un precio cargado a mano. detalle: { indicador, semana, valor, nota }
+  PRECIO_CARGADO: 'PRECIO_CARGADO',
 };
 
 // Para auditar una edición: de las claves indicadas, solo las que cambiaron.

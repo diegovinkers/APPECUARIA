@@ -15,7 +15,8 @@ export const PESTANIAS = [
 ];
 export const pestaniaDe = (params) => (params.get('ver') === 'eventos' ? 'eventos' : 'movimientos');
 
-// Registro: todo lo que pasó en la estancia, en dos pestañas.
+// Historial (antes "Registro"; nombre nuevo del 25/11): todo lo que pasó en
+// la estancia, en dos pestañas.
 // - Movimientos: lo que cambió las cabezas o el lugar (mover, entre campos,
 //   múltiples, cambio de categoría, entradas, salidas, destete) y los eventos
 //   que cambiaron las cabezas (un recuento con diferencia).
@@ -51,7 +52,7 @@ export default function RegistroPage() {
 
   return (
     <PantallaTabla>
-      <h1 className="sr-only">Registro</h1>
+      <h1 className="sr-only">Historial</h1>
       <Notice tone="ok">{location.state?.aviso}</Notice>
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
@@ -61,7 +62,7 @@ export default function RegistroPage() {
           filtros, iguales en las dos (anotar va en el "+"). Con el celular
           acostado se esconde. */}
       <BarraAbajo acostado data-testid="barra-registro">
-        <nav aria-label="Pestañas del registro" className="flex min-w-0 flex-1 rounded-lg bg-suelo-200/70 p-1">
+        <nav aria-label="Pestañas del historial" className="flex min-w-0 flex-1 rounded-lg bg-suelo-200/70 p-1">
           {PESTANIAS.map(([valor, texto]) => (
             <Link
               key={valor}

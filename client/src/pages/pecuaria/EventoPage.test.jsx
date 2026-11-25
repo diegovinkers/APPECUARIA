@@ -191,7 +191,7 @@ describe('el camino de 4 pasos', () => {
     await click(boton('Revisar'));
     await click(boton('Confirmar'));
     await click(boton('Listo'));
-    expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/registro?ver=eventos');
+    expect(contenedor.querySelector('[data-testid="donde"]').textContent).toBe('/pecuaria/historial?ver=eventos');
   });
 
   it('el paso 1 (qué) se puede tocar para cambiar el tipo', async () => {

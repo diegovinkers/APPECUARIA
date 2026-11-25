@@ -39,8 +39,9 @@ function montar(ruta) {
       <MemoryRouter initialEntries={[ruta]}>
         <ConPanel>
           <Routes>
-            <Route path="/pecuaria/registro" element={<RegistroPage />} />
-            <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
+            <Route path="/pecuaria/historial" element={<RegistroPage />} />
+            <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/historial" />} />
+            <Route path="/pecuaria/registro" element={<RedirigirA ruta="/pecuaria/historial" />} />
             <Route path="/pecuaria/procesos" element={<p data-testid="lista">página procesos</p>} />
           </Routes>
           <Donde />
@@ -49,47 +50,53 @@ function montar(ruta) {
     ),
   );
 }
-const pestania = (texto) => [...contenedor.querySelectorAll('nav[aria-label="Pestañas del registro"] a')].find((a) => a.textContent === texto);
+const pestania = (texto) => [...contenedor.querySelectorAll('nav[aria-label="Pestañas del historial"] a')].find((a) => a.textContent === texto);
 const lista = () => contenedor.querySelector('[data-testid="lista"]').textContent;
 const donde = () => contenedor.querySelector('[data-testid="donde"]').textContent;
 
-describe('Registro: pestañas Movimientos y Eventos (20/11)', () => {
+describe('Historial (antes Registro): pestañas Movimientos y Eventos (20/11)', () => {
   it('sin ?ver arranca en Movimientos; con ?ver=eventos, en Eventos', () => {
-    montar('/pecuaria/registro');
+    montar('/pecuaria/historial');
     expect(pestania('Movimientos').getAttribute('aria-current')).toBe('page');
     expect(pestania('Eventos').getAttribute('aria-current')).toBeNull();
     expect(lista()).toBe('movimientos');
     act(() => root.unmount());
     root = createRoot(contenedor);
-    montar('/pecuaria/registro?ver=eventos');
+    montar('/pecuaria/historial?ver=eventos');
     expect(pestania('Eventos').getAttribute('aria-current')).toBe('page');
     expect(lista()).toBe('eventos');
   });
 
   it('cambiar de pestaña conserva el período y el potrero, pero no el tipo', () => {
-    montar('/pecuaria/registro?periodo=7&mpotrero=3&mtipo=9');
+    montar('/pecuaria/historial?periodo=7&mpotrero=3&mtipo=9');
     act(() => pestania('Eventos').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
-    expect(donde()).toBe('/pecuaria/registro?periodo=7&mpotrero=3&ver=eventos');
+    expect(donde()).toBe('/pecuaria/historial?periodo=7&mpotrero=3&ver=eventos');
     expect(lista()).toBe('eventos');
     act(() => pestania('Movimientos').dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 })));
-    expect(donde()).toBe('/pecuaria/registro?periodo=7&mpotrero=3');
+    expect(donde()).toBe('/pecuaria/historial?periodo=7&mpotrero=3');
   });
 
-  it('la dirección vieja /pecuaria/movimientos lleva a Registro con sus filtros', () => {
+  it('la dirección vieja /pecuaria/movimientos lleva a Historial con sus filtros', () => {
     montar('/pecuaria/movimientos?ver=eventos&periodo=mes');
-    expect(donde()).toBe('/pecuaria/registro?ver=eventos&periodo=mes');
+    expect(donde()).toBe('/pecuaria/historial?ver=eventos&periodo=mes');
+    expect(lista()).toBe('eventos');
+  });
+
+  it('"Registro" se llama "Historial": la dirección vieja lleva a la nueva, con sus filtros (25/11)', () => {
+    montar('/pecuaria/registro?ver=eventos&periodo=7');
+    expect(donde()).toBe('/pecuaria/historial?ver=eventos&periodo=7');
     expect(lista()).toBe('eventos');
   });
 
   it('Procesos ya no es una pestaña: ?ver=procesos lleva a /pecuaria/procesos con sus filtros (23/11)', () => {
-    montar('/pecuaria/registro?ver=procesos&pestado=CERRADO');
+    montar('/pecuaria/historial?ver=procesos&pestado=CERRADO');
     expect(donde()).toBe('/pecuaria/procesos?pestado=CERRADO');
     expect(lista()).toBe('página procesos');
   });
 
   it('las pestañas son dos y la barra no cambia al pasar a Eventos: anotar va en el "+" (24/11)', () => {
-    montar('/pecuaria/registro');
-    expect([...contenedor.querySelectorAll('nav[aria-label="Pestañas del registro"] a')].map((a) => a.textContent)).toEqual(['Movimientos', 'Eventos']);
+    montar('/pecuaria/historial');
+    expect([...contenedor.querySelectorAll('nav[aria-label="Pestañas del historial"] a')].map((a) => a.textContent)).toEqual(['Movimientos', 'Eventos']);
     const barra = () => contenedor.querySelector('[data-testid="barra-registro"]');
     const hijos = () => [...barra().children].map((c) => c.tagName);
     const antes = hijos();
@@ -100,9 +107,9 @@ describe('Registro: pestañas Movimientos y Eventos (20/11)', () => {
   });
 
   it('las pestañas y los filtros van abajo, después de la tabla, y se esconden acostado (24/11)', () => {
-    montar('/pecuaria/registro?ver=eventos');
+    montar('/pecuaria/historial?ver=eventos');
     const barra = contenedor.querySelector('[data-testid="barra-registro"]');
-    expect(barra.querySelector('nav[aria-label="Pestañas del registro"]')).not.toBeNull();
+    expect(barra.querySelector('nav[aria-label="Pestañas del historial"]')).not.toBeNull();
     expect(barra.className).toMatch(/acostado:hidden/);
     // La barra es lo último de la pantalla.
     expect(barra.nextElementSibling).toBeNull();

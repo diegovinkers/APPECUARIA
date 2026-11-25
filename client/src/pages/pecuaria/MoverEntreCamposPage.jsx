@@ -124,7 +124,7 @@ export default function MoverEntreCamposPage() {
     try {
       const { data } = await registrarEntreCampos(cuerpo);
       const m = data.movimiento;
-      navigate('/pecuaria/registro', {
+      navigate('/pecuaria/historial', {
         state: { aviso: `Listo: ${formatNumero(m.cabezas)} cabezas de ${m.potreroOrigen} a ${m.campoDestino} · ${m.potreroDestino} (lote ${m.loteDestino}).` },
       });
     } catch (error) {
@@ -138,7 +138,7 @@ export default function MoverEntreCamposPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-5 sm:py-8">
       <div>
-        <Link to="/pecuaria/registro" className="text-sm text-campo-600 hover:underline">
+        <Link to="/pecuaria/historial" className="text-sm text-campo-600 hover:underline">
           ← Movimientos
         </Link>
         <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Mover entre campos</h1>

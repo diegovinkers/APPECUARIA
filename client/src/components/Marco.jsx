@@ -214,7 +214,7 @@ export default function Marco() {
 }
 
 // El "+" sabe dónde estás (24/11): desde la ficha de un potrero o de un lote,
-// los eventos arrancan con eso elegido; desde Registro → Eventos, abre en
+// los eventos arrancan con eso elegido; desde Historial → Eventos, abre en
 // Eventos.
 export function contextoDe(pathname) {
   const potrero = pathname.match(/^\/pecuaria\/potreros\/(\d+)/);
@@ -224,7 +224,7 @@ export function contextoDe(pathname) {
   return {};
 }
 export function vistaInicial({ pathname, search }) {
-  return pathname === '/pecuaria/registro' && new URLSearchParams(search).get('ver') === 'eventos' ? 'eventos' : 'mover';
+  return pathname === '/pecuaria/historial' && new URLSearchParams(search).get('ver') === 'eventos' ? 'eventos' : 'mover';
 }
 
 function MarcoInterno() {

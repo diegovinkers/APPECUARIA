@@ -48,7 +48,7 @@ export const grupoDe = (tipo) => GRUPO_EVENTO[tipo.clave] ?? 'Otros';
 export const nombreCorto = (tipo) => CORTO[tipo.clave] ?? tipo.nombre;
 
 // Los eventos que se pueden anotar: efecto REGISTRO y activos. La parición no:
-// mueve animales y se carga desde su proceso (Registro → Procesos). El destete
+// mueve animales y se carga desde su proceso (Procesos). El destete
 // sí, aunque mueve (pedido de Diego, 24/11: salió del "+"): pregunta de qué
 // proceso es y, si es suelto, va a la pantalla del destete (no al camino).
 export const esDestete = (tipo) => tipo?.clave === 'DESTETE';

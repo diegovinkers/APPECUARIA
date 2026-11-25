@@ -339,7 +339,7 @@ describe('eventos en la lista (20/11)', () => {
       contenedor.remove();
       vi.restoreAllMocks();
     });
-    async function montar(ruta = '/pecuaria/registro?ver=eventos', ver = 'eventos') {
+    async function montar(ruta = '/pecuaria/historial?ver=eventos', ver = 'eventos') {
       act(() =>
         root.render(
           <MemoryRouter initialEntries={[ruta]}>
@@ -354,7 +354,7 @@ describe('eventos en la lista (20/11)', () => {
     const titulos = () => [...contenedor.querySelectorAll('thead th')].map((th) => th.textContent.replace(/[↕▲▼]/g, '').trim()).filter(Boolean);
 
     it('cada pestaña pide lo suyo y tiene sus columnas (Eventos: sin Peso ni Destino; Origen es "Dónde")', async () => {
-      await montar('/pecuaria/registro', 'movimientos');
+      await montar('/pecuaria/historial', 'movimientos');
       expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'movimientos' }));
       expect(titulos()).toEqual(['Fecha', 'Movimiento', 'Categoría', 'Cab.', 'Peso', 'Origen', 'Destino', 'Usuario']);
       act(() => root.unmount());
@@ -376,7 +376,7 @@ describe('eventos en la lista (20/11)', () => {
         cambiaCabezas: true,
       });
       api.getMovimientos.mockResolvedValue({ data: { movimientos: [], eventos: [recuento], resumen: { movimientos: 0, cabezas: 0, entradas: 0, salidas: 0, eventos: 1 } } });
-      await montar('/pecuaria/registro', 'movimientos');
+      await montar('/pecuaria/historial', 'movimientos');
       expect(textoCompu(contenedor.querySelector('tbody tr'))).toMatch(/evento.*Recuento.*había 100, se contaron 96/);
       expect(contenedor.querySelector('tfoot').textContent).toMatch(/0 movimientos.*1 recuento con diferencia/);
     });

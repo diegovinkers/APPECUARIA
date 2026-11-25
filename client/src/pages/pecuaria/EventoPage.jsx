@@ -202,7 +202,7 @@ export default function EventoPage() {
     if (hecho?.proceso) navigate(`/pecuaria/procesos/${hecho.proceso.id}`, { state: { aviso } });
     else if (contexto.potrero) navigate(`/pecuaria/potreros/${contexto.potrero}`, { state: { aviso } });
     else if (contexto.lote) navigate(`/pecuaria/lotes/${contexto.lote}`, { state: { aviso } });
-    else navigate('/pecuaria/registro?ver=eventos', { state: { aviso } });
+    else navigate('/pecuaria/historial?ver=eventos', { state: { aviso } });
   }
 
   const irA = (i) => {
@@ -353,7 +353,7 @@ export default function EventoPage() {
           <input type="checkbox" checked={empezar} onChange={(e) => setEmpezar(e.target.checked)} className="mt-0.5 h-5 w-5 accent-campo-600" />
           <span>
             <span className="block font-semibold text-campo-900">Empieza un ciclo reproductivo (proceso)</span>
-            <span className="block text-xs text-suelo-600">Queda como un proceso, para seguir el diagnóstico, la parición y el destete (Registro → Procesos).</span>
+            <span className="block text-xs text-suelo-600">Queda como un proceso, para seguir el diagnóstico, la parición y el destete (en Procesos).</span>
           </span>
         </label>
       )}
@@ -666,7 +666,7 @@ export function PasoRevisar({ previa }) {
         <p className="rounded-lg border border-campo-200 bg-campo-50 px-4 py-3 text-base font-medium text-campo-900" data-testid="oracion">
           {previa.empezarServicio.oracion}.
         </p>
-        <p className="text-sm text-suelo-600">Después lo ves y lo seguís en Registro → Procesos.</p>
+        <p className="text-sm text-suelo-600">Después lo ves y lo seguís en Procesos.</p>
       </section>
     );
   }

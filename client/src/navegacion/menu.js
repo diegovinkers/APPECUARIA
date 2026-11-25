@@ -13,7 +13,7 @@ export const PRINCIPAL = [
   { clave: 'resumen', texto: 'Resumen', ruta: '/pecuaria/resumen', icono: 'resumen', requiere: 'pecuaria:VER' },
   { clave: 'potreros', texto: 'Potreros', ruta: '/pecuaria/potreros', icono: 'potreros', requiere: 'pecuaria:VER' },
   // Registro (20/11): pestañas Movimientos y Eventos (pages/pecuaria/RegistroPage.jsx).
-  { clave: 'registro', texto: 'Registro', ruta: '/pecuaria/registro', icono: 'registro', requiere: 'pecuaria:VER' },
+  { clave: 'registro', texto: 'Historial', ruta: '/pecuaria/historial', icono: 'registro', requiere: 'pecuaria:VER' },
   // Procesos (23/11): página propia, en el lugar donde estaba "Eventos" en la
   // barra de abajo. Eventos pasó adentro de Registro y a las fichas.
   { clave: 'procesos', texto: 'Procesos', ruta: '/pecuaria/procesos', icono: 'procesos', requiere: 'pecuaria:VER' },

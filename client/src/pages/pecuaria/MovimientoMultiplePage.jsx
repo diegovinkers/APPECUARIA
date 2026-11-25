@@ -144,7 +144,7 @@ export default function MovimientoMultiplePage() {
     try {
       const { data } = await registrarMultiple(cuerpo);
       const total = data.pasos.reduce((s, p) => s + p.cabezas, 0);
-      navigate('/pecuaria/registro', {
+      navigate('/pecuaria/historial', {
         state: { aviso: `Listo: movimiento múltiple de ${data.pasos.length} ${data.pasos.length === 1 ? 'paso' : 'pasos'} (${formatNumero(total)} cabezas).` },
       });
     } catch (error) {
@@ -155,7 +155,7 @@ export default function MovimientoMultiplePage() {
 
   const encabezado = (
     <div>
-      <Link to="/pecuaria/registro" className="text-sm text-campo-600 hover:underline">
+      <Link to="/pecuaria/historial" className="text-sm text-campo-600 hover:underline">
         ← Movimientos
       </Link>
       <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Movimiento múltiple</h1>

@@ -54,10 +54,12 @@ export default function App() {
                   <Route path="/pecuaria" element={<RedirigirPecuaria />} />
                   <Route path="/pecuaria/resumen" element={<ResumenPage />} />
                   <Route path="/pecuaria/potreros" element={<PotrerosPage />} />
-                  <Route path="/pecuaria/registro" element={<RegistroPage />} />
+                  <Route path="/pecuaria/historial" element={<RegistroPage />} />
+                  {/* "Registro" pasó a llamarse "Historial" (25/11): la dirección vieja sigue andando. */}
+                  <Route path="/pecuaria/registro" element={<RedirigirA ruta="/pecuaria/historial" />} />
                   <Route path="/pecuaria/procesos" element={<ProcesosPage />} />
                   {/* La dirección vieja (antes de las pestañas, 20/11) sigue andando. */}
-                  <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/registro" />} />
+                  <Route path="/pecuaria/movimientos" element={<RedirigirA ruta="/pecuaria/historial" />} />
                   <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
                   <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
                   <Route path="/pecuaria/procesos/:id" element={<ProcesoPage />} />

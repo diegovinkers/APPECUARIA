@@ -97,11 +97,11 @@ afterEach(() => {
 });
 
 describe('Marco: barras y panel', () => {
-  it('la barra de abajo: Resumen · Potreros · + · Registro · Procesos (Procesos va donde estaba Eventos)', () => {
+  it('la barra de abajo: Resumen · Potreros · + · Historial · Procesos (Procesos va donde estaba Eventos)', () => {
     montar();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
     const partes = [...abajo.children].map((el) => el.textContent.trim() || el.querySelector('button')?.getAttribute('aria-label'));
-    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Registro', 'Procesos']);
+    expect(partes).toEqual(['Resumen', 'Potreros', 'Registrar', 'Historial', 'Procesos']);
   });
 
   it('el superadmin ve Usuarios en el menú; el capataz no', () => {
@@ -124,7 +124,7 @@ describe('Marco: barras y panel', () => {
     montar();
     expect(boton('Registrar')).toBeUndefined();
     const abajo = contenedor.querySelector('nav[aria-label="Barra de abajo"]');
-    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Registro', 'Procesos', 'Menú']);
+    expect([...abajo.children].map((el) => el.textContent.trim())).toEqual(['Resumen', 'Potreros', 'Historial', 'Procesos', 'Menú']);
   });
 
   it('con una sola estancia, la muestra fija (sin selector)', () => {
@@ -433,8 +433,8 @@ describe('Marco: el "+" también anota eventos (24/11)', () => {
     expect(donde()).toBe('/pecuaria/eventos/nuevo?tipo=27&lote=7');
   });
 
-  it('desde Registro → Eventos, el "+" abre en Eventos', async () => {
-    montar('/pecuaria/registro?ver=eventos');
+  it('desde Historial → Eventos, el "+" abre en Eventos', async () => {
+    montar('/pecuaria/historial?ver=eventos');
     await act(async () => boton('Registrar').click());
     expect(pestanias()[1].getAttribute('aria-pressed')).toBe('true');
     expect(hoja().textContent).toContain('Pesada');

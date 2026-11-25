@@ -2,6 +2,7 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList } from '../../components/ui';
 import PotrerosLista from '../../components/PotrerosLista';
+import CorralesLista from '../../components/CorralesLista';
 import { PantallaTabla, SinEstancia } from './comun';
 
 // Los potreros de la estancia con su uso, cabezas, lotes y carga, con filtros.
@@ -12,8 +13,10 @@ import { PantallaTabla, SinEstancia } from './comun';
 // en la barra de arriba y la pantalla, marcada en la de abajo. Tampoco está
 // "+ Corral". Abajo de la tabla (cerca del pulgar), el buscador y el botón
 // de los filtros (PotrerosLista).
+// En un feedlot (o "Todos los feedlots"), la tabla de Corrales (25/11): días
+// de encierre, peso de hoy, ganancia diaria y cm de comedero, sin hectáreas.
 export default function PotrerosPage() {
-  const { campoId, todas, grupo } = useEstancia();
+  const { campoId, todas, grupo, esFeedlot } = useEstancia();
   const { potreros, errors } = usePotreros(campoId, todas, grupo);
 
   return (
@@ -21,7 +24,7 @@ export default function PotrerosPage() {
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
       {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
-      {potreros && <PotrerosLista potreros={potreros} todas={todas} />}
+      {potreros && (esFeedlot ? <CorralesLista potreros={potreros} todas={todas} /> : <PotrerosLista potreros={potreros} todas={todas} />)}
     </PantallaTabla>
   );
 }

@@ -10,6 +10,8 @@
 //                       anterior, o si no hay, el de entrada) ÷ los días entre las dos
 //   Salida probable   = fecha de entrada + días del ciclo (CICLO_FEEDLOT_DIAS)
 //   m de comedero/cab = metros de comedero del corral ÷ cabezas del corral
+//   cm de comedero/cab = lo mismo en centímetros (tabla de Corrales, 25/11),
+//                       contra el objetivo FEEDLOT_CM_COMEDERO: menos es "apretado"
 //   Valor             = con el peso estimado y el precio de la categoría
 //   Etapa             = según los días de encierre (20/11): Adaptación (hasta
 //                       FEEDLOT_ADAPTACION_DIAS), Engorde (hasta
@@ -31,6 +33,9 @@ export const CICLO_POR_DEFECTO = 120;
 // Las etapas del encierre, si los parámetros no están cargados.
 export const ADAPTACION_POR_DEFECTO = 20;
 export const ENGORDE_POR_DEFECTO = 90;
+// Objetivo de centímetros de comedero por cabeza (provisorio, 25/11: las
+// referencias dicen 30 a 50 cm con entrega diaria; falta que lo confirme el jefe).
+export const CM_COMEDERO_POR_DEFECTO = 30;
 // La salida se marca en ámbar suave si falta menos de una semana; si ya pasó,
 // el corral está "atrasado" (ámbar fuerte).
 export const DIAS_AVISO_SALIDA = 7;
@@ -44,6 +49,7 @@ export const PARAMETROS_FEEDLOT = {
   cicloDias: ['CICLO_FEEDLOT_DIAS', CICLO_POR_DEFECTO],
   adaptacionDias: ['FEEDLOT_ADAPTACION_DIAS', ADAPTACION_POR_DEFECTO],
   engordeDias: ['FEEDLOT_ENGORDE_DIAS', ENGORDE_POR_DEFECTO],
+  cmObjetivo: ['FEEDLOT_CM_COMEDERO', CM_COMEDERO_POR_DEFECTO],
 };
 
 const r1 = (n) => Math.round(n * 10) / 10;
@@ -209,6 +215,7 @@ export function analisisFeedlot({ corrales, hoy, gmdKg = GMD_POR_DEFECTO, cicloD
         salidaCerca: faltan != null && faltan >= 0 && faltan < DIAS_AVISO_SALIDA,
         metrosComedero: metros,
         mComederoPorCabeza: metros != null ? r2(metros / cabezasCorral) : null,
+        cmComederoPorCabeza: metros != null ? Math.round((metros * 100) / cabezasCorral) : null,
         valorUsd: valor?.valorUsd ?? null,
         valorCompleto: valor?.valorCompleto ?? false,
         // Con "≈": sale de un peso estimado (el de hoy o el de la categoría).
@@ -250,6 +257,80 @@ export function analisisFeedlot({ corrales, hoy, gmdKg = GMD_POR_DEFECTO, cicloD
       proximos: proximos.size,
     },
   };
+}
+
+// --- Un corral en una fila (la tabla de Corrales, 25/11) ---
+
+// Promedio de valor(f) ponderado por cabezas, con las filas que tienen el dato.
+function ponderado(filas, valor) {
+  let cabezas = 0;
+  let suma = 0;
+  for (const f of filas) {
+    const v = valor(f);
+    if (v == null) continue;
+    cabezas += f.cabezas;
+    suma += v * f.cabezas;
+  }
+  return cabezas ? suma / cabezas : null;
+}
+
+// Función pura: las filas de analisisFeedlot de un mismo corral (una por lote)
+// juntas en una, para la tabla de Corrales. Los números se ponderan por
+// cabezas con los lotes que tienen el dato; la salida es la del lote que sale
+// primero; el corral está atrasado si alguno de sus lotes lo está.
+//   gmdKg:        la de las pesadas (real) y, para los lotes sin pesar, la
+//                 esperada. gmdReal: true si todos los lotes con peso están pesados.
+//   pesoHoyAprox: false solo si todos los pesos son de una pesada de hoy.
+// opciones: { hoy, gmdKg (la esperada), etapas: { adaptacionDias, engordeDias,
+// cicloDias }, cmObjetivo }.
+export function resumenCorral(filas, { hoy, gmdKg = GMD_POR_DEFECTO, etapas = {}, cmObjetivo = CM_COMEDERO_POR_DEFECTO }) {
+  const conPeso = filas.filter((f) => f.pesoEstimadoKg != null);
+  const ganados = conPeso.filter((f) => f.pesoEntradaKg != null);
+  const dias = ponderado(filas, (f) => f.diasEncierre);
+  const diasEncierre = dias == null ? null : Math.round(dias);
+  const [primera] = filas.filter((f) => f.salidaProbable).sort((a, b) => a.diasParaSalida - b.diasParaSalida);
+  const atrasado = filas.some((f) => f.atrasado);
+  const cm = filas[0]?.cmComederoPorCabeza ?? null;
+  const pesoEntrada = ponderado(filas, (f) => f.pesoEntradaKg);
+  const pesoHoy = ponderado(conPeso, (f) => f.pesoEstimadoKg);
+  return {
+    cabezas: filas.reduce((s, f) => s + f.cabezas, 0),
+    diasEncierre,
+    fechaEntrada: filas.map((f) => f.fechaEntrada).filter(Boolean).sort()[0] ?? null,
+    etapa: etapaDeEncierre(diasEncierre, etapas),
+    pesoEntradaKg: pesoEntrada == null ? null : r1(pesoEntrada),
+    pesoHoyKg: pesoHoy == null ? null : r1(pesoHoy),
+    pesoHoyAprox: conPeso.some((f) => f.ultimaPesada?.fecha !== hoy),
+    gmdKg: conPeso.length ? r2(ponderado(conPeso, (f) => f.gmdRealKg ?? gmdKg)) : null,
+    gmdReal: conPeso.length > 0 && conPeso.every((f) => f.gmdRealKg != null),
+    kgGanadosCab: ganados.length ? r1(ponderado(ganados, (f) => f.pesoEstimadoKg - f.pesoEntradaKg)) : null,
+    kgGanadosTotal: ganados.length ? Math.round(ganados.reduce((s, f) => s + (f.pesoEstimadoKg - f.pesoEntradaKg) * f.cabezas, 0)) : null,
+    salidaProbable: primera?.salidaProbable ?? null,
+    diasParaSalida: primera?.diasParaSalida ?? null,
+    atrasado,
+    salidaCerca: !atrasado && filas.some((f) => f.salidaCerca),
+    cmPorCabeza: cm,
+    cmObjetivo,
+    apretado: cm != null && cmObjetivo > 0 && cm < cmObjetivo,
+    valorUsd: r2(filas.reduce((s, f) => s + (f.valorUsd ?? 0), 0)),
+    valorCompleto: filas.every((f) => f.valorCompleto),
+    valorAprox: filas.some((f) => f.valorAprox),
+    // A algún lote le falta la fecha o el peso de entrada.
+    datosIncompletos: filas.some((f) => !f.fechaEntrada || f.pesoEntradaKg == null),
+  };
+}
+
+// Los datos del feedlot de esos corrales (ids de potreros de un
+// confinamiento): Map corralId → resumenCorral. Un corral vacío no está.
+export async function datosDeCorrales(potreroIds) {
+  if (!potreroIds.length) return new Map();
+  const hoy = hoyISO();
+  const [corrales, p, parametros] = await Promise.all([cargarCorrales({ id: { in: potreroIds } }), parametrosFeedlot(), parametrosCarga()]);
+  const { filas } = analisisFeedlot({ corrales, hoy, gmdKg: p.gmdKg, cicloDias: p.cicloDias, parametros });
+  const porCorral = new Map();
+  for (const f of filas) porCorral.set(f.corralId, [...(porCorral.get(f.corralId) ?? []), f]);
+  const etapas = { adaptacionDias: p.adaptacionDias, engordeDias: p.engordeDias, cicloDias: p.cicloDias };
+  return new Map([...porCorral].map(([id, del]) => [id, resumenCorral(del, { hoy, gmdKg: p.gmdKg, etapas, cmObjetivo: p.cmObjetivo })]));
 }
 
 // Los corrales de esos campos, con la última versión de stock de cada uno.
@@ -305,7 +386,7 @@ async function cargarCorrales(where) {
   });
 }
 
-// Los cuatro parámetros del feedlot: { gmdKg, cicloDias, adaptacionDias, engordeDias }.
+// Los parámetros del feedlot: { gmdKg, cicloDias, adaptacionDias, engordeDias, cmObjetivo }.
 export async function parametrosFeedlot(db = prisma) {
   const filas = await db.parametro.findMany({ where: { clave: { in: Object.values(PARAMETROS_FEEDLOT).map(([clave]) => clave) } } });
   const valor = new Map(filas.map((p) => [p.clave, Number(p.valor)]));

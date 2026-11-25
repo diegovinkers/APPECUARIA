@@ -155,15 +155,26 @@ export async function putParametros(req, res) {
 const POTRERO_NO_ENCONTRADO = 'Potrero no encontrado';
 const CAMPO_NO_ENCONTRADO = 'Campo no encontrado';
 
+// Los corrales de un feedlot llevan además sus datos del feedlot (días de
+// encierre, peso de hoy, ganancia diaria, cm de comedero, salida: la tabla de
+// Corrales, 25/11). Un corral vacío lleva feedlot: null.
+async function conFeedlot(potreros) {
+  const esCorral = (p) => p.campo?.tipo === 'CONFINAMIENTO';
+  const ids = potreros.filter(esCorral).map((p) => p.id);
+  if (!ids.length) return potreros;
+  const datos = await feedlot.datosDeCorrales(ids);
+  return potreros.map((p) => (esCorral(p) ? { ...p, feedlot: datos.get(p.id) ?? null } : p));
+}
+
 export async function listPotreros(req, res) {
   const potreros = await lugares.listPotreros(req.params.campoId);
   if (!potreros) throw notFound(CAMPO_NO_ENCONTRADO);
-  res.json(potreros);
+  res.json(await conFeedlot(potreros));
 }
 
 // "Todas las estancias": los potreros de todas las del usuario.
 export async function listPotrerosTodas(req, res) {
-  res.json(await lugares.listPotrerosTodas(filtroDelGrupo(req)));
+  res.json(await conFeedlot(await lugares.listPotrerosTodas(filtroDelGrupo(req))));
 }
 
 export async function createPotrero(req, res) {

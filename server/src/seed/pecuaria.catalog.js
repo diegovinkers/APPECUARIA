@@ -53,6 +53,9 @@ export const PARAMETROS = [
   // Adaptación < engorde < ciclo.
   { clave: 'FEEDLOT_ADAPTACION_DIAS', valor: 20, descripcion: 'Feedlot: días de adaptación (de 0 a este número)' },
   { clave: 'FEEDLOT_ENGORDE_DIAS', valor: 90, descripcion: 'Feedlot: días hasta el final del engorde (después viene la terminación)' },
+  // Tabla de Corrales (25/11): por debajo, el corral está "apretado". Provisorio
+  // (referencias: 30 a 50 cm con entrega diaria); lo confirma el jefe.
+  { clave: 'FEEDLOT_CM_COMEDERO', valor: 30, descripcion: 'Feedlot: centímetros de comedero por cabeza que se consideran bien' },
   // Los plazos de los procesos están en etapa_plantilla (procesos.plazos.js).
 ];
 

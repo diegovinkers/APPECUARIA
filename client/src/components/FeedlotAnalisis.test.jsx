@@ -29,6 +29,7 @@ const fila = (extra) => ({
   salidaCerca: false,
   metrosComedero: 40,
   mComederoPorCabeza: 0.4,
+  cmComederoPorCabeza: 40,
   valorUsd: 108000,
   valorCompleto: true,
   valorAprox: true,
@@ -53,6 +54,7 @@ const ANALISIS = {
       diasParaSalida: 5,
       salidaCerca: true,
       mComederoPorCabeza: 0.5,
+      cmComederoPorCabeza: 50,
       valorUsd: 54000,
     }),
     fila({
@@ -69,6 +71,7 @@ const ANALISIS = {
       diasParaSalida: null,
       metrosComedero: null,
       mComederoPorCabeza: null,
+      cmComederoPorCabeza: null,
       valorUsd: 50000,
       valorAprox: false,
     }),
@@ -105,15 +108,15 @@ describe('la vista del feedlot', () => {
     expect(texto).toMatch(/1salen en 30 días/);
     expect(filas()).toHaveLength(3);
     const [primera] = filas();
-    // En la compu: corral, categoría, cabezas, días, entrada, peso de hoy, salida, GMD real, m/cab y valor.
-    expect(textoCompu(primera)).toBe('Corral 1Novillos10040300≈36029/01/2027en 80 d—0,4 m≈108 mil');
+    // En la compu: corral, categoría, cabezas, días, entrada, peso de hoy, salida, GMD real, cm/cab y valor.
+    expect(textoCompu(primera)).toBe('Corral 1Novillos10040300≈36029/01/2027en 80 d—40≈108 mil');
     expect(primera.querySelector('a').getAttribute('href')).toBe('/pecuaria/potreros/1');
   });
 
   it('en el celular, lo de la compu va como segunda línea', () => {
     montar();
     const [primera] = filas();
-    expect(primera.querySelector('td').textContent).toBe('Corral 1Novillos · 0,4 m/cab');
+    expect(primera.querySelector('td').textContent).toBe('Corral 1Novillos · 40 cm/cab');
     expect(primera.textContent).toContain('de 300');
     expect(salida(primera).textContent).toContain('29/01/27');
   });
@@ -124,7 +127,7 @@ describe('la vista del feedlot', () => {
     expect(salida(primera).className).not.toMatch(/amber/);
     expect(salida(segunda).className).toMatch(/amber/);
     expect(salida(segunda).textContent).toContain('en 5 d');
-    // Toros sin fecha ni peso: días, entrada, peso de hoy, salida y m/cab con "—"; el valor (por cabeza) sí.
+    // Toros sin fecha ni peso: días, entrada, peso de hoy, salida y cm/cab con "—"; el valor (por cabeza) sí.
     expect(textoCompu(tercera)).toBe('Corral 3Toros10——————50 mil');
     expect(contenedor.querySelector('[data-testid="corrales-vacios"]').textContent).toBe('Vacíos: Corral 4');
     expect(contenedor.textContent).toContain('1,5 kg por día');

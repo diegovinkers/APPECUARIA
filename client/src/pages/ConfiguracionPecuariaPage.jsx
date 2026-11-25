@@ -56,6 +56,7 @@ export default function ConfiguracionPecuariaPage() {
   const [ciclo, setCiclo] = useState('');
   const [adaptacion, setAdaptacion] = useState('');
   const [engorde, setEngorde] = useState('');
+  const [cmComedero, setCmComedero] = useState('');
   const [usos, setUsos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [tipos, setTipos] = useState([]);
@@ -70,6 +71,7 @@ export default function ConfiguracionPecuariaPage() {
     setCiclo(valor('CICLO_FEEDLOT_DIAS'));
     setAdaptacion(valor('FEEDLOT_ADAPTACION_DIAS'));
     setEngorde(valor('FEEDLOT_ENGORDE_DIAS'));
+    setCmComedero(valor('FEEDLOT_CM_COMEDERO'));
     setUsos(u.data);
     setCategorias(c.data);
     setTipos(t.data);
@@ -124,7 +126,8 @@ export default function ConfiguracionPecuariaPage() {
         <p className="mb-3 text-sm text-suelo-600">
           Para el Resumen del feedlot: el peso estimado de hoy (peso de entrada + días × ganancia diaria), la salida probable (entrada + días del
           ciclo) y las etapas del encierre (adaptación, engorde, terminación y, pasado el ciclo, para salir). La ganancia y el ciclo son los de
-          CIGAM; las etapas, valores de arranque para ajustar.
+          CIGAM; las etapas, valores de arranque para ajustar. En la tabla de Corrales, un corral con menos centímetros de comedero por cabeza
+          que el objetivo se marca en ámbar (apretado).
         </p>
         <form
           className="flex flex-wrap items-center gap-2"
@@ -137,8 +140,9 @@ export default function ConfiguracionPecuariaPage() {
                   CICLO_FEEDLOT_DIAS: aNumero(ciclo),
                   FEEDLOT_ADAPTACION_DIAS: aNumero(adaptacion),
                   FEEDLOT_ENGORDE_DIAS: aNumero(engorde),
+                  FEEDLOT_CM_COMEDERO: aNumero(cmComedero),
                 }),
-              `Listo: ${gmd} kg por día; adaptación hasta ${adaptacion} días, engorde hasta ${engorde} y ciclo de ${ciclo}.`,
+              `Listo: ${gmd} kg por día; adaptación hasta ${adaptacion} días, engorde hasta ${engorde} y ciclo de ${ciclo}; comedero: ${cmComedero} cm por cabeza.`,
             );
           }}
         >
@@ -174,7 +178,18 @@ export default function ConfiguracionPecuariaPage() {
             />
             días
           </label>
-          <button type="submit" className={boton} disabled={!(aNumero(gmd) > 0) || Boolean(etapasMal)}>
+          <label className="flex items-center gap-2 text-sm">
+            Comedero
+            <input
+              inputMode="numeric"
+              value={cmComedero}
+              onChange={(e) => setCmComedero(e.target.value)}
+              aria-label="Centímetros de comedero por cabeza (objetivo)"
+              className={`${inputClass.replace('w-full', '')} w-20`}
+            />
+            cm por cabeza
+          </label>
+          <button type="submit" className={boton} disabled={!(aNumero(gmd) > 0) || !(aNumero(cmComedero) > 0) || Boolean(etapasMal)}>
             Guardar
           </button>
         </form>

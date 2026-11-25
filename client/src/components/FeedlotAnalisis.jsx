@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
-import { Dato, aprox, formatDiaMes, formatFecha, formatMetros, formatNumero, formatUsd, formatUsdCorto, textoFaltan, textoPrecio } from './pecuaria';
+import { Dato, aprox, formatDiaMes, formatFecha, formatNumero, formatUsd, formatUsdCorto, textoFaltan, textoPrecio } from './pecuaria';
 import { celda } from './tabla';
 
 // La vista del feedlot en el Resumen (pedido de Diego, 19/11): una tabla por
 // corral con los días de encierre, el peso estimado de hoy, la salida
-// probable, los metros de comedero por cabeza y el valor. Los cálculos vienen
+// probable, los cm de comedero por cabeza y el valor. Los cálculos vienen
 // hechos del servidor (feedlot.service.js); acá solo se muestran. Lo que no se
 // puede calcular (falta la fecha o el peso de entrada) va con "—".
 // Pensada para el celular (375 px): las columnas "solo en la compu" se
@@ -93,7 +93,7 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
                 <th className={`${celda} ${SOLO_COMPU} text-right`} title="Ganancia diaria real: entre la entrada (o la pesada anterior) y la última pesada">
                   GMD real
                 </th>
-                <th className={`${celda} ${SOLO_COMPU} text-right`}>m comedero/cab</th>
+                <th className={`${celda} ${SOLO_COMPU} text-right`}>cm comedero/cab</th>
                 <th className={`${celda} ${SOLO_COMPU} text-right`}>Valor</th>
               </tr>
             </thead>
@@ -211,10 +211,10 @@ function FilaCorral({ f, todas, hoy }) {
         <Link to={`/pecuaria/potreros/${f.corralId}`} className="font-medium text-campo-700 hover:underline">
           {nombreCorral(f, todas)}
         </Link>
-        {/* En el celular: la categoría y los metros de comedero por cabeza. */}
+        {/* En el celular: la categoría y los cm de comedero por cabeza (25/11: en cm, como en Corrales). */}
         <span className={`${segunda} md:hidden`}>
           {f.categoria}
-          {f.mComederoPorCabeza != null && ` · ${formatMetros(f.mComederoPorCabeza)}/cab`}
+          {f.cmComederoPorCabeza != null && ` · ${formatNumero(f.cmComederoPorCabeza)} cm/cab`}
         </span>
       </td>
       <td className={`${celda} ${SOLO_COMPU} text-left`}>{f.categoria}</td>
@@ -241,7 +241,7 @@ function FilaCorral({ f, todas, hoy }) {
         )}
       </td>
       <td className={`${celda} ${SOLO_COMPU} text-right`}>{f.gmdRealKg == null ? '—' : `${formatNumero(f.gmdRealKg, 2)} kg`}</td>
-      <td className={`${celda} ${SOLO_COMPU} text-right`}>{formatMetros(f.mComederoPorCabeza)}</td>
+      <td className={`${celda} ${SOLO_COMPU} text-right`}>{f.cmComederoPorCabeza == null ? '—' : formatNumero(f.cmComederoPorCabeza)}</td>
       <td className={`${celda} ${SOLO_COMPU} text-right`}>
         {valor}
         {f.valorUsd > 0 && !f.valorCompleto && <span className={AMBAR}>*</span>}

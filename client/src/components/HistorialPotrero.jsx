@@ -19,6 +19,15 @@ export function textoCambio(n, decimales = 0) {
   return `${redondeado > 0 ? '+' : '−'}${formatNumero(Math.abs(redondeado), decimales)}`;
 }
 
+// El título ("Entraron 5", "Salieron 5") lleva el mismo color que el cambio de
+// cabezas: verde si entraron, tierra si salieron. Sin cambio de cabezas (una
+// pesada, un cambio de categoría, la planilla), sin color.
+export function colorTitulo(v) {
+  const n = v.cambio?.cabezas;
+  if (!n) return '';
+  return n > 0 ? 'text-campo-700' : 'text-tierra-600';
+}
+
 // Las columnas de números: [clave, título, título corto, decimales].
 export const COLUMNAS = [
   ['cabezas', 'Cabezas', 'Cab.', 0],
@@ -84,7 +93,9 @@ function Fila({ v, par, hoy, abierta, onTocar }) {
             <span className="md:hidden">{formatDiaMes(v.fecha, hoy)}</span>
             <span className="hidden md:inline">{formatFecha(v.fecha)}</span>
           </span>
-          <span className="truncate font-semibold">{v.titulo}</span>
+          <span className={`truncate font-semibold ${colorTitulo(v)}`} data-testid="titulo-historial">
+            {v.titulo}
+          </span>
         </div>
         {v.detalle && (
           <p className="truncate text-xs text-suelo-600 md:whitespace-normal" title={v.detalle}>

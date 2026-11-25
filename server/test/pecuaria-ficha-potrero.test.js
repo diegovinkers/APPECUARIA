@@ -65,6 +65,34 @@ describe('historial del potrero con carga y variación', () => {
     expect(muerte.movimiento).toMatch(/^Muerte: salieron 3 Terneros/);
   });
 
+  it('lo revertido no aparece en la ficha: ni la reversión ni el movimiento (en la lista de movimientos sí)', async () => {
+    const { agent, campo, cat, P1, P2, A } = await preparar();
+    const { movimiento } = (
+      await agent
+        .post(`${API}/movimientos`)
+        .send({ loteOrigenId: A.id, cabezas: 5, destinoPotreroId: P2.id, modo: 'NUEVO', nuevoLote: { nombre: 'Terneros de P1', categoriaId: cat.Terneros } })
+        .expect(201)
+    ).body;
+    await agent.post(`${API}/movimientos/${movimiento.id}/revertir`).expect(201);
+    // Después, uno que queda.
+    await agent
+      .post(`${API}/movimientos`)
+      .send({ loteOrigenId: A.id, cabezas: 10, destinoPotreroId: P2.id, modo: 'NUEVO', nuevoLote: { nombre: 'Otros', categoriaId: cat.Terneros } })
+      .expect(201);
+
+    const v1 = (await historial(agent, P1)).versiones;
+    expect(v1.map((v) => v.titulo)).toEqual(['Salieron 10', 'Planilla']);
+    // La variación es contra la fila que se ve (la planilla: 300 → 290).
+    expect(v1[0].cambio).toMatchObject({ cabezas: -10 });
+    const v2 = (await historial(agent, P2)).versiones;
+    expect(v2.map((v) => v.titulo)).toEqual(['Entraron 10', 'Planilla']);
+
+    // La lista de movimientos sigue mostrando todo.
+    const { movimientos } = (await agent.get(`${API}/campos/${campo.id}/movimientos`).expect(200)).body;
+    expect(movimientos.map((m) => m.modo)).toContain('REVERSION');
+    expect(movimientos.find((m) => m.id === movimiento.id)).toMatchObject({ revertido: true });
+  });
+
   it('una pesada aparece con su título y cambia el peso, no las cabezas', async () => {
     const { agent, tipos, P1, A } = await preparar();
     await agent

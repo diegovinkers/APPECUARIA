@@ -292,14 +292,21 @@ export async function historialPotrero(id) {
   const nombres = new Map((await prisma.categoria.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((c) => [c.id, c]));
   // Una versión puede venir de varios movimientos (un múltiple, una entrada de varias líneas).
   const porVersion = new Map();
+  // En la ficha no se muestran las reversiones ni lo que se revirtió (pedido
+  // de Diego, 25/11): la reversión deja el potrero como estaba, así que las
+  // dos versiones se van juntas. En Historial (la lista completa) sigue todo.
+  const revertidos = new Set(movimientos.map((m) => m.revierteAId).filter((id) => id != null));
+  const ocultas = new Map(); // versión → ¿todos sus movimientos se ocultan?
   for (const m of movimientos) {
     m.categoriaOrigen = nombres.get(m.categoriaOrigenId);
     m.categoriaDestino = nombres.get(m.categoriaDestinoId);
     const vid = m.potreroOrigenId === potrero.id ? m.versionOrigenId : m.versionDestinoId;
     porVersion.set(vid, [...(porVersion.get(vid) ?? []), describirMovimiento(m, potrero)]);
+    const oculto = m.modo === 'REVERSION' || revertidos.has(m.id);
+    ocultas.set(vid, (ocultas.get(vid) ?? true) && oculto);
   }
   // De la más nueva a la más vieja; la variación es contra la que sigue en la lista.
-  const filas = versiones.map((v) => {
+  const filas = versiones.filter((v) => !ocultas.get(v.id)).map((v) => {
     const lineas = ordenarLineas(v.lineas).map(toLinea);
     const mov = porVersion.has(v.id) ? juntarDescripciones(porVersion.get(v.id)) : null;
     // Una pesada o un recuento con diferencia (o su anulación).

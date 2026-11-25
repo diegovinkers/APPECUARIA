@@ -131,6 +131,16 @@ describe('la ficha del potrero', () => {
     expect(filas[2].querySelector('[data-testid^="cambio-"]')).toBeNull();
   });
 
+  it('el título lleva el color del cambio de cabezas: verde si entraron, tierra si salieron', async () => {
+    await montar();
+    const titulos = [...contenedor.querySelectorAll('[data-testid="titulo-historial"]')];
+    expect(titulos[0].className).toMatch(/text-campo-700/);
+    expect(titulos[1].textContent).toBe('Salieron 5');
+    expect(titulos[1].className).toMatch(/text-tierra-600/);
+    // Sin cambio de cabezas (la planilla), sin color.
+    expect(titulos[2].className).not.toMatch(/text-(campo|tierra)-/);
+  });
+
   it('tocar una fila la despliega con el texto completo, los lotes y la nota', async () => {
     await montar();
     expect(contenedor.querySelector('[data-testid="detalle-historial"]')).toBeNull();

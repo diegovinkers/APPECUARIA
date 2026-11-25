@@ -7,7 +7,8 @@ import { ErrorList } from './ui';
 import Icono from './Icono';
 import { formatFecha, formatNumero } from './pecuaria';
 import { diasCorto, estiloSugerencia, nombreProceso, textoTipo } from './procesos';
-import { SECCIONES_TABLERO, TEXTO_GRUPO, accionDeGrupo, armarTablero, avance } from './tablero';
+import { SECCIONES_TABLERO, TEXTO_GRUPO, accionDeGrupo, armarTablero, avance, ordenarGrupos } from './tablero';
+import { TituloOrdenable, celda } from './tabla';
 
 const hoyIso = () => new Date().toLocaleDateString('sv-SE');
 
@@ -36,7 +37,7 @@ export function useTablero({ campoId, todas, grupo }) {
 // Las 4 secciones una debajo de la otra, como un acordeón (el dibujo de
 // Diego: todo el ciclo a la vista). Pedido del 24/11: arrancan cerradas y se
 // reparten todo el alto de la pantalla (cuatro bloques grandes); la que se
-// abre ocupa el lugar libre y sus tarjetas se scrollean adentro (si hay dos
+// abre ocupa el lugar libre y su tabla se scrollea adentro (si hay dos
 // abiertas, se reparten el lugar). Las cerradas quedan como encabezado.
 export default function TableroProcesos({ tablero, errors, todas }) {
   const [abiertas, setAbiertas] = useState(() => new Set());
@@ -93,17 +94,11 @@ export default function TableroProcesos({ tablero, errors, todas }) {
               </button>
             </h2>
             {abierta && (
-              <div id={`seccion-${s.clave}-contenido`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2" data-testid={`contenido-${s.clave}`}>
+              <div id={`seccion-${s.clave}-contenido`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid={`contenido-${s.clave}`}>
                 {grupos.length === 0 ? (
                   <p className="px-2 py-3 text-center text-sm text-suelo-500">{s.vacio}</p>
                 ) : (
-                  <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                    {grupos.map((g) => (
-                      <li key={g.clave}>
-                        <TarjetaGrupo g={g} todas={todas} />
-                      </li>
-                    ))}
-                  </ul>
+                  <TablaGrupos grupos={grupos} todas={todas} />
                 )}
               </div>
             )}
@@ -114,73 +109,123 @@ export default function TableroProcesos({ tablero, errors, todas }) {
   );
 }
 
-// Una tarjeta: qué proceso, qué grupo, dónde, cuántas, la barra del tiempo
-// estimado y el botón de lo que sigue. El nombre lleva a la ficha del proceso
-// (con todo su historial).
-function TarjetaGrupo({ g, todas }) {
+// La tabla de una sección (25/11, Diego: "un Excel, no tarjetas"): una fila
+// por grupo (proceso × estado), con líneas como en Excel, los títulos fijos
+// arriba y orden por columna (por defecto, lo que vence primero).
+//   Celular: Proceso (debajo, qué grupo y dónde) | Cab. | Lo que sigue (los
+//            días y la fecha debajo) | el botón.
+//   Compu:   suma Estado, Potreros y Fecha en sus columnas.
+// Lo que viene de una IATF y pasó al toro va en color trigo, con "IATF".
+function TablaGrupos({ grupos, todas }) {
   const puedo = usePuede();
+  const [orden, setOrden] = useState({ col: 'proxima', dir: 'asc' });
+  const ordenar = (col) => setOrden((o) => ({ col, dir: o.col === col && o.dir === 'asc' ? 'desc' : 'asc' }));
+  const filas = useMemo(() => ordenarGrupos(grupos, orden), [grupos, orden]);
+  const hoy = hoyIso();
+  const conAccion = puedo('pecuaria:CREAR');
+  const titulo = 'sticky top-0 z-10 border-b border-r border-suelo-300 bg-suelo-100 px-1.5 py-1.5 font-medium last:border-r-0 md:px-2';
+  return (
+    <table className="w-full table-fixed border-collapse text-sm" data-testid="tabla-grupos">
+      <thead className="text-left text-xs text-suelo-600">
+        <tr>
+          <TituloOrdenable col="proceso" titulo="Proceso" orden={orden} onOrdenar={ordenar} />
+          <th scope="col" className={`${titulo} hidden w-36 md:table-cell`}>
+            Estado
+          </th>
+          <TituloOrdenable col="potreros" titulo="Potreros" orden={orden} onOrdenar={ordenar} className="hidden w-32 md:table-cell" />
+          <TituloOrdenable col="cabezas" titulo="Cab." orden={orden} onOrdenar={ordenar} derecha className="w-12 md:w-16" />
+          <TituloOrdenable col="proxima" titulo="Lo que sigue" orden={orden} onOrdenar={ordenar} className="w-24 md:w-40" />
+          <th scope="col" className={`${titulo} hidden w-36 md:table-cell`}>
+            Fecha
+          </th>
+          {conAccion && (
+            <th scope="col" className={`${titulo} w-20 md:w-32`}>
+              <span className="sr-only">Registrar</span>
+            </th>
+          )}
+        </tr>
+      </thead>
+      <tbody>
+        {filas.map((g) => (
+          <FilaGrupo key={g.clave} g={g} todas={todas} hoy={hoy} conAccion={conAccion} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+const fechaDe = (prox) => (prox ? (prox.hasta ? `${formatFecha(prox.fecha)} a ${formatFecha(prox.hasta)}` : formatFecha(prox.fecha)) : '');
+const colorDias = (estado) =>
+  estado === 'ATRASADA' ? 'text-red-700' : estado === 'PROXIMA' || estado === 'HOY' ? 'text-campo-700' : 'text-suelo-600';
+
+function FilaGrupo({ g, todas, hoy, conAccion }) {
   const p = g.proceso;
   const prox = g.proxima;
   const estilo = estiloSugerencia(prox?.estado);
-  const parte = avance(g.desde, prox?.fecha, hoyIso());
-  const accion = puedo('pecuaria:CREAR') ? accionDeGrupo(p.id, g) : null;
+  const parte = avance(g.desde, prox?.fecha, hoy);
+  const accion = conAccion ? accionDeGrupo(p.id, g) : null;
   // El botón resalta cuando ya toca (hoy, atrasada) o cuando no hay fecha (vacías).
   const urgente = !prox || prox.estado === 'ATRASADA' || prox.estado === 'HOY';
-  // Compacta (24/11, captura de Diego): nombre y cabezas; qué grupo y dónde;
-  // lo que sigue con los días y la barra; las fechas y el botón, chico, al lado.
+  const estado = `${TEXTO_GRUPO[g.tipo]}${g.tipo === 'VIENTRES' ? ` · ${textoTipo(p.modalidad)}` : ''}`;
+  const potreros = g.potreros.join(', ');
   return (
-    // Lo que viene de una IATF y pasó al toro, en color trigo y con la etiqueta.
-    <article
-      className={`rounded-lg border px-3 py-2 ${g.deIatf ? 'border-trigo-500 bg-trigo-100' : 'border-suelo-300 bg-superficie'}`}
-      data-testid="tarjeta-grupo"
+    <tr
+      className={`h-14 ${g.deIatf ? 'bg-trigo-100' : 'odd:bg-superficie even:bg-suelo-50'}`}
+      data-testid="fila-grupo"
       data-tipo={g.tipo}
       data-de-iatf={g.deIatf ? 'true' : undefined}
     >
-      <div className="flex items-baseline gap-2">
-        <Link to={`/pecuaria/procesos/${p.id}`} className="min-w-0 flex-1 truncate font-semibold text-campo-800 hover:underline">
+      <td className={`${celda} ${g.deIatf ? 'border-l-4 border-l-trigo-500' : ''}`}>
+        <Link to={`/pecuaria/procesos/${p.id}`} className="block truncate font-semibold text-campo-800 hover:underline">
           {nombreProceso(p, todas)}
         </Link>
-        <span className="shrink-0 font-bold tabular-nums">
-          {formatNumero(g.cabezas)} <span className="text-xs font-normal text-suelo-500">cab</span>
-        </span>
-      </div>
-      <p className="truncate text-xs text-suelo-600">
-        {g.deIatf && <span className="mr-1 rounded bg-trigo-500 px-1.5 py-px text-[11px] font-semibold text-trigo-900">viene de IATF</span>}
-        {TEXTO_GRUPO[g.tipo]}
-        {g.tipo === 'VIENTRES' && ` · ${textoTipo(p.modalidad)}`}
-        {g.potreros.length ? ` · ${g.potreros.join(', ')}` : ''}
-        {g.terneros ? ` · ${formatNumero(g.terneros)} terneros` : ''}
-      </p>
-      {prox && (
-        <div className="mt-1.5" data-estado={prox.estado}>
-          <div className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="min-w-0 truncate text-suelo-700">{prox.nombre}</span>
-            <span className={`shrink-0 font-semibold ${prox.estado === 'ATRASADA' ? 'text-red-700' : prox.estado === 'PROXIMA' || prox.estado === 'HOY' ? 'text-campo-700' : 'text-suelo-700'}`}>
+        {/* En el celular, el estado y los potreros van debajo del nombre. */}
+        <p className="truncate text-xs text-suelo-600 md:hidden">
+          {g.deIatf && <span className="mr-1 rounded bg-trigo-500 px-1 text-[10px] font-semibold text-trigo-900">viene de IATF</span>}
+          {estado}
+          {potreros ? ` · ${potreros}` : ''}
+        </p>
+        {g.deIatf && (
+          <span className="mt-0.5 hidden rounded bg-trigo-500 px-1.5 text-[11px] font-semibold text-trigo-900 md:inline-block">viene de IATF</span>
+        )}
+      </td>
+      <td className={`${celda} hidden text-suelo-700 md:table-cell`}>{estado}</td>
+      <td className={`${celda} hidden truncate text-suelo-700 md:table-cell`}>{potreros || '—'}</td>
+      <td className={`${celda} text-right tabular-nums`}>
+        <span className="font-bold">{formatNumero(g.cabezas)}</span>
+        {g.terneros ? <span className="block text-xs text-suelo-500">{formatNumero(g.terneros)} ter.</span> : null}
+      </td>
+      <td className={celda} data-estado={prox?.estado}>
+        {prox ? (
+          <>
+            <span className="block truncate text-suelo-800">{prox.nombre}</span>
+            <span className={`block truncate text-xs font-semibold ${colorDias(prox.estado)}`}>
               {diasCorto(prox) || prox.texto}
+              <span className="font-normal text-suelo-500 md:hidden"> · {fechaDe(prox)}</span>
             </span>
-          </div>
-          {parte != null && (
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true" data-testid="barra-tiempo">
-              <div className={`h-full rounded-full ${prox.estado === 'ATRASADA' ? 'bg-red-600' : 'bg-campo-500'}`} style={{ width: `${Math.round(parte * 100)}%` }} />
-            </div>
-          )}
-        </div>
-      )}
-      {(prox || accion) && (
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <p className="min-w-0 truncate text-xs text-suelo-500">
-            {prox && (prox.hasta ? `${formatFecha(prox.fecha)} a ${formatFecha(prox.hasta)}` : `Estimado ${formatFecha(prox.fecha)}`)}
-          </p>
+            {parte != null && (
+              <span className="mt-1 block h-1 overflow-hidden rounded-full bg-suelo-200/70" aria-hidden="true" data-testid="barra-tiempo">
+                <span className={`block h-full rounded-full ${prox.estado === 'ATRASADA' ? 'bg-red-600' : 'bg-campo-500'}`} style={{ width: `${Math.round(parte * 100)}%` }} />
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-xs text-suelo-500">Sin fecha</span>
+        )}
+      </td>
+      <td className={`${celda} hidden text-suelo-700 md:table-cell`}>{prox ? (prox.hasta ? fechaDe(prox) : `Estimado ${fechaDe(prox)}`) : '—'}</td>
+      {conAccion && (
+        <td className={`${celda} align-middle`}>
           {accion && (
             <Link
               to={accion.ruta}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold ${urgente ? 'bg-boton text-white hover:bg-boton-hover' : `border ${estilo.tarjeta} text-campo-700 hover:border-campo-500`}`}
+              className={`block rounded-md px-1.5 py-1.5 text-center text-xs font-semibold leading-tight ${urgente ? 'bg-boton text-white hover:bg-boton-hover' : `border ${estilo.tarjeta} text-campo-700 hover:border-campo-500`}`}
             >
               {accion.texto}
             </Link>
           )}
-        </div>
+        </td>
       )}
-    </article>
+    </tr>
   );
 }

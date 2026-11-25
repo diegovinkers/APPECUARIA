@@ -120,9 +120,9 @@ describe('la página Procesos', () => {
     expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true);
     // Todas cerradas: cada una es un bloque que ocupa una parte igual del alto.
     expect(['iatf', 'entore', 'prenadas', 'cria'].every((c) => /\bflex-1\b/.test(seccion(c).className))).toBe(true);
-    expect(contenedor.querySelector('[data-testid="tarjeta-grupo"]')).toBeNull();
+    expect(contenedor.querySelector('[data-testid="fila-grupo"]')).toBeNull();
     abrir('prenadas', 'entore', 'cria');
-    // Una tarjeta por grupo: la misma IATF está en Preñadas y en Entore (sus vacías).
+    // Una fila por grupo: la misma IATF está en Preñadas y en Entore (sus vacías).
     expect(seccion('prenadas').textContent).toMatch(/IATF 2026/);
     expect(seccion('entore').textContent).toMatch(/IATF 2026/);
     expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
@@ -137,17 +137,17 @@ describe('la página Procesos', () => {
     expect(seccion('iatf').className).toMatch(/\bshrink-0\b/);
     expect(seccion('iatf').className).not.toMatch(/\bflex-1\b/);
     expect(contenedor.querySelector('[data-testid="contenido-prenadas"]').className).toMatch(/overflow-y-auto/);
-    expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).not.toBeNull();
+    expect(seccion('prenadas').querySelector('[data-testid="fila-grupo"]')).not.toBeNull();
     // Cerrarla vuelve a los cuatro bloques.
     act(() => boton().click());
-    expect(seccion('prenadas').querySelector('[data-testid="tarjeta-grupo"]')).toBeNull();
+    expect(seccion('prenadas').querySelector('[data-testid="fila-grupo"]')).toBeNull();
     expect(seccion('iatf').className).toMatch(/\bflex-1\b/);
   });
 
-  it('cada tarjeta: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {
+  it('cada fila: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {
     await montar();
     abrir('iatf', 'entore', 'prenadas');
-    const servicio = seccion('iatf').querySelector('[data-testid="tarjeta-grupo"]');
+    const servicio = seccion('iatf').querySelector('[data-testid="fila-grupo"]');
     expect(servicio.textContent).toMatch(/En servicio · Inseminación · P2/);
     expect(servicio.textContent).toMatch(/atrasada 2 días/);
     expect(servicio.querySelector('[data-testid="barra-tiempo"]')).not.toBeNull();
@@ -162,15 +162,41 @@ describe('la página Procesos', () => {
   it('lo que viene de una IATF va en Entore con otro color y la etiqueta "viene de IATF"', async () => {
     await montar();
     abrir('entore');
-    const tarjetas = [...seccion('entore').querySelectorAll('[data-testid="tarjeta-grupo"]')];
+    const tarjetas = [...seccion('entore').querySelectorAll('[data-testid="fila-grupo"]')];
     const deIatf = tarjetas.find((t) => t.dataset.deIatf);
     const comun = tarjetas.find((t) => !t.dataset.deIatf);
     expect(deIatf.dataset.deIatf).toBe('true');
-    expect(deIatf.className).toMatch(/border-trigo-500/);
+    expect(deIatf.className).toMatch(/bg-trigo-100/);
     expect(deIatf.textContent).toMatch(/^IATF 2026.*viene de IATF/);
     expect(comun.dataset.deIatf).toBeUndefined();
     expect(comun.textContent).not.toMatch(/viene de IATF/);
     expect(contenedor.querySelector('[data-testid="de-iatf-entore"]').textContent).toBe('35 de IATF');
+  });
+
+  it('abierta, la sección es una tabla tipo Excel: títulos y una fila por grupo (25/11)', async () => {
+    await montar();
+    abrir('entore');
+    const tabla = seccion('entore').querySelector('[data-testid="tabla-grupos"]');
+    expect(tabla.tagName).toBe('TABLE');
+    expect([...tabla.querySelectorAll('thead th')].map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual([
+      'Proceso',
+      'Estado',
+      'Potreros',
+      'Cab.',
+      'Lo que sigue',
+      'Fecha',
+      'Registrar',
+    ]);
+    expect(tabla.querySelectorAll('tbody tr')).toHaveLength(2);
+    // Por defecto, lo que vence primero (lo que no tiene fecha, al final).
+    const nombres = () => [...tabla.querySelectorAll('tbody tr td:first-child a')].map((a) => a.textContent);
+    expect(nombres()).toEqual(['Entore vacas', 'IATF 2026']);
+    // Tocar "Cab." ordena por cabezas: de menor a mayor y, otra vez, al revés.
+    const cab = [...tabla.querySelectorAll('thead th button')].find((b) => b.textContent.startsWith('Cab.'));
+    act(() => cab.click());
+    expect(nombres()).toEqual(['IATF 2026', 'Entore vacas']);
+    act(() => cab.click());
+    expect(nombres()).toEqual(['Entore vacas', 'IATF 2026']);
   });
 
   it('"Todos" muestra la lista de siempre', async () => {

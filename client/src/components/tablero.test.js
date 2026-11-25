@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accionDeGrupo, armarTablero, avance } from './tablero';
+import { accionDeGrupo, armarTablero, avance, ordenarGrupos } from './tablero';
 
 describe('armarTablero', () => {
   it('junta los grupos por sección, con el total de cabezas, y ordena por lo que vence primero', () => {
@@ -39,5 +39,27 @@ describe('accionDeGrupo', () => {
     expect(accionDeGrupo(4, { tipo: 'PRENADAS', proxima: { etapa: 'PARICION' } })).toEqual({ texto: 'Registrar parición', ruta: '/pecuaria/procesos/4/etapa/PARICION' });
     expect(accionDeGrupo(4, { tipo: 'PARIDAS', proxima: { etapa: 'DESTETE' } }).texto).toBe('Destetar');
     expect(accionDeGrupo(4, { tipo: 'PARIDAS', proxima: null })).toBeNull();
+  });
+});
+
+describe('ordenarGrupos (la tabla de una sección, 25/11)', () => {
+  const g = (nombre, cabezas, fecha, potreros = []) => ({ proceso: { nombre }, cabezas, potreros, proxima: fecha ? { fecha } : null });
+  const grupos = [g('B', 10, '2026-12-01', ['P9']), g('A', 50, null, ['P10']), g('C', 30, '2026-11-01', ['P2'])];
+  const nombres = (lista) => lista.map((x) => x.proceso.nombre);
+
+  it('por defecto, lo que vence primero; sin fecha, al final (también al revés)', () => {
+    expect(nombres(ordenarGrupos(grupos))).toEqual(['C', 'B', 'A']);
+    expect(nombres(ordenarGrupos(grupos, { col: 'proxima', dir: 'desc' }))).toEqual(['B', 'C', 'A']);
+  });
+
+  it('por proceso, por cabezas y por potrero (P2 antes que P10)', () => {
+    expect(nombres(ordenarGrupos(grupos, { col: 'proceso' }))).toEqual(['A', 'B', 'C']);
+    expect(nombres(ordenarGrupos(grupos, { col: 'cabezas', dir: 'desc' }))).toEqual(['A', 'C', 'B']);
+    expect(nombres(ordenarGrupos(grupos, { col: 'potreros' }))).toEqual(['C', 'B', 'A']);
+  });
+
+  it('no cambia la lista que recibe', () => {
+    ordenarGrupos(grupos, { col: 'proceso' });
+    expect(nombres(grupos)).toEqual(['B', 'A', 'C']);
   });
 });

@@ -66,3 +66,26 @@ export function accionDeGrupo(procesoId, g) {
   const etapa = g.proxima?.etapa;
   return etapa && BOTON[etapa] ? { texto: BOTON[etapa], ruta: `/pecuaria/procesos/${procesoId}/etapa/${etapa}` } : null;
 }
+
+// La tabla de una sección (25/11, Diego: "un Excel, no tarjetas"): ordenar
+// los grupos por una columna. Sin fecha, siempre al final.
+//   proceso  → nombre del proceso
+//   cabezas  → cabezas
+//   proxima  → fecha de lo que sigue (por defecto)
+//   potreros → el primer potrero
+export function ordenarGrupos(grupos = [], { col = 'proxima', dir = 'asc' } = {}) {
+  const signo = dir === 'desc' ? -1 : 1;
+  const valor = {
+    proceso: (g) => g.proceso?.nombre ?? '',
+    cabezas: (g) => g.cabezas ?? 0,
+    potreros: (g) => g.potreros?.[0] ?? '',
+    proxima: (g) => g.proxima?.fecha ?? null,
+  }[col] ?? ((g) => g.proxima?.fecha ?? null);
+  return [...grupos].sort((a, b) => {
+    const va = valor(a);
+    const vb = valor(b);
+    if (va == null || vb == null) return va == null && vb == null ? 0 : va == null ? 1 : -1;
+    const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es', { numeric: true });
+    return c * signo || (a.proceso?.nombre ?? '').localeCompare(b.proceso?.nombre ?? '');
+  });
+}

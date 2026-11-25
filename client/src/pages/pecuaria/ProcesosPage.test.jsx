@@ -108,7 +108,7 @@ describe('la página Procesos', () => {
     expect(lista()).toBeUndefined();
   });
 
-  it('las 4 secciones arrancan cerradas y se reparten el alto, con sus cabezas (acordeón)', async () => {
+  it('las 4 secciones arrancan cerradas, con sus cabezas (acordeón)', async () => {
     await montar();
     const titulos = [...contenedor.querySelectorAll('[data-testid="tablero"] h2 button')];
     expect(titulos.map((b) => b.textContent.replace(/\s+/g, ' '))).toEqual([
@@ -118,8 +118,6 @@ describe('la página Procesos', () => {
       '4Con cría al pieHasta el destete0cab',
     ]);
     expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true);
-    // Todas cerradas: cada una es un bloque que ocupa una parte igual del alto.
-    expect(['iatf', 'entore', 'prenadas', 'cria'].every((c) => /\bflex-1\b/.test(seccion(c).className))).toBe(true);
     expect(contenedor.querySelector('[data-testid="fila-grupo"]')).toBeNull();
     abrir('prenadas', 'entore', 'cria');
     // Una fila por grupo: la misma IATF está en Preñadas y en Entore (sus vacías).
@@ -128,20 +126,22 @@ describe('la página Procesos', () => {
     expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
   });
 
-  it('la que se abre ocupa el lugar libre y se scrollea adentro; las otras quedan como encabezado', async () => {
+  it('cada sección mide lo que su contenido (no un pedazo fijo del alto); se baja el tablero entero (25/11)', async () => {
     await montar();
-    const boton = () => seccion('prenadas').querySelector('h2 button');
-    act(() => boton().click());
-    expect(boton().getAttribute('aria-expanded')).toBe('true');
-    expect(seccion('prenadas').className).toMatch(/\bflex-1\b/);
-    expect(seccion('iatf').className).toMatch(/\bshrink-0\b/);
-    expect(seccion('iatf').className).not.toMatch(/\bflex-1\b/);
-    expect(contenedor.querySelector('[data-testid="contenido-prenadas"]').className).toMatch(/overflow-y-auto/);
-    expect(seccion('prenadas').querySelector('[data-testid="fila-grupo"]')).not.toBeNull();
-    // Cerrarla vuelve a los cuatro bloques.
-    act(() => boton().click());
+    const tablero = contenedor.querySelector('[data-testid="tablero"]');
+    expect(tablero.className).toMatch(/overflow-y-auto/);
+    abrir('prenadas', 'entore');
+    for (const c of ['iatf', 'entore', 'prenadas', 'cria']) {
+      expect(seccion(c).className).not.toMatch(/\bflex-1\b/);
+      expect(seccion(c).className).not.toMatch(/overflow/);
+    }
+    // Abierta, la tabla entera adentro (sin scroll propio).
+    expect(contenedor.querySelector('[data-testid="contenido-prenadas"]').className).not.toMatch(/overflow/);
+    expect(seccion('prenadas').querySelectorAll('[data-testid="fila-grupo"]')).toHaveLength(1);
+    expect(seccion('entore').querySelectorAll('[data-testid="fila-grupo"]')).toHaveLength(2);
+    // Cerrarla deja solo el encabezado.
+    act(() => seccion('prenadas').querySelector('h2 button').click());
     expect(seccion('prenadas').querySelector('[data-testid="fila-grupo"]')).toBeNull();
-    expect(seccion('iatf').className).toMatch(/\bflex-1\b/);
   });
 
   it('cada fila: el grupo, las cabezas, la barra del tiempo y el botón de lo que sigue', async () => {

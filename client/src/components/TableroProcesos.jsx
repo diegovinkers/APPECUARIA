@@ -35,10 +35,11 @@ export function useTablero({ campoId, todas, grupo }) {
 }
 
 // Las 4 secciones una debajo de la otra, como un acordeón (el dibujo de
-// Diego: todo el ciclo a la vista). Pedido del 24/11: arrancan cerradas y se
-// reparten todo el alto de la pantalla (cuatro bloques grandes); la que se
-// abre ocupa el lugar libre y su tabla se scrollea adentro (si hay dos
-// abiertas, se reparten el lugar). Las cerradas quedan como encabezado.
+// Diego: todo el ciclo a la vista). Arrancan cerradas. Pedido del 25/11 (con
+// captura): cada sección mide lo que mide su contenido (cerrada, el
+// encabezado; abierta, el encabezado y la tabla entera), no un pedazo fijo de
+// la pantalla: con dos abiertas no quedan chicas. Si no entra todo, se baja
+// con el dedo el tablero entero (la barra de abajo de Procesos queda fija).
 export default function TableroProcesos({ tablero, errors, todas }) {
   const [abiertas, setAbiertas] = useState(() => new Set());
   const alternar = (clave) =>
@@ -49,62 +50,56 @@ export default function TableroProcesos({ tablero, errors, todas }) {
     });
   if (errors.length) return <ErrorList errors={errors} />;
   if (!tablero) return <p className="text-suelo-600">Cargando…</p>;
-  const ninguna = abiertas.size === 0;
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2" data-testid="tablero">
-      {SECCIONES_TABLERO.map((s, i) => {
-        const abierta = abiertas.has(s.clave);
-        const grupos = tablero[s.clave];
-        // Todas cerradas: cada una es un bloque que ocupa un cuarto del alto.
-        const bloque = ninguna;
-        return (
-          <section
-            key={s.clave}
-            aria-label={s.nombre}
-            className={`flex min-h-0 flex-col overflow-hidden rounded-lg border border-suelo-300 bg-superficie ${bloque || abierta ? 'flex-1' : 'shrink-0'}`}
-            data-testid={`seccion-${s.clave}`}
-          >
-            <h2 className={bloque ? 'flex flex-1' : 'shrink-0'}>
-              <button
-                type="button"
-                onClick={() => alternar(s.clave)}
-                aria-expanded={abierta}
-                aria-controls={`seccion-${s.clave}-contenido`}
-                className="flex w-full items-center gap-3 bg-suelo-100 px-3 py-2.5 text-left hover:bg-suelo-200/70"
-              >
-                <span className={`flex shrink-0 items-center justify-center rounded-full bg-boton font-bold text-white ${bloque ? 'h-9 w-9' : 'h-7 w-7 text-sm'}`}>{i + 1}</span>
-                <span className="min-w-0 flex-1">
-                  <span className={`block font-semibold leading-tight ${bloque ? 'text-lg' : ''}`}>{s.nombre}</span>
-                  <span className="block truncate text-xs text-suelo-500">{s.sub}</span>
-                </span>
-                <span className="shrink-0 text-right leading-tight">
-                  <span className={`block font-bold tabular-nums ${bloque ? 'text-2xl' : ''}`} data-testid={`total-${s.clave}`}>
-                    {formatNumero(tablero.totales[s.clave])}
+    <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1" data-testid="tablero">
+      <div className="flex flex-col gap-2">
+        {SECCIONES_TABLERO.map((s, i) => {
+          const abierta = abiertas.has(s.clave);
+          const grupos = tablero[s.clave];
+          return (
+            <section key={s.clave} aria-label={s.nombre} className="rounded-lg border border-suelo-300 bg-superficie" data-testid={`seccion-${s.clave}`}>
+              <h2>
+                <button
+                  type="button"
+                  onClick={() => alternar(s.clave)}
+                  aria-expanded={abierta}
+                  aria-controls={`seccion-${s.clave}-contenido`}
+                  className={`flex w-full items-center gap-3 bg-suelo-100 px-3 py-2.5 text-left hover:bg-suelo-200/70 ${abierta ? 'rounded-t-lg' : 'rounded-lg'}`}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-boton font-bold text-white">{i + 1}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold leading-tight">{s.nombre}</span>
+                    <span className="block truncate text-xs text-suelo-500">{s.sub}</span>
                   </span>
-                  <span className="text-xs text-suelo-500">
-                    cab{grupos.length ? ` · ${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}` : ''}
-                  </span>
-                  {tablero.deIatf[s.clave] > 0 && (
-                    <span className="block text-xs font-medium text-trigo-600" data-testid={`de-iatf-${s.clave}`}>
-                      {formatNumero(tablero.deIatf[s.clave])} de IATF
+                  <span className="shrink-0 text-right leading-tight">
+                    <span className="block text-xl font-bold tabular-nums" data-testid={`total-${s.clave}`}>
+                      {formatNumero(tablero.totales[s.clave])}
                     </span>
+                    <span className="text-xs text-suelo-500">
+                      cab{grupos.length ? ` · ${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}` : ''}
+                    </span>
+                    {tablero.deIatf[s.clave] > 0 && (
+                      <span className="block text-xs font-medium text-trigo-600" data-testid={`de-iatf-${s.clave}`}>
+                        {formatNumero(tablero.deIatf[s.clave])} de IATF
+                      </span>
+                    )}
+                  </span>
+                  <Icono nombre="abajo" className={`h-5 w-5 shrink-0 text-suelo-500 transition-transform ${abierta ? 'rotate-180' : ''}`} />
+                </button>
+              </h2>
+              {abierta && (
+                <div id={`seccion-${s.clave}-contenido`} data-testid={`contenido-${s.clave}`}>
+                  {grupos.length === 0 ? (
+                    <p className="px-2 py-3 text-center text-sm text-suelo-500">{s.vacio}</p>
+                  ) : (
+                    <TablaGrupos grupos={grupos} todas={todas} />
                   )}
-                </span>
-                <Icono nombre="abajo" className={`h-5 w-5 shrink-0 text-suelo-500 transition-transform ${abierta ? 'rotate-180' : ''}`} />
-              </button>
-            </h2>
-            {abierta && (
-              <div id={`seccion-${s.clave}-contenido`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain" data-testid={`contenido-${s.clave}`}>
-                {grupos.length === 0 ? (
-                  <p className="px-2 py-3 text-center text-sm text-suelo-500">{s.vacio}</p>
-                ) : (
-                  <TablaGrupos grupos={grupos} todas={todas} />
-                )}
-              </div>
-            )}
-          </section>
-        );
-      })}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

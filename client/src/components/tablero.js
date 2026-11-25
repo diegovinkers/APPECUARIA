@@ -1,3 +1,5 @@
+import { diasCorto } from './procesos';
+
 // El tablero de Procesos (24/11, dibujo de Diego): las 4 secciones del ciclo
 // de la vaca. El servidor manda, en cada proceso abierto, sus `grupos` (uno
 // por estado, cada uno con su sección); acá se juntan por sección.
@@ -6,7 +8,7 @@
 
 export const SECCIONES_TABLERO = [
   { clave: 'iatf', nombre: 'Inseminación', sub: 'IATF', vacio: 'No hay vacas en inseminación. Se empieza con "+ Nuevo".' },
-  { clave: 'entore', nombre: 'Entore', sub: 'Con toros · en otro color, las que vienen de IATF', vacio: 'No hay vacas con toros.' },
+  { clave: 'entore', nombre: 'Entore', sub: 'Con toros', vacio: 'No hay vacas con toros.' },
   { clave: 'prenadas', nombre: 'Preñadas', sub: 'Hasta el parto', vacio: 'No hay preñadas esperando el parto.' },
   { clave: 'cria', nombre: 'Con cría al pie', sub: 'Hasta el destete', vacio: 'No hay vacas con cría al pie.' },
 ];
@@ -88,4 +90,26 @@ export function ordenarGrupos(grupos = [], { col = 'proxima', dir = 'asc' } = {}
     const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es', { numeric: true });
     return c * signo || (a.proceso?.nombre ?? '').localeCompare(b.proceso?.nombre ?? '');
   });
+}
+
+// Lo que se ve de una sección cerrada (25/11, Diego: "un poco más de
+// información" sin abrirla): lo más urgente, en un renglón.
+//   - lo atrasado primero: "Ecografía: atrasada 2 días" (o "3 grupos
+//     atrasados · Ecografía, atrasada 5 días", el más atrasado);
+//   - si no, lo que viene antes: "Parición: faltan 281 días";
+//   - si no hay fechas (vacías), qué falta: "Vacías: falta decidir";
+//   - sin grupos: null.
+// { texto, estado } (estado: el de la sugerencia, para el color).
+export function avisoDeSeccion(grupos = []) {
+  const conFecha = grupos.filter((g) => g.proxima).sort((a, b) => a.proxima.fecha.localeCompare(b.proxima.fecha));
+  const atrasados = conFecha.filter((g) => g.proxima.estado === 'ATRASADA');
+  const frase = (g) => `${g.proxima.nombre}${diasCorto(g.proxima) ? `: ${diasCorto(g.proxima)}` : ''}`;
+  if (atrasados.length === 1) return { texto: frase(atrasados[0]), estado: 'ATRASADA' };
+  if (atrasados.length > 1) {
+    const g = atrasados[0];
+    return { texto: `${atrasados.length} grupos atrasados · ${g.proxima.nombre}, ${diasCorto(g.proxima)}`, estado: 'ATRASADA' };
+  }
+  if (conFecha.length) return { texto: frase(conFecha[0]), estado: conFecha[0].proxima.estado };
+  if (grupos.length) return { texto: TEXTO_GRUPO[grupos[0].tipo] ?? '', estado: null };
+  return null;
 }

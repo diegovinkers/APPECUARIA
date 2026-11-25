@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accionDeGrupo, armarTablero, avance, ordenarGrupos } from './tablero';
+import { accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos } from './tablero';
 
 describe('armarTablero', () => {
   it('junta los grupos por sección, con el total de cabezas, y ordena por lo que vence primero', () => {
@@ -61,5 +61,30 @@ describe('ordenarGrupos (la tabla de una sección, 25/11)', () => {
   it('no cambia la lista que recibe', () => {
     ordenarGrupos(grupos, { col: 'proceso' });
     expect(nombres(grupos)).toEqual(['B', 'A', 'C']);
+  });
+});
+
+describe('avisoDeSeccion (lo que dice una sección cerrada, 25/11)', () => {
+  const g = (tipo, proxima) => ({ tipo, proxima });
+  const prox = (nombre, fecha, estado, dias) => ({ nombre, fecha, estado, dias });
+
+  it('lo que viene antes, con los días', () => {
+    const grupos = [g('PRENADAS', prox('Parición', '2027-09-01', 'PENDIENTE', 290)), g('PRENADAS', prox('Parición', '2027-08-20', 'PENDIENTE', 281))];
+    expect(avisoDeSeccion(grupos)).toEqual({ texto: 'Parición: faltan 281 días', estado: 'PENDIENTE' });
+  });
+
+  it('lo atrasado primero, aunque haya algo antes sin atrasar', () => {
+    const grupos = [g('VIENTRES', prox('Fin del entore', '2026-11-01', 'PROXIMA', 3)), g('VIENTRES', prox('Ecografía', '2026-11-20', 'ATRASADA', -2))];
+    expect(avisoDeSeccion(grupos)).toEqual({ texto: 'Ecografía: atrasada 2 días', estado: 'ATRASADA' });
+  });
+
+  it('varios atrasados: cuántos y el más atrasado', () => {
+    const grupos = [g('VIENTRES', prox('Ecografía', '2026-11-20', 'ATRASADA', -5)), g('VIENTRES', prox('Ecografía', '2026-11-23', 'ATRASADA', -2))];
+    expect(avisoDeSeccion(grupos)).toEqual({ texto: '2 grupos atrasados · Ecografía, atrasada 5 días', estado: 'ATRASADA' });
+  });
+
+  it('sin fechas, qué falta; sin grupos, nada', () => {
+    expect(avisoDeSeccion([g('VACIAS_A_DECIDIR', null)])).toEqual({ texto: 'Vacías: falta decidir', estado: null });
+    expect(avisoDeSeccion([])).toBeNull();
   });
 });

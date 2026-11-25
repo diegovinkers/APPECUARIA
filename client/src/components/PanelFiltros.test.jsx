@@ -59,4 +59,17 @@ describe('PanelFiltros', () => {
     );
     expect(contenedor.querySelector('section').contains(botonFiltros())).toBe(true);
   });
+
+  it('con el celular acostado, el botón no se muestra (queda la flechita del borde, 25/11)', () => {
+    act(() =>
+      root.render(
+        <PanelFiltrosProvider>
+          <PanelFiltros compacto>
+            <p>Filtro</p>
+          </PanelFiltros>
+        </PanelFiltrosProvider>,
+      ),
+    );
+    expect(contenedor.querySelector('[data-testid="boton-filtros"]').className).toMatch(/acostado:hidden/);
+  });
 });

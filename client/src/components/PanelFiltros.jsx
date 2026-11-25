@@ -58,8 +58,9 @@ export default function PanelFiltros({ activos = 0, onLimpiar, compacto = false,
   }, [setCuantos]);
 
   // En el celular: el botón para abrir el cajón (en la compu el panel está fijo).
+  // Acostado no se muestra (25/11, Diego: ocupa lugar): queda la flechita del borde.
   const boton = (
-    <div className={`flex items-center gap-2 lg:hidden ${destinoBoton ? '' : 'mb-2'}`}>
+    <div className={`flex items-center gap-2 lg:hidden acostado:hidden ${destinoBoton ? '' : 'mb-2'}`} data-testid="boton-filtros">
       <button
         type="button"
         onClick={() => setAbierto(true)}

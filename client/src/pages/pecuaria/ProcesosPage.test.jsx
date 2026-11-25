@@ -112,10 +112,10 @@ describe('la página Procesos', () => {
     await montar();
     const titulos = [...contenedor.querySelectorAll('[data-testid="tablero"] h2 button')];
     expect(titulos.map((b) => b.textContent.replace(/\s+/g, ' '))).toEqual([
-      '1InseminaciónIATF80cab · 1 grupo',
-      '2EntoreCon toros · en otro color, las que vienen de IATF75cab · 2 grupos35 de IATF',
-      '3PreñadasHasta el parto165cab · 1 grupo',
-      '4Con cría al pieHasta el destete0cab',
+      '1Inseminación! DIAGNOSTICO: atrasada 2 días80cab · 1 grupo',
+      '2EntoreFIN_SERVICIO: faltan 10 días75cab · 2 grupos35 de IATF',
+      '3PreñadasPARICION: faltan 10 días165cab · 1 grupo',
+      '4Con cría al pieSin vacas0cab',
     ]);
     expect(titulos.every((b) => b.getAttribute('aria-expanded') === 'false')).toBe(true);
     expect(contenedor.querySelector('[data-testid="fila-grupo"]')).toBeNull();
@@ -124,6 +124,14 @@ describe('la página Procesos', () => {
     expect(seccion('prenadas').textContent).toMatch(/IATF 2026/);
     expect(seccion('entore').textContent).toMatch(/IATF 2026/);
     expect(seccion('cria').textContent).toMatch(/No hay vacas con cría al pie/);
+  });
+
+  it('cerrada, debajo del nombre lo más urgente (lo atrasado en rojo); abierta, el subtítulo (25/11)', async () => {
+    await montar();
+    expect(contenedor.querySelector('[data-testid="aviso-iatf"]').className).toMatch(/text-red-700/);
+    abrir('iatf');
+    expect(contenedor.querySelector('[data-testid="aviso-iatf"]')).toBeNull();
+    expect(seccion('iatf').querySelector('h2').textContent).toMatch(/IATF80/);
   });
 
   it('cada sección mide lo que su contenido (no un pedazo fijo del alto); se baja el tablero entero (25/11)', async () => {

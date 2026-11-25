@@ -7,7 +7,7 @@ import { ErrorList } from './ui';
 import Icono from './Icono';
 import { formatFecha, formatNumero } from './pecuaria';
 import { diasCorto, estiloSugerencia, nombreProceso, textoTipo } from './procesos';
-import { SECCIONES_TABLERO, TEXTO_GRUPO, accionDeGrupo, armarTablero, avance, ordenarGrupos } from './tablero';
+import { SECCIONES_TABLERO, TEXTO_GRUPO, accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos } from './tablero';
 import { TituloOrdenable, celda } from './tabla';
 
 const hoyIso = () => new Date().toLocaleDateString('sv-SE');
@@ -51,11 +51,13 @@ export default function TableroProcesos({ tablero, errors, todas }) {
   if (errors.length) return <ErrorList errors={errors} />;
   if (!tablero) return <p className="text-suelo-600">Cargando…</p>;
   return (
-    <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1" data-testid="tablero">
+    <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1" data-testid="tablero">
       <div className="flex flex-col gap-2">
         {SECCIONES_TABLERO.map((s, i) => {
           const abierta = abiertas.has(s.clave);
           const grupos = tablero[s.clave];
+          // Cerrada: debajo del nombre, lo más urgente (abierta, ya se ve en la tabla).
+          const aviso = abierta ? null : avisoDeSeccion(grupos);
           return (
             <section key={s.clave} aria-label={s.nombre} className="rounded-lg border border-suelo-300 bg-superficie" data-testid={`seccion-${s.clave}`}>
               <h2>
@@ -69,7 +71,14 @@ export default function TableroProcesos({ tablero, errors, todas }) {
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-boton font-bold text-white">{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold leading-tight">{s.nombre}</span>
-                    <span className="block truncate text-xs text-suelo-500">{s.sub}</span>
+                    {aviso ? (
+                      <span className={`block truncate text-xs font-semibold ${colorDias(aviso.estado)}`} data-testid={`aviso-${s.clave}`}>
+                        {aviso.estado === 'ATRASADA' && '! '}
+                        {aviso.texto}
+                      </span>
+                    ) : (
+                      <span className="block truncate text-xs text-suelo-500">{grupos.length ? s.sub : 'Sin vacas'}</span>
+                    )}
                   </span>
                   <span className="shrink-0 text-right leading-tight">
                     <span className="block text-xl font-bold tabular-nums" data-testid={`total-${s.clave}`}>

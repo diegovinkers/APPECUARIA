@@ -86,7 +86,7 @@ describe('nuevo proceso', () => {
     await click(boton('Seguir'));
     await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]); // Lote V
     await click(boton('Seguir'));
-    expect(contenedor.textContent).toContain('¿Cuántas entran al servicio? (Lote V, tiene 50)');
+    expect(contenedor.textContent).toContain('¿Cuántas entran al servicio? (Lote V: en P8 hay 50)');
     expect(contenedor.textContent).toContain('Dejalo vacío si entran todas.');
     await click(boton('Seguir'));
 
@@ -109,7 +109,7 @@ describe('nuevo proceso', () => {
     await click(boton('Seguir'));
     await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]);
     await click(boton('Seguir'));
-    expect(contenedor.textContent).toContain('¿Cuántas se van a inseminar? (Lote V, tiene 50)');
+    expect(contenedor.textContent).toContain('¿Cuántas se van a inseminar? (Lote V: en P8 hay 50)');
     expect(contenedor.textContent).toContain('quedan aparte como "sin inseminar"');
     const cuantas = [...contenedor.querySelectorAll('label')].find((l) => l.textContent.startsWith('¿Cuántas se van a inseminar?')).querySelector('input');
     await cambiar(cuantas, '12');
@@ -120,11 +120,68 @@ describe('nuevo proceso', () => {
     expect(contenedor.querySelector('[data-reparto] legend').textContent).toBe('Lote V (P8) · se inseminan 12');
     await cambiar(campo('Lote V: potrero 1'), '13');
     await cambiar(campo('Lote V: cabezas 1'), '6');
+    // Reglas del campo (R1): las 6 inseminadas que quedan no pueden quedar con las sin inseminar.
     expect(contenedor.querySelector('[data-testid="quedan"]').textContent).toBe(
-      'De las 12 que se inseminan, quedan en P8: 6. Las otras 38 (sin inseminar) también quedan ahí.',
+      'De las 12 que se inseminan, quedan en P8: 6. No pueden quedar con las 38 sin inseminar: repartilas todas.',
     );
+    expect(boton('Revisar').disabled).toBe(true);
+    await cambiar(campo('Lote V: cabezas 1'), '12');
+    expect(boton('Revisar').disabled).toBe(false);
     await cambiar(campo('Lote V: cabezas 1'), '13');
     expect(contenedor.querySelector('[data-testid="quedan"]').textContent).toBe('Repartís 13, pero se inseminan 12.');
+  });
+});
+
+describe('IATF de una parte: un grupo se va (reglas del campo, R2)', () => {
+  async function hastaDonde(cuantas) {
+    await montar();
+    await click(boton('IATF'));
+    await click(boton('Seguir'));
+    await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]); // Lote V, 50 en P8
+    await click(boton('Seguir'));
+    const input = [...contenedor.querySelectorAll('label')].find((l) => l.textContent.startsWith('¿Cuántas se van a inseminar?')).querySelector('input');
+    if (cuantas) await cambiar(input, cuantas);
+    await click(boton('Seguir'));
+  }
+
+  it('si se inseminan 12 de 50, no se ofrece quedarse: se van las inseminadas o las sin inseminar', async () => {
+    await hastaDonde('12');
+    expect(contenedor.querySelector('[data-donde] legend').textContent).toBe('Lote V: en P8 hay 50 · se inseminan 12');
+    const opciones = [...contenedor.querySelectorAll('[aria-label="Lote V: qué grupo se va"] button')].map((b) => b.querySelector('span').textContent);
+    expect(opciones).toEqual(['Las 12 inseminadas a…', 'Las 38 sin inseminar a…']);
+    expect(campo('Lote V: a qué potrero').options[0].textContent).toBe('Elegí el potrero…');
+    expect(boton('Revisar').disabled).toBe(true);
+
+    await click(boton('Las 38 sin inseminar a…'));
+    await cambiar(campo('Lote V: a qué potrero'), '13');
+    expect(boton('Revisar').disabled).toBe(false);
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaProceso).toHaveBeenCalledWith(expect.objectContaining({ modalidad: 'IATF', lineas: [{ loteId: 1, cabezas: 12, sinInseminarA: 13 }] }));
+  });
+
+  it('las inseminadas a otro potrero van en potreroId', async () => {
+    await hastaDonde('12');
+    await cambiar(campo('Lote V: a qué potrero'), '13');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaProceso).toHaveBeenCalledWith(expect.objectContaining({ lineas: [{ loteId: 1, cabezas: 12, potreroId: 13 }] }));
+  });
+
+  it('si se inseminan todas, se pueden quedar', async () => {
+    await hastaDonde(null);
+    expect(contenedor.querySelector('[aria-label="Lote V: qué grupo se va"]')).toBeNull();
+    expect(campo('Lote V: a qué potrero').options[0].textContent).toBe('Se quedan en P8');
+    expect(boton('Revisar').disabled).toBe(false);
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaProceso).toHaveBeenCalledWith(expect.objectContaining({ lineas: [{ loteId: 1 }] }));
+  });
+
+  it('las vacías para volver a servir no entran a otra IATF (R5)', async () => {
+    await montar();
+    await click(boton('IATF'));
+    await click(boton('Seguir'));
+    await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[0]); // Lote R
+    expect(contenedor.textContent).toContain('entran a un entore con toros');
+    expect(boton('Seguir').disabled).toBe(true);
   });
 });
 

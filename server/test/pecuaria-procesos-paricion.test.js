@@ -20,6 +20,7 @@ async function preparar() {
   const p12 = await base.potrero('P12', { hectareas: 40, usoNombre: 'Campo natural', fecha: '2026-09-01', lotes: [['Lote P', 'Vaquillonas preñadas', 18, 380], ['Lote Q', 'Vaquillonas preñadas', 20, 380]] });
   const P = p12.lote['Lote P'];
   const Q = p12.lote['Lote Q'];
+  const P13 = (await base.potrero('P13', { hectareas: 30, usoNombre: 'Campo natural', fecha: '2026-09-01' })).potrero;
   const { proceso } = (
     await base.agent
       .post(`${API}/procesos`)
@@ -29,7 +30,7 @@ async function preparar() {
       })
       .expect(201)
   ).body;
-  return { ...base, proceso, P, Q, P12: p12.potrero };
+  return { ...base, proceso, P, Q, P13, P12: p12.potrero };
 }
 
 const cargar = async (agent, id, etapa, body, esperado = 201) => (await agent.post(`${API}/procesos/${id}/etapas/${etapa}`).send(body).expect(esperado)).body;
@@ -166,25 +167,28 @@ describe('parición', () => {
 });
 
 describe('abortos y fin de la parición', () => {
-  it('un aborto con "pasarlas a vacías": van a un lote de vacías del proceso', async () => {
-    const { agent, proceso, P, P12 } = await preparar();
-    const r = await cargar(agent, proceso.id, 'ABORTO', { fecha: '2026-10-01', aVacias: true, lineas: [{ loteId: P.id, cabezas: 2 }] });
-    expect((await lineas(agent, P12)).filter((l) => l[0].startsWith('Lote P'))).toEqual([
-      ['Lote P', 'Vaquillonas preñadas', 16],
-      ['Lote P · vacías', 'Vaquillonas preñadas', 2],
-    ]);
+  it('un aborto con "sacarlas": van a engorde, a otro potrero, y salen del proceso (R7)', async () => {
+    const { agent, proceso, P, P12, P13 } = await preparar();
+    expect((await cargar(agent, proceso.id, 'ABORTO', { fecha: '2026-10-01', aVacias: true, lineas: [{ loteId: P.id, cabezas: 2 }] }, 400)).errors[0]).toMatch(/elegí otro potrero/);
+    const r = await cargar(agent, proceso.id, 'ABORTO', { fecha: '2026-10-01', aVacias: true, lineas: [{ loteId: P.id, cabezas: 2, potreroId: P13.id }] });
+    expect((await lineas(agent, P12)).filter((l) => l[0].startsWith('Lote P'))).toEqual([['Lote P', 'Vaquillonas preñadas', 16]]);
+    expect((await lineas(agent, P13)).map((l) => [l[0], l[2]])).toEqual([['Lote P · engorde', 2]]);
+    const engorde = await prisma.lote.findFirst({ where: { nombre: 'Lote P · engorde' } });
+    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: engorde.id } })).toMatchObject({ rol: 'LIBRES', destino: 'INVERNADA' });
     expect(r.ficha.embudo.abortos).toBe(2);
-    expect(r.ficha.pendientes.map((p) => [p.lote, p.cabezas])).toEqual([['Lote P · vacías', 2]]);
+    expect(r.ficha.pendientes).toEqual([]);
   });
 
-  it('fin de la parición: las que no parieron pasan a vacías; el embudo las cuenta como falladas', async () => {
-    const { agent, proceso, P, Q } = await preparar();
+  it('fin de la parición: las que no parieron van a engorde (no se quedan con las paridas); el embudo las cuenta como falladas', async () => {
+    const { agent, proceso, P, Q, P13 } = await preparar();
     await cargar(agent, proceso.id, 'PARICION', { fecha: '2026-10-12', lineas: [{ loteId: P.id, madres: 15, machos: 8, hembras: 7 }, { loteId: Q.id, madres: 20, machos: 10, hembras: 10 }] });
-    const r = await cargar(agent, proceso.id, 'FIN_PARICION', { fecha: '2026-11-15', lineas: [{ loteId: P.id }] });
+    expect((await cargar(agent, proceso.id, 'FIN_PARICION', { fecha: '2026-11-15', lineas: [{ loteId: P.id }] }, 400)).errors[0]).toMatch(/van a engorde: no pueden quedar/);
+    const r = await cargar(agent, proceso.id, 'FIN_PARICION', { fecha: '2026-11-15', lineas: [{ loteId: P.id, potreroId: P13.id }] });
     expect(r.ficha.embudo).toMatchObject({ paridas: 35, falladas: 3 });
-    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: P.id } })).toMatchObject({ rol: 'VACIAS', destino: null });
+    expect(await prisma.procesoLote.findFirst({ where: { procesoId: proceso.id, loteId: P.id } })).toMatchObject({ rol: 'LIBRES', destino: 'INVERNADA' });
+    expect((await lineas(agent, P13)).map((l) => [l[0], l[2]])).toEqual([['Lote P', 3]]);
     expect(r.ficha.etapa).toBe('CRIA');
-    expect(r.ficha.pendientes.map((p) => [p.lote, p.cabezas])).toEqual([['Lote P', 3]]);
+    expect(r.ficha.pendientes).toEqual([]);
   });
 
   it('una parición antes de tiempo es un aviso', async () => {

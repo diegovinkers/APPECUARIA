@@ -12,8 +12,12 @@ import {
   cuerpoDiagnostico,
   destinoParaApi,
   destinoPorDefecto,
-  gruposDiagnostico,
+  faltaDestete,
+  faltaEcografia,
   nombreMes,
+  opcionesEcografia,
+  quienesSeVan,
+  separarIatf,
   textoBotonEtapa,
   totalDiagnostico,
 } from '../../components/procesos';
@@ -22,6 +26,8 @@ const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
 const inputChico = `${inputClass} min-h-11 px-3`;
 const texto = (t) => String(t ?? '').trim();
+const entero = (t) => Number.parseInt(texto(t), 10);
+const opcionClase = (activa) => `flex min-h-11 flex-col rounded-lg border px-3 py-2 text-left text-sm ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie'}`;
 
 // Cada etapa: sus pasos, qué lotes toma (como la plantilla del servidor), si
 // va una sola vez por lote y si pide cabezas.
@@ -60,6 +66,9 @@ const CAMPOS_PARICION = [
 // §8 y §12): a quién (los lotes del proceso que la toman, ya elegidos) →
 // datos → (en el diagnóstico y la decisión) a dónde va cada grupo → revisar
 // y confirmar. Al confirmar, vuelve a la ficha.
+// Reglas del campo (25/11): al separar, una de las partes cambia de potrero
+// (IATF de una parte, ecografía, aborto, falladas, destete); las vacías de una
+// IATF van a entore con toros o a engorde, las de un entore solo a engorde.
 export default function ProcesoEtapaPage() {
   const { id, etapa } = useParams();
   const navigate = useNavigate();
@@ -73,15 +82,17 @@ export default function ProcesoEtapaPage() {
   const [nota, setNota] = useState('');
   const [metodo, setMetodo] = useState('ECOGRAFIA');
   const [datos, setDatos] = useState({}); // diagnóstico: { [loteId]: { prenadas, vacias } }
-  const [destinos, setDestinos] = useState({}); // { [loteId]: { [clave]: destino } }
+  const [elecciones, setElecciones] = useState({}); // diagnóstico: { [loteId]: quiénes se van, a dónde, vacías a… }
+  const [destinos, setDestinos] = useState({}); // decidir (lo viejo): { [loteId]: { vacias: destino } }
   const [revision, setRevision] = useState({}); // { [loteId]: { cambian, aLoteId } }
-  const [paricion, setParicion] = useState({}); // { [loteId]: { madres, machos, ..., categoriaId } }
-  // En un aborto, la vaca vuelve a vacía (fase 8): arranca marcado.
+  const [paricion, setParicion] = useState({}); // { [loteId]: { madres, terneros, ..., potreroId } }
+  // En un aborto, las que abortaron van a engorde (R7): arranca marcado.
   const [aVacias, setAVacias] = useState(true);
+  const [aOtroPotrero, setAOtroPotrero] = useState({}); // aborto y falladas: { [loteId]: potreroId }
   const [causas, setCausas] = useState([]);
   const [causaId, setCausaId] = useState('');
-  const [destete, setDestete] = useState({}); // { [loteId]: { potreroId, categoriaId, peso } }
-  const [iatf, setIatf] = useState({}); // { [loteId]: { cabezas, potreroId, destino } }
+  const [destete, setDestete] = useState({}); // { [loteId]: { potreroId, categoriaId, peso, madresPotreroId, categoriaMadresId } }
+  const [iatf, setIatf] = useState({}); // { [loteId]: { cabezas, seVan, potreroId, destino } }
   const ponerIatf = (l, cambios) => setIatf((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...cambios } }));
   // Toros (fase 6): los de la estancia, los que salen y los que entran ({ [toroId]: potreroId }).
   const [torosEstancia, setTorosEstancia] = useState([]);
@@ -133,14 +144,20 @@ export default function ProcesoEtapaPage() {
   const elegidosIds = elegidos ?? (cfg?.ninguno ? [] : posibles.map((l) => l.loteId));
   const lotes = posibles.filter((l) => elegidosIds.includes(l.loteId));
   const nombrePaso = cfg?.pasos[paso];
+  // Las vacías de una IATF pueden ir al entore (una vez); las de un entore, solo a engorde (R5).
+  const esIatf = ['IATF', 'IA'].includes(ficha?.proceso.datos?.modalidad);
+  // ¿Hay en el potrero del lote otros lotes del proceso? (las falladas no se pueden quedar con ellos).
+  const conOtrosDelProceso = (l) => (ficha?.lotes ?? []).some((x) => x.activo && x.loteId !== l.loteId && x.potrero?.id === l.potrero?.id && x.rol !== 'LIBRES');
 
-  const destinoDe = (l, clave) => destinos[l.loteId]?.[clave] ?? (etapa === 'DECISION' ? { tipo: '' } : destinoPorDefecto(l, clave === 'vacias' ? 'VACIAS' : 'PRENADAS'));
+  const destinoDe = (l, clave) => destinos[l.loteId]?.[clave] ?? destinoPorDefecto(l, 'VACIAS');
   const ponerDestino = (l, clave, cambios) =>
     setDestinos((d) => ({ ...d, [l.loteId]: { ...d[l.loteId], [clave]: { ...destinoDe(l, clave), ...cambios } } }));
+  const eleccionDe = (l) => elecciones[l.loteId] ?? {};
+  const ponerEleccion = (l, cambios) => setElecciones((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...cambios } }));
 
   function cuerpo() {
     const base = { fecha, ...(texto(nota) && { nota: texto(nota) }) };
-    if (etapa === 'DIAGNOSTICO') return cuerpoDiagnostico({ fecha, metodo, lotes, datos, destinos, nota });
+    if (etapa === 'DIAGNOSTICO') return cuerpoDiagnostico({ fecha, metodo, lotes, datos, elecciones, nota, iatf: esIatf });
     if (etapa === 'DECISION') return { ...base, lineas: lotes.map((l) => ({ loteId: l.loteId, ...destinoParaApi(destinoDe(l, 'vacias'), l) })) };
     if (etapa === 'PARICION') {
       return {
@@ -157,18 +174,17 @@ export default function ProcesoEtapaPage() {
         }),
       };
     }
-    if (etapa === 'FIN_PARICION') return { ...base, lineas: lotes.map((l) => ({ loteId: l.loteId })) };
-    if (etapa === 'INSEMINACION' || etapa === 'FIN_INSEMINACION') {
+    if (etapa === 'FIN_PARICION') return { ...base, lineas: lotes.map((l) => ({ loteId: l.loteId, ...(aOtroPotrero[l.loteId] && { potreroId: Number(aOtroPotrero[l.loteId]) }) })) };
+    if (etapa === 'INSEMINACION') {
+      return { ...base, lineas: lotes.map((l) => ({ loteId: l.loteId, cabezas: texto(iatf[l.loteId]?.cabezas), ...separarIatf(l, iatf[l.loteId]).api })) };
+    }
+    if (etapa === 'FIN_INSEMINACION') {
+      // Solo se anotan las que salen; "las dejo para otro día" no es una carga.
       return {
         ...base,
-        lineas: lotes.map((l) => {
-          const d = iatf[l.loteId] ?? {};
-          return {
-            loteId: l.loteId,
-            ...(etapa === 'INSEMINACION' ? { cabezas: texto(d.cabezas) } : { destino: d.destino }),
-            ...(d.potreroId && { potreroId: Number(d.potreroId) }),
-          };
-        }),
+        lineas: lotes
+          .filter((l) => iatf[l.loteId]?.destino === 'SALEN')
+          .map((l) => ({ loteId: l.loteId, destino: 'SALEN', ...(iatf[l.loteId]?.potreroId && { potreroId: Number(iatf[l.loteId].potreroId) }) })),
       };
     }
     if (etapa === 'TOROS') return { ...base, salen: listaParaApi(salenDe), entran: listaParaApi(entran) };
@@ -183,6 +199,8 @@ export default function ProcesoEtapaPage() {
             ...(d.potreroId && { destinoPotreroId: Number(d.potreroId) }),
             ...(d.categoriaId && { categoriaId: Number(d.categoriaId) }),
             ...(texto(d.peso) && { pesoPromedioKg: texto(d.peso) }),
+            ...(d.madresPotreroId && { madresPotreroId: Number(d.madresPotreroId) }),
+            ...(d.categoriaMadresId && { categoriaMadresId: Number(d.categoriaMadresId) }),
           };
         }),
       };
@@ -201,7 +219,11 @@ export default function ProcesoEtapaPage() {
       ...base,
       ...(etapa === 'ABORTO' && aVacias && { aVacias: true }),
       ...(etapa === 'FIN_SERVICIO' && Object.keys(salenDe).length && { salenToros: listaParaApi(salenDe) }),
-      lineas: lotes.map((l) => (texto(cabezas[l.loteId]) ? { loteId: l.loteId, cabezas: texto(cabezas[l.loteId]) } : { loteId: l.loteId })),
+      lineas: lotes.map((l) => ({
+        loteId: l.loteId,
+        ...(texto(cabezas[l.loteId]) && { cabezas: texto(cabezas[l.loteId]) }),
+        ...(etapa === 'ABORTO' && aVacias && aOtroPotrero[l.loteId] && { potreroId: Number(aOtroPotrero[l.loteId]) }),
+      })),
     };
   }
 
@@ -233,13 +255,29 @@ export default function ProcesoEtapaPage() {
     );
   }
 
-  const desteteOk = etapa !== 'DESTETE' || lotes.every((l) => destete[l.loteId]?.potreroId);
+  const desteteOk = etapa !== 'DESTETE' || lotes.every((l) => !faltaDestete(l, destete[l.loteId]));
+  const otroDiaTodas = etapa === 'FIN_INSEMINACION' && lotes.length > 0 && lotes.every((l) => iatf[l.loteId]?.destino === 'OTRO_DIA');
   const iatfOk =
-    (etapa !== 'INSEMINACION' || lotes.every((l) => Number.parseInt(texto(iatf[l.loteId]?.cabezas), 10) > 0)) &&
-    (etapa !== 'FIN_INSEMINACION' || lotes.every((l) => iatf[l.loteId]?.destino));
-  const bajaOk = etapa !== 'BAJA' || (causaId && lotes.every((l) => Number.parseInt(texto(cabezas[l.loteId]), 10) > 0));
-  const datosOk = desteteOk && iatfOk && bajaOk && (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
-  const destinoOk = etapa !== 'DECISION' || lotes.every((l) => destinoDe(l, 'vacias').tipo);
+    (etapa !== 'INSEMINACION' || lotes.every((l) => entero(iatf[l.loteId]?.cabezas) > 0 && !separarIatf(l, iatf[l.loteId]).falta)) &&
+    (etapa !== 'FIN_INSEMINACION' || (lotes.every((l) => iatf[l.loteId]?.destino) && lotes.some((l) => iatf[l.loteId]?.destino === 'SALEN')));
+  const bajaOk = etapa !== 'BAJA' || (causaId && lotes.every((l) => entero(cabezas[l.loteId]) > 0));
+  // Aborto a engorde: si abortó una parte, a otro potrero (no se quedan con las preñadas).
+  const abortoOk =
+    etapa !== 'ABORTO' ||
+    !aVacias ||
+    lotes.every((l) => !(entero(cabezas[l.loteId]) < l.cabezas) || (aOtroPotrero[l.loteId] && Number(aOtroPotrero[l.loteId]) !== l.potrero?.id));
+  // Falladas a engorde: si en el potrero hay otros del proceso, a otro potrero.
+  const finParicionOk = etapa !== 'FIN_PARICION' || lotes.every((l) => !conOtrosDelProceso(l) || (aOtroPotrero[l.loteId] && Number(aOtroPotrero[l.loteId]) !== l.potrero?.id));
+  const datosOk =
+    desteteOk &&
+    iatfOk &&
+    bajaOk &&
+    abortoOk &&
+    finParicionOk &&
+    (etapa !== 'DIAGNOSTICO' || lotes.every((l) => totalDiagnostico(datos[l.loteId]) >= 1 && totalDiagnostico(datos[l.loteId]) <= l.cabezas));
+  const destinoOk =
+    (etapa !== 'DECISION' || lotes.every((l) => destinoDe(l, 'vacias').tipo)) &&
+    (etapa !== 'DIAGNOSTICO' || lotes.every((l) => !faltaEcografia(l, datos[l.loteId], eleccionDe(l), { iatf: esIatf })));
   const torosOk = !faltaPotrero(salenDe) && !faltaPotrero(entran);
   const cuantosToros = Object.keys(salenDe).length + Object.keys(entran).length;
   const puedeSeguir = cfg.sinLotes
@@ -247,6 +285,8 @@ export default function ProcesoEtapaPage() {
     : lotes.length > 0 && (nombrePaso !== 'Datos' || (datosOk && torosOk)) && (nombrePaso !== 'Destino' || destinoOk);
   const otrosPotreros = (l) => (potreros ?? []).filter((p) => p.id !== l.potrero?.id);
   const titulo = textoBotonEtapa(etapa);
+  // R8: cuántas vacas y terneros hay en cada potrero del proceso.
+  const porPotrero = ficha?.porPotrero ?? [];
 
   return (
     <Camino
@@ -352,7 +392,7 @@ export default function ProcesoEtapaPage() {
             />
           )}
           {etapa === 'DIAGNOSTICO' && (
-            <p className="text-xs text-suelo-500">Si hoy ecografiás una parte, poné solo esas: el resto queda para otro día.</p>
+            <p className="text-xs text-suelo-500">Si hoy ecografiás una parte, poné solo esas: el resto queda sin ecografiar, para otro día.</p>
           )}
 
           {etapa === 'DIAGNOSTICO' && (
@@ -407,6 +447,7 @@ export default function ProcesoEtapaPage() {
                     </div>
                     <p className={`mt-2 text-xs ${total > l.cabezas ? 'font-medium text-red-700' : 'text-suelo-500'}`}>
                       {formatNumero(total)} de {formatNumero(l.cabezas)}
+                      {total > 0 && total < l.cabezas && ` · quedan ${formatNumero(l.cabezas - total)} sin ecografiar`}
                     </p>
                   </fieldset>
                 );
@@ -440,18 +481,26 @@ export default function ProcesoEtapaPage() {
                       onChange={(e) => setRevision((x) => ({ ...x, [l.loteId]: { ...r, aLoteId: e.target.value } }))}
                       className={`${inputChico} mt-1`}
                     >
-                      <option value="">Se quedan en este lote</option>
+                      <option value="">Al de {opuesto === 'PRENADAS' ? 'preñadas' : 'vacías'} del proceso (el de su familia)</option>
                       {destinosPosibles.map((x) => (
                         <option key={x.loteId} value={x.loteId}>
                           {x.nombre} ({x.potrero?.nombre})
                         </option>
                       ))}
                     </select>
+                    <span className="mt-1 block text-xs text-suelo-500">Se mueven a ese lote: no quedan juntas con las de antes.</span>
                   </label>
                 </fieldset>
               );
             })}
 
+          {etapa === 'PARICION' && porPotrero.length > 0 && (
+            <ul className="space-y-0.5 rounded-lg border border-suelo-200 bg-suelo-50 px-3 py-2 text-xs text-suelo-700" aria-label="Por potrero">
+              {porPotrero.map((p) => (
+                <li key={p.potreroId}>{p.texto}</li>
+              ))}
+            </ul>
+          )}
           {etapa === 'PARICION' &&
             lotes.map((l) => {
               const d = paricion[l.loteId] ?? {};
@@ -481,7 +530,7 @@ export default function ProcesoEtapaPage() {
                     </select>
                   </label>
                   <p className="text-xs text-suelo-500">
-                    Los terneros van al lote del mes en que nacieron (por ejemplo, &quot;Terneros/as sep-2027&quot;; se crea o se suma). El sexo y las caravanas se cargan después. La madre sigue en su categoría: pasa a estar parida. Para abortos: ⋯ → Registrar abortos.
+                    Los terneros van al lote del mes en que nacieron (por ejemplo, &quot;Terneros/as sep-2027&quot;; se crea o se suma). El sexo y las caravanas se cargan después. La madre sigue en su categoría: pasa a estar parida. Las paridas con su cría y las preñadas pueden seguir juntas hasta el destete.
                   </p>
                 </fieldset>
               );
@@ -491,11 +540,13 @@ export default function ProcesoEtapaPage() {
             lotes.map((l) => {
               const d = destete[l.loteId] ?? {};
               const poner = (campo, valor) => setDestete((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], [campo]: valor } }));
+              const falta = d.potreroId ? faltaDestete(l, d) : null;
               return (
                 <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
                   <legend className="px-1 text-sm font-semibold">
                     {l.nombre} · {formatNumero(l.cabezas)} cab (en {l.potrero?.nombre})
                   </legend>
+                  <p className="text-sm font-medium">Los terneros</p>
                   <label className="block text-xs text-suelo-600">
                     Se van a
                     <select aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner('potreroId', e.target.value)} className={`${inputChico} mt-1`}>
@@ -524,12 +575,84 @@ export default function ProcesoEtapaPage() {
                       <input inputMode="decimal" aria-label={`${l.nombre}: peso promedio`} value={d.peso ?? ''} onChange={(e) => poner('peso', e.target.value)} className={`${inputChico} mt-1`} />
                     </label>
                   </div>
+                  <p className="pt-1 text-sm font-medium">Las vacas</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block text-xs text-suelo-600">
+                      Dónde quedan
+                      <select aria-label={`${l.nombre}: a qué potrero van las vacas`} value={d.madresPotreroId ?? ''} onChange={(e) => poner('madresPotreroId', e.target.value)} className={`${inputChico} mt-1`}>
+                        <option value="">Se quedan en {l.potrero?.nombre}</option>
+                        {otrosPotreros(l).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            Van a {opcionPotrero(p)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs text-suelo-600">
+                      Categoría de las vacas
+                      <select aria-label={`${l.nombre}: categoría de las vacas`} value={d.categoriaMadresId ?? ''} onChange={(e) => poner('categoriaMadresId', e.target.value)} className={`${inputChico} mt-1`}>
+                        <option value="">La misma</option>
+                        {categorias.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {falta && <p className="text-xs font-medium text-red-700">{falta}</p>}
                 </fieldset>
               );
             })}
-          {etapa === 'DESTETE' && <p className="text-xs text-suelo-500">Cuando a las madres ya no les quedan crías al pie, dejan este proceso (siguen en su categoría y en el entore nuevo, si entraron).</p>}
+          {etapa === 'DESTETE' && <p className="text-xs text-suelo-500">Terneros y vacas se separan: no pueden quedar en el mismo potrero. Las vacas que ya no tienen crías al pie dejan este proceso.</p>}
 
-          {(etapa === 'INSEMINACION' || etapa === 'FIN_INSEMINACION') &&
+          {etapa === 'INSEMINACION' &&
+            lotes.map((l) => {
+              const d = iatf[l.loteId] ?? {};
+              const s = separarIatf(l, d);
+              const escrito = entero(d.cabezas) > 0;
+              return (
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
+                  <legend className="px-1 text-sm font-semibold">
+                    {l.nombre}: en {l.potrero?.nombre} hay {formatNumero(l.cabezas)} sin inseminar
+                  </legend>
+                  <label className={etiqueta}>
+                    ¿Cuántas se inseminaron hoy? ({l.nombre})
+                    <input aria-label={`¿Cuántas se inseminaron hoy? (${l.nombre})`} inputMode="numeric" value={d.cabezas ?? ''} onChange={(e) => ponerIatf(l, { cabezas: e.target.value })} className={`${inputChico} mt-1`} />
+                  </label>
+                  {escrito && s.parte && (
+                    <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={`${l.nombre}: qué grupo se va`}>
+                      {[
+                        ['INSEMINADAS', `Las ${formatNumero(s.n)} inseminadas`],
+                        ['SIN', `Las ${formatNumero(s.sinInseminar)} sin inseminar`],
+                      ].map(([valor, t]) => (
+                        <button key={valor} type="button" onClick={() => ponerIatf(l, { seVan: valor })} aria-pressed={(d.seVan ?? 'INSEMINADAS') === valor} className={opcionClase((d.seVan ?? 'INSEMINADAS') === valor)}>
+                          <span className="font-semibold">{t}</span>
+                          <span className="text-xs text-suelo-500">se van; las otras se quedan</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {escrito && (
+                    <label className={etiqueta}>
+                      {s.parte ? (d.seVan === 'SIN' ? '¿A dónde van las sin inseminar?' : '¿A dónde van las inseminadas?') : '¿Dónde quedan?'}
+                      <select aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => ponerIatf(l, { potreroId: e.target.value })} className={`${inputChico} mt-1`}>
+                        <option value="">{s.parte ? 'Elegí el potrero…' : `Se quedan en ${l.potrero?.nombre}`}</option>
+                        {otrosPotreros(l).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {opcionPotrero(p, s.parte ? '' : 'Moverlas a ')}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {escrito && s.falta && <p className="text-xs text-amber-800">{s.falta}: las inseminadas y las sin inseminar no pueden quedar juntas.</p>}
+                </fieldset>
+              );
+            })}
+          {etapa === 'INSEMINACION' && <p className="text-xs text-suelo-500">Las inseminadas pasan a un lote aparte ("· IATF" con la fecha); las demás siguen sin inseminar, para otro día.</p>}
+
+          {etapa === 'FIN_INSEMINACION' &&
             lotes.map((l) => {
               const d = iatf[l.loteId] ?? {};
               return (
@@ -537,49 +660,52 @@ export default function ProcesoEtapaPage() {
                   <legend className="px-1 text-sm font-semibold">
                     {l.nombre} ({l.potrero?.nombre}) · {formatNumero(l.cabezas)} sin inseminar
                   </legend>
-                  {etapa === 'INSEMINACION' ? (
+                  <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={`${l.nombre}: qué pasa con las sin inseminar`}>
+                    {[
+                      ['SALEN', 'Salen del proceso', 'Vuelven a ser vacas libres (se pueden mover).'],
+                      ['OTRO_DIA', 'Las dejo para otro día', 'No se anota nada: siguen sin inseminar.'],
+                    ].map(([valor, t, detalle]) => (
+                      <button key={valor} type="button" onClick={() => ponerIatf(l, { destino: valor })} aria-pressed={d.destino === valor} className={opcionClase(d.destino === valor)}>
+                        <span className="font-semibold">{t}</span>
+                        <span className="text-xs text-suelo-500">{detalle}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {d.destino === 'SALEN' && (
                     <label className={etiqueta}>
-                      ¿Cuántas se inseminaron hoy? ({l.nombre})
-                      <input aria-label={`¿Cuántas se inseminaron hoy? (${l.nombre})`} inputMode="numeric" value={d.cabezas ?? ''} onChange={(e) => ponerIatf(l, { cabezas: e.target.value })} className={`${inputChico} mt-1`} />
+                      ¿A dónde van?
+                      <select aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => ponerIatf(l, { potreroId: e.target.value })} className={`${inputChico} mt-1`}>
+                        <option value="">Se quedan en {l.potrero?.nombre}</option>
+                        {otrosPotreros(l).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {opcionPotrero(p, 'A ')}
+                          </option>
+                        ))}
+                      </select>
                     </label>
-                  ) : (
-                    <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={`${l.nombre}: qué pasa con las sin inseminar`}>
-                      {[
-                        ['REPASO', 'Repaso con toro', 'Siguen en el proceso y cuentan como servidas.'],
-                        ['SALEN', 'Salen del proceso', 'Vuelven a ser vacas libres.'],
-                      ].map(([valor, titulo, detalle]) => (
-                        <button
-                          key={valor}
-                          type="button"
-                          onClick={() => ponerIatf(l, { destino: valor })}
-                          aria-pressed={d.destino === valor}
-                          className={`flex min-h-11 flex-col rounded-lg border px-3 py-2 text-left text-sm ${d.destino === valor ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie'}`}
-                        >
-                          <span className="font-semibold">{titulo}</span>
-                          <span className="text-xs text-suelo-500">{detalle}</span>
-                        </button>
-                      ))}
-                    </div>
                   )}
-                  <label className={etiqueta}>
-                    {etapa === 'INSEMINACION' ? '¿A dónde van las inseminadas?' : '¿A dónde van?'}
-                    <select aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => ponerIatf(l, { potreroId: e.target.value })} className={`${inputChico} mt-1`}>
-                      <option value="">Se quedan en {l.potrero?.nombre}</option>
-                      {otrosPotreros(l).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {opcionPotrero(p, 'A ')}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </fieldset>
               );
             })}
-          {etapa === 'INSEMINACION' && <p className="text-xs text-suelo-500">Las inseminadas pasan a un lote aparte ("· IATF" con la fecha); las demás siguen sin inseminar, para otro día.</p>}
+          {etapa === 'FIN_INSEMINACION' && <p className="text-xs text-suelo-500">Si meten un toro antes de la ecografía, se hace por fuera de la app.</p>}
+          {otroDiaTodas && <Notice>No hay nada para anotar: las sin inseminar quedan para otro día.</Notice>}
 
-          {etapa === 'FIN_PARICION' && (
-            <p className="text-sm text-suelo-600">Las que quedan sin parir en los lotes elegidos pasan a vacías (falladas): después decidís qué se hace con ellas.</p>
-          )}
+          {etapa === 'FIN_PARICION' && <p className="text-sm text-suelo-600">Las que quedan sin parir en los lotes elegidos van a engorde: salen del proceso, con la categoría de invernar.</p>}
+          {etapa === 'FIN_PARICION' &&
+            lotes.map((l) => (
+              <label key={l.loteId} className={etiqueta}>
+                {l.nombre}: ¿a dónde van las {formatNumero(l.cabezas)} que no parieron?
+                <select aria-label={`${l.nombre}: a qué potrero van a engorde`} value={aOtroPotrero[l.loteId] ?? ''} onChange={(e) => setAOtroPotrero((x) => ({ ...x, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`}>
+                  <option value="">{conOtrosDelProceso(l) ? 'Elegí el potrero…' : `Se quedan en ${l.potrero?.nombre}`}</option>
+                  {otrosPotreros(l).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {opcionPotrero(p, 'A ')}
+                    </option>
+                  ))}
+                </select>
+                {conOtrosDelProceso(l) && <span className="mt-1 block text-xs text-suelo-500">En {l.potrero?.nombre} hay paridas o preñadas del proceso: las falladas van a otro potrero.</span>}
+              </label>
+            ))}
 
           {ETAPAS[etapa].pideCabezas &&
             lotes.map((l) => (
@@ -620,9 +746,28 @@ export default function ProcesoEtapaPage() {
           {etapa === 'ABORTO' && (
             <label data-testid="a-vacias" className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-suelo-200 bg-superficie px-3 text-sm">
               <input type="checkbox" checked={aVacias} onChange={(e) => setAVacias(e.target.checked)} className="h-5 w-5 accent-campo-600" />
-              Pasarlas a vacías (a un lote aparte, para decidir después)
+              Sacarlas a engorde (salen del proceso, con la categoría de invernar)
             </label>
           )}
+          {etapa === 'ABORTO' &&
+            aVacias &&
+            lotes.map((l) => {
+              const parte = entero(cabezas[l.loteId]) < l.cabezas;
+              return (
+                <label key={l.loteId} className={etiqueta}>
+                  ¿A dónde van las que abortaron? ({l.nombre})
+                  <select aria-label={`${l.nombre}: a qué potrero van a engorde`} value={aOtroPotrero[l.loteId] ?? ''} onChange={(e) => setAOtroPotrero((x) => ({ ...x, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`}>
+                    <option value="">{parte ? 'Elegí el potrero…' : `Se quedan en ${l.potrero?.nombre}`}</option>
+                    {otrosPotreros(l).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {opcionPotrero(p, 'A ')}
+                      </option>
+                    ))}
+                  </select>
+                  {parte && <span className="mt-1 block text-xs text-suelo-500">No pueden quedar con las preñadas: van a otro potrero.</span>}
+                </label>
+              );
+            })}
           <label className={etiqueta}>
             Nota (opcional)
             <input value={nota} onChange={(e) => setNota(e.target.value)} maxLength={255} className={`${inputChico} mt-1`} />
@@ -638,29 +783,31 @@ export default function ProcesoEtapaPage() {
               <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
             </label>
           )}
-          <p className="text-sm text-suelo-600">¿Qué se hace con cada grupo?</p>
-          {lotes.map((l) => {
-            const grupos = etapa === 'DECISION' ? [{ clave: 'vacias', cabezas: l.cabezas, nombre: 'Vacías' }] : gruposDiagnostico(datos[l.loteId]);
-            return (
-              <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
-                <legend className="px-1 text-sm font-semibold">
-                  {l.nombre} ({l.potrero?.nombre}) · {formatNumero(l.cabezas)} cab
-                </legend>
-                {grupos.map((g) => (
-                  <Grupo
-                    key={g.clave}
-                    lote={l}
-                    grupo={g}
-                    destino={destinoDe(l, g.clave)}
-                    onCambiar={(cambios) => ponerDestino(l, g.clave, cambios)}
-                    potreros={otrosPotreros(l)}
-                    categorias={categorias}
-                    conDespues={etapa !== 'DECISION'}
-                  />
-                ))}
-              </fieldset>
-            );
-          })}
+          {etapa === 'DIAGNOSTICO' &&
+            lotes.map((l) => (
+              <EcografiaLote
+                key={l.loteId}
+                lote={l}
+                d={datos[l.loteId]}
+                e={eleccionDe(l)}
+                onCambiar={(cambios) => ponerEleccion(l, cambios)}
+                potreros={otrosPotreros(l)}
+                categorias={categorias}
+                iatf={esIatf}
+              />
+            ))}
+          {etapa === 'DECISION' &&
+            lotes.map((l) => (
+              <DecidirVacias
+                key={l.loteId}
+                lote={l}
+                destino={destinoDe(l, 'vacias')}
+                onCambiar={(cambios) => ponerDestino(l, 'vacias', cambios)}
+                potreros={otrosPotreros(l)}
+                categorias={categorias}
+                iatf={esIatf}
+              />
+            ))}
         </section>
       )}
 
@@ -686,72 +833,198 @@ export default function ProcesoEtapaPage() {
   );
 }
 
-// Un grupo del diagnóstico (o las vacías a decidir): a dónde va y como qué.
-function Grupo({ lote, grupo, destino, onCambiar, potreros, categorias, conDespues }) {
-  const vacias = grupo.clave === 'vacias';
-  const titulo = `${lote.nombre} · ${grupo.nombre}`;
-  const valor = destino.tipo === 'POTRERO' ? `POTRERO:${destino.potreroId}` : destino.tipo;
-  const cambiar = (v) => {
-    const [tipo, potreroId] = v.split(':');
-    // En las vacías, la categoría solo se elige si salen del proceso.
-    const categoria = vacias ? { categoriaId: tipo === 'SALEN' ? String(lote.categoriaId ?? '') : '' } : {};
-    onCambiar({ tipo, potreroId: potreroId ?? null, ...categoria });
-  };
-  // La categoría de la madre no cambia (docs/PECUARIA.md §9): solo se elige
-  // para las vacías que salen del proceso.
-  const conCategoria = vacias && destino.tipo === 'SALEN';
-  const conPotrero = vacias && (destino.tipo === 'REENTORE' || destino.tipo === 'SALEN');
+// Un select de potrero: "Se quedan en …" (si no se tienen que ir) o "Elegí…".
+function SelectPotrero({ aria, valor, onCambiar, potreros, lote, obligatorio, etiquetaTexto }) {
   return (
-    <div data-grupo={grupo.clave} className="rounded-md border border-suelo-100 bg-suelo-50 p-2">
-      <p className="text-sm font-medium">
-        {grupo.nombre} · {formatNumero(grupo.cabezas)}
-      </p>
-      <div className="mt-1 grid gap-2 sm:grid-cols-2">
-        <select aria-label={vacias ? `${titulo}: qué se hace` : `${titulo}: a dónde`} value={valor} onChange={(e) => cambiar(e.target.value)} className={inputChico}>
-          {!conDespues && <option value="">Elegí…</option>}
-          {vacias && conDespues && <option value="DESPUES">Decidir después (se quedan)</option>}
-          {!vacias && <option value="QUEDAN">Se quedan en {lote.potrero?.nombre}</option>}
-          {!vacias &&
-            potreros.map((p) => (
-              <option key={p.id} value={`POTRERO:${p.id}`}>
-                {opcionPotrero(p, 'A ')}
-              </option>
+    <label className="block text-xs text-suelo-600">
+      {etiquetaTexto}
+      <select aria-label={aria} value={valor ?? ''} onChange={(e) => onCambiar(e.target.value)} className={`${inputChico} mt-1`}>
+        <option value="">{obligatorio ? 'Elegí el potrero…' : `Se quedan en ${lote.potrero?.nombre}`}</option>
+        {potreros.map((p) => (
+          <option key={p.id} value={p.id}>
+            {opcionPotrero(p, 'A ')}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+// La ecografía de un lote (reglas del campo, R1/R4): quiénes se van (si hay
+// preñadas y vacías y no queda nadie sin ecografiar), las preñadas (juntas o
+// por mes) y las vacías (entore con toros si es una IATF, o engorde).
+function EcografiaLote({ lote, d, e, onCambiar, potreros, categorias, iatf }) {
+  const o = opcionesEcografia(lote, d);
+  const van = quienesSeVan(lote, d, e);
+  const falta = faltaEcografia(lote, d, e, { iatf });
+  const seVan = e.seVan ?? 'VACIAS';
+  const vaciasA = iatf ? e.vaciasA : 'ENGORDE';
+  const prenadas = o.prenadas.reduce((s, g) => s + g.cabezas, 0);
+  const prenadasQuedan = o.pregunta && seVan === 'VACIAS';
+  const vaciasQuedan = o.pregunta && seVan === 'PRENADAS';
+  return (
+    <fieldset data-lote={lote.loteId} className="space-y-3 rounded-lg border border-suelo-200 bg-superficie p-3">
+      <legend className="px-1 text-sm font-semibold">
+        {lote.nombre}: en {lote.potrero?.nombre} hay {formatNumero(lote.cabezas)}
+      </legend>
+      {o.sinEcografiar > 0 && (
+        <p className="text-xs text-suelo-600" data-testid="sin-ecografiar">
+          Las {formatNumero(o.sinEcografiar)} sin ecografiar se quedan en {lote.potrero?.nombre}: las ecografiadas van a otros potreros.
+        </p>
+      )}
+      {o.pregunta && (
+        <div>
+          <p className="mb-1 text-sm text-suelo-700">¿Quiénes se van?</p>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label={`${lote.nombre}: quiénes se van`}>
+            {[
+              ['VACIAS', 'Las vacías'],
+              ['PRENADAS', 'Las preñadas'],
+              ['DOS', 'Las dos'],
+            ].map(([valor, t]) => (
+              <button key={valor} type="button" onClick={() => onCambiar({ seVan: valor })} aria-pressed={seVan === valor} className={`min-h-11 rounded-lg border px-2 text-sm font-medium ${seVan === valor ? 'border-campo-500 bg-campo-50 text-campo-900' : 'border-suelo-300 bg-superficie'}`}>
+                {t}
+              </button>
             ))}
-          {vacias && <option value="REENTORE">Volver a intentar (próximo servicio)</option>}
-          {vacias && <option value="SALEN">Solo moverlas (salen del proceso)</option>}
-        </select>
-        {conPotrero && (
-          <select aria-label={`${titulo}: a qué potrero`} value={destino.potreroId ?? ''} onChange={(e) => onCambiar({ potreroId: e.target.value || null })} className={inputChico}>
-            <option value="">Se quedan en {lote.potrero?.nombre}</option>
-            {potreros.map((p) => (
-              <option key={p.id} value={p.id}>
-                {opcionPotrero(p, 'A ')}
-              </option>
-            ))}
-          </select>
-        )}
-        {conCategoria && (
-          <select aria-label={`${titulo}: categoría`} value={destino.categoriaId ?? ''} onChange={(e) => onCambiar({ categoriaId: e.target.value })} className={inputChico}>
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      {destino.tipo === 'VENTA' && (
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <label className="block text-xs text-suelo-600">
-            Número de guía
-            <input aria-label={`${lote.nombre}: número de guía`} value={destino.guia ?? ''} onChange={(e) => onCambiar({ guia: e.target.value })} maxLength={30} className={`${inputChico} mt-1`} />
-          </label>
-          <label className="block text-xs text-suelo-600">
-            Precio por cabeza (USD, opcional)
-            <input aria-label={`${lote.nombre}: precio por cabeza`} inputMode="decimal" value={destino.precio ?? ''} onChange={(e) => onCambiar({ precio: e.target.value })} className={`${inputChico} mt-1`} />
-          </label>
+          </div>
         </div>
       )}
-    </div>
+
+      {o.prenadas.length > 0 && (
+        <div data-grupo="prenadas" className="rounded-md border border-suelo-100 bg-suelo-50 p-2">
+          <p className="text-sm font-medium">Preñadas · {formatNumero(prenadas)}</p>
+          {o.porMes && (
+            <div className="mt-1">
+              <p className="text-xs text-suelo-600">¿Las separás por mes?</p>
+              <div className="mt-1 grid grid-cols-2 gap-2" role="group" aria-label={`${lote.nombre}: separar por mes`}>
+                {[
+                  [false, 'No, todas juntas'],
+                  [true, 'Sí, un lote por mes'],
+                ].map(([valor, t]) => (
+                  <button key={t} type="button" onClick={() => onCambiar({ porMes: valor })} aria-pressed={Boolean(e.porMes) === valor} className={`min-h-11 rounded-lg border px-2 text-sm ${Boolean(e.porMes) === valor ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie'}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {!e.porMes && <p className="mt-1 text-xs text-suelo-500">Los meses quedan anotados para la parición esperada.</p>}
+            </div>
+          )}
+          {o.porMes && e.porMes ? (
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {o.prenadas.map((g) => (
+                <SelectPotrero
+                  key={g.clave}
+                  aria={`${lote.nombre} · ${g.nombre}: a dónde`}
+                  etiquetaTexto={`${g.nombre} · ${formatNumero(g.cabezas)}`}
+                  valor={e.potreroMes?.[g.clave]}
+                  onCambiar={(v) => onCambiar({ potreroMes: { ...e.potreroMes, [g.clave]: v } })}
+                  potreros={potreros}
+                  lote={lote}
+                  obligatorio={van.prenadas}
+                />
+              ))}
+            </div>
+          ) : prenadasQuedan ? (
+            <p className="mt-1 text-xs text-suelo-600">Se quedan en {lote.potrero?.nombre}.</p>
+          ) : (
+            <div className="mt-2">
+              <SelectPotrero
+                aria={`${lote.nombre} · Preñadas: a dónde`}
+                etiquetaTexto="A dónde van"
+                valor={e.potreroPrenadas}
+                onCambiar={(v) => onCambiar({ potreroPrenadas: v })}
+                potreros={potreros}
+                lote={lote}
+                obligatorio={van.prenadas}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {o.vacias && (
+        <div data-grupo="vacias" className="rounded-md border border-suelo-100 bg-suelo-50 p-2">
+          <p className="text-sm font-medium">Vacías · {formatNumero(o.vacias.cabezas)}</p>
+          {iatf ? (
+            <div className="mt-1 grid grid-cols-2 gap-2" role="group" aria-label={`${lote.nombre}: qué pasa con las vacías`}>
+              {[
+                ['ENTORE', 'Entore con toros', 'Una sola vez: si vuelven vacías, a engorde.'],
+                ['ENGORDE', 'Engorde', 'Salen del proceso.'],
+              ].map(([valor, t, detalle]) => (
+                <button key={valor} type="button" onClick={() => onCambiar({ vaciasA: valor })} aria-pressed={vaciasA === valor} className={opcionClase(vaciasA === valor)}>
+                  <span className="font-semibold">{t}</span>
+                  <span className="text-xs text-suelo-500">{detalle}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-suelo-600">Van a engorde: las vacías de un entore no se vuelven a servir.</p>
+          )}
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {vaciasQuedan ? (
+              <p className="text-xs text-suelo-600">Se quedan en {lote.potrero?.nombre}.</p>
+            ) : (
+              <SelectPotrero
+                aria={`${lote.nombre} · Vacías: a dónde`}
+                etiquetaTexto="A dónde van"
+                valor={e.potreroVacias}
+                onCambiar={(v) => onCambiar({ potreroVacias: v })}
+                potreros={potreros}
+                lote={lote}
+                obligatorio={van.vacias}
+              />
+            )}
+            {vaciasA === 'ENGORDE' && (
+              <label className="block text-xs text-suelo-600">
+                Categoría
+                <select aria-label={`${lote.nombre} · Vacías: categoría`} value={e.categoriaVacias ?? String(lote.sugeridas?.VACIA ?? lote.categoriaId ?? '')} onChange={(ev) => onCambiar({ categoriaVacias: ev.target.value })} className={`${inputChico} mt-1`}>
+                  {categorias.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        </div>
+      )}
+      {falta && <p className="text-xs font-medium text-amber-800" data-testid="falta">{falta}</p>}
+    </fieldset>
+  );
+}
+
+// Decidir lo de unas vacías cargadas antes de las reglas del campo (sin
+// destino): entore con toros (solo si el proceso es una IATF) o engorde, y el potrero.
+function DecidirVacias({ lote, destino, onCambiar, potreros, categorias, iatf }) {
+  const titulo = `${lote.nombre} · Vacías`;
+  return (
+    <fieldset data-grupo="vacias" className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3">
+      <legend className="px-1 text-sm font-semibold">
+        {lote.nombre} ({lote.potrero?.nombre}) · {formatNumero(lote.cabezas)} vacías
+      </legend>
+      <select aria-label={`${titulo}: qué se hace`} value={destino.tipo} onChange={(e) => onCambiar({ tipo: e.target.value })} className={inputChico}>
+        <option value="">Elegí…</option>
+        {iatf && <option value="ENTORE">Entore con toros (una sola vez)</option>}
+        <option value="ENGORDE">Engorde (salen del proceso)</option>
+      </select>
+      {!iatf && <p className="text-xs text-suelo-500">Son de un entore: no se vuelven a servir.</p>}
+      {destino.tipo && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <SelectPotrero aria={`${titulo}: a qué potrero`} etiquetaTexto="A dónde van" valor={destino.potreroId} onCambiar={(v) => onCambiar({ potreroId: v || null })} potreros={potreros} lote={lote} obligatorio={false} />
+          {destino.tipo === 'ENGORDE' && (
+            <label className="block text-xs text-suelo-600">
+              Categoría
+              <select aria-label={`${titulo}: categoría`} value={destino.categoriaId ?? ''} onChange={(e) => onCambiar({ categoriaId: e.target.value })} className={`${inputChico} mt-1`}>
+                {categorias.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
+    </fieldset>
   );
 }

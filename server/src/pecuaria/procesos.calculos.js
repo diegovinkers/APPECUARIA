@@ -91,8 +91,35 @@ export const TEXTO_ETAPA = {
   TERMINADO: 'Terminado',
 };
 
+const IATF = new Set(['IATF', 'IA']);
+
+// Los lotes servidos que todavía no se ecografiaron, cuando el diagnóstico ya
+// empezó (reglas del campo, 25/11: la ecografía va por partes). En un entore,
+// los VIENTRES con su fin del servicio hecho (o con una parte ya ecografiada);
+// en una IATF no hay fin del servicio: todos los VIENTRES.
+function pendientesDeEcografia(a, lotes) {
+  if (!a.some((x) => x.etapa === 'DIAGNOSTICO')) return [];
+  const iatf = de(a, 'INICIO').some((x) => IATF.has(x.datos?.modalidad));
+  const servidos = new Set([...de(a, 'FIN_SERVICIO'), ...de(a, 'DIAGNOSTICO')].map((x) => x.loteId));
+  return lotes.filter((l) => l.rol === 'VIENTRES' && l.activo && (iatf || servidos.has(l.loteId)));
+}
+
+// El diagnóstico a medias: { lotes, cabezas, texto } o null. Las cabezas, si
+// los lotes las traen.
+export function diagnosticoAMedias(anclas, lotes = []) {
+  const a = vigentes(anclas);
+  if (a.some((x) => x.etapa === 'PARICION' || x.etapa === 'DESTETE')) return null;
+  const faltan = pendientesDeEcografia(a, lotes);
+  if (!faltan.length) return null;
+  const conCabezas = faltan.every((l) => l.cabezas != null);
+  const cabezas = conCabezas ? faltan.reduce((s, l) => s + num(l.cabezas), 0) : null;
+  const cuantas = conCabezas ? cabezas.toLocaleString('es-UY') : `${faltan.length} ${faltan.length === 1 ? 'lote' : 'lotes'}`;
+  return { lotes: faltan.length, cabezas, texto: `Diagnóstico a medias: faltan ${cuantas}` };
+}
+
 // La etapa en que está el proceso, según sus anclas vigentes y sus lotes
-// ({ loteId, rol, activo }).
+// ({ loteId, rol, activo }). Mientras queden servidas sin ecografiar, sigue
+// esperando el diagnóstico (diagnosticoAMedias dice cuántas faltan).
 export function etapaActual(anclas, lotes = []) {
   const a = vigentes(anclas);
   const hay = (etapa) => a.some((x) => x.etapa === etapa);
@@ -105,7 +132,7 @@ export function etapaActual(anclas, lotes = []) {
     if (hay('DESTETE') && crias.every((l) => destetadas.has(l.loteId) || !l.activo)) return 'TERMINADO';
     return 'CRIA';
   }
-  if (hay('DIAGNOSTICO')) return 'PRENEZ';
+  if (hay('DIAGNOSTICO')) return pendientesDeEcografia(a, lotes).length ? 'ESPERA_DIAGNOSTICO' : 'PRENEZ';
   if (hay('FIN_SERVICIO')) return 'ESPERA_DIAGNOSTICO';
   return 'SERVICIO';
 }
@@ -225,8 +252,61 @@ export function sugerirCategoria(paso, categoria, categorias) {
   return sugerida ?? categoria;
 }
 
+// --- Reglas del campo (25/11, docs/superpowers/prompts/2026-11-25-procesos-reglas-del-campo.md) ---
+
+// R1. Al separar un grupo en dos, una de las partes cambia de potrero: en el
+// campo nadie las podría distinguir. Los estados son los roles del proceso
+// (VIENTRES, SIN_SERVIR, PRENADAS, VACIAS, PARIDAS, CRIAS, LIBRES), y las
+// vacías con destino distinto cuentan como estados distintos (VACIAS:REENTORE).
+// Excepción: las paridas con su cría y las preñadas conviven hasta el destete.
+const CONVIVEN = new Set(['PARIDAS', 'CRIAS', 'PRENADAS']);
+export const conviven = (a, b) => a === b || (CONVIVEN.has(a) && CONVIVEN.has(b));
+
+const NOMBRE_ESTADO = {
+  VIENTRES: 'servidas',
+  SIN_SERVIR: 'sin inseminar',
+  PRENADAS: 'preñadas',
+  VACIAS: 'vacías',
+  'VACIAS:REENTORE': 'vacías para el entore',
+  'VACIAS:INVERNADA': 'vacías para engorde',
+  PARIDAS: 'paridas',
+  CRIAS: 'terneros',
+  LIBRES: 'las que salen del proceso',
+};
+export const nombreEstado = (estado) => NOMBRE_ESTADO[estado] ?? estado.toLowerCase();
+
+// Las partes ({ estado, potreroId, nombre? }) que quedan juntas sin poder: la
+// primera pareja { a, b, texto } o null.
+export function partesJuntas(partes) {
+  for (let i = 0; i < partes.length; i++) {
+    for (let j = i + 1; j < partes.length; j++) {
+      const a = partes[i];
+      const b = partes[j];
+      if (a.potreroId == null || a.potreroId !== b.potreroId || conviven(a.estado, b.estado)) continue;
+      const na = a.nombre ?? nombreEstado(a.estado);
+      const nb = b.nombre ?? nombreEstado(b.estado);
+      return { a, b, texto: `${mayusculaInicial(na)} y ${nb} no pueden quedar en el mismo potrero: en el campo no se distinguen. Elegí otro potrero para unas de las dos` };
+    }
+  }
+  return null;
+}
+const mayusculaInicial = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+// R5. Nunca dos entores seguidos: las vacías de un entore van a engorde.
+export const NO_REENTORE = 'Las vacías de un entore van a engorde: no se vuelven a servir';
+
+// El estado de un bloque del plan de la decisión, para R1.
+const estadoDeBloque = (b) => (b.clase === 'SIN' ? 'VIENTRES' : b.clase === 'PRENADAS' ? 'PRENADAS' : b.destino === 'REENTORE' || b.destino === 'INVERNADA' ? `VACIAS:${b.destino}` : 'VACIAS');
+
 // El plan de la decisión del diagnóstico (diseño §8), sin tocar la base.
 //   lote: { id, cabezas, categoriaId, potreroId }
+//   modalidad: la del proceso (TOROS | IATF | IA). En un entore (TOROS) las
+//     vacías no se vuelven a servir (R5).
+//   separar: reglas del campo (R1 y R4): las vacías tienen destino (entore o
+//     engorde) y ningún estado queda en el mismo potrero que otro (preñadas,
+//     vacías, sin ecografiar). Sin separar, como antes (lo viejo).
+//   juntas: con separar, deja los estados en el mismo potrero (excepción de
+//     R1: las paridas con su cría al pie, hasta el destete).
 //   grupos: [{ clave, cabezas, destino, categoriaId?, clase? }], con destino:
 //     { potreroId } · { venta: { guia?, precioVentaUsd?, precioVentaPor?, pesoPromedioKg? } } ·
 //     { invernada: true, potreroId? } · { reentore: true, potreroId? } ·
@@ -246,9 +326,19 @@ export function sugerirCategoria(paso, categoria, categorias) {
 //          { tipo: 'CATEGORIA', grupos, cabezas, categoriaId }
 //   bloques: [{ grupos, cabezas, potreroId, categoriaId, clase, destino, queda }]
 //     (destino: DESPUES · REENTORE · SALEN · INVERNADA · null)
-export function planDecision({ lote, grupos }) {
+export function planDecision({ lote, grupos, modalidad = null, separar = false, juntas = false }) {
   const total = grupos.reduce((s, g) => s + num(g.cabezas), 0);
   if (total > lote.cabezas) return { error: `El lote tiene ${lote.cabezas} cabezas: los grupos suman ${total}` };
+  const entore = modalidad != null && !IATF.has(modalidad);
+  const vaciasDe = (g) => num(g.cabezas) > 0 && (g.clase ?? (g.clave === 'vacias' ? 'VACIAS' : 'PRENADAS')) === 'VACIAS';
+  if (entore && grupos.some((g) => vaciasDe(g) && g.destino?.reentore)) return { error: NO_REENTORE };
+  if (separar) {
+    for (const g of grupos.filter(vaciasDe)) {
+      if (!g.destino?.reentore && !g.destino?.invernada) {
+        return { error: entore ? 'Las vacías de un entore van a engorde: elegí el potrero' : 'Elegí qué pasa con las vacías: entore con toros o engorde' };
+      }
+    }
+  }
 
   const ventas = [];
   const bloques = [];
@@ -272,6 +362,10 @@ export function planDecision({ lote, grupos }) {
     else agregar(g.clave, n, d.potreroId ?? lote.potreroId, g.categoriaId ?? lote.categoriaId, clase, marca);
   }
   if (total < lote.cabezas) agregar('sinDiagnostico', lote.cabezas - total, lote.potreroId, lote.categoriaId, 'SIN', null);
+  if (separar && !juntas) {
+    const pareja = partesJuntas(bloques.map((b) => ({ estado: estadoDeBloque(b), potreroId: b.potreroId, ...(b.clase === 'SIN' ? { nombre: 'sin ecografiar' } : {}) })));
+    if (pareja) return { error: pareja.texto };
+  }
 
   const mayor = (lista) => lista.reduce((m, b) => (m == null || b.cabezas > m.cabezas ? b : m), null);
   const enPotrero = bloques.filter((b) => b.potreroId === lote.potreroId);
@@ -288,4 +382,39 @@ export function planDecision({ lote, grupos }) {
     pasos.push({ tipo: 'CATEGORIA', grupos: queda.grupos, cabezas: queda.cabezas, categoriaId: queda.categoriaId });
   }
   return { pasos, queda: queda?.grupos ?? [], bloques };
+}
+
+// R8. Con cría al pie: cuántas vacas y cuántos terneros hay en cada potrero.
+//   lotes: los del proceso hoy, { rol, cabezas, potreroId, potrero }
+// Devuelve [{ potreroId, potrero, vacas, paridas, prenadas, vacias, servidas,
+// terneros, texto }], ordenado por potrero: "P12: 40 vacas (25 paridas · 15
+// preñadas) · 24 terneros". Solo los potreros con vacas o terneros.
+const MADRES = { PARIDAS: 'paridas', PRENADAS: 'prenadas', VACIAS: 'vacias', VIENTRES: 'servidas', SIN_SERVIR: 'servidas' };
+const PALABRAS = { paridas: ['parida', 'paridas'], prenadas: ['preñada', 'preñadas'], vacias: ['vacía', 'vacías'], servidas: ['sin ecografiar', 'sin ecografiar'] };
+const cuenta = (n, [uno, varios]) => `${n.toLocaleString('es-UY')} ${n === 1 ? uno : varios}`;
+
+export function vacasYTernerosPorPotrero(lotes) {
+  const porPotrero = new Map();
+  for (const l of lotes) {
+    const n = num(l.cabezas);
+    if (n <= 0 || (!MADRES[l.rol] && l.rol !== 'CRIAS')) continue;
+    if (!porPotrero.has(l.potreroId)) {
+      porPotrero.set(l.potreroId, { potreroId: l.potreroId, potrero: l.potrero ?? null, vacas: 0, paridas: 0, prenadas: 0, vacias: 0, servidas: 0, terneros: 0 });
+    }
+    const p = porPotrero.get(l.potreroId);
+    if (l.rol === 'CRIAS') p.terneros += n;
+    else {
+      p[MADRES[l.rol]] += n;
+      p.vacas += n;
+    }
+  }
+  return [...porPotrero.values()]
+    .sort((a, b) => String(a.potrero ?? '').localeCompare(String(b.potrero ?? ''), 'es', { numeric: true }))
+    .map((p) => {
+      const partes = ['paridas', 'prenadas', 'vacias', 'servidas'].filter((k) => p[k] > 0).map((k) => cuenta(p[k], PALABRAS[k]));
+      const vacas = partes.length > 1 ? `${cuenta(p.vacas, ['vaca', 'vacas'])} (${partes.join(' · ')})` : partes[0];
+      const terneros = p.terneros ? cuenta(p.terneros, ['ternero', 'terneros']) : null;
+      const cuerpo = [vacas, terneros].filter(Boolean).join(' · ');
+      return { ...p, texto: p.potrero ? `${p.potrero}: ${cuerpo}` : cuerpo };
+    });
 }

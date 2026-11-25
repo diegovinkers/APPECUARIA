@@ -8,7 +8,7 @@ import Camino from '../../components/Camino';
 import { ErrorList, inputClass } from '../../components/ui';
 import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import { indexarLotes } from '../../components/eventos';
-import { cuerpoProceso } from '../../components/procesos';
+import { cuerpoProceso, separarIatf } from '../../components/procesos';
 import { ElegirEstancia } from './comun';
 import { ListaToros, torosLibres } from '../../components/TorosProceso';
 
@@ -61,6 +61,8 @@ export function textoQuedan({ lote, entran, repartidas, iatf }) {
   if (repartidas > entran) return `Repartís ${formatNumero(repartidas)}, pero ${verbo} ${formatNumero(entran)}.`;
   const quedan = `De las ${formatNumero(entran)} que ${verbo}, quedan en ${lote.potrero}: ${formatNumero(entran - repartidas)}.`;
   const afuera = lote.cabezas - entran;
+  // R1: en una IATF, las inseminadas no pueden quedar con las sin inseminar.
+  if (iatf && afuera > 0 && entran - repartidas > 0) return `${quedan} No pueden quedar con las ${formatNumero(afuera)} sin inseminar: repartilas todas.`;
   return afuera > 0 ? `${quedan} Las otras ${formatNumero(afuera)} (${iatf ? 'sin inseminar' : 'no entran'}) también quedan ahí.` : quedan;
 }
 
@@ -85,6 +87,8 @@ export default function NuevoProcesoPage() {
   const [conCria, setConCria] = useState(() => new Map()); // loteId → nombre del proceso
   const [repartir, setRepartir] = useState(false);
   const [reparto, setReparto] = useState({}); // { [loteId]: [{ potreroId, cabezas, toros }] }
+  // IATF sin repartir (R2): qué grupo se va y a dónde ({ [loteId]: { seVan, potreroId } }).
+  const [donde, setDonde] = useState({});
   const [datos, setDatos] = useState({ fecha: hoy(), toros: '', nombre: '', nota: '' });
   const [cabezas, setCabezas] = useState({});
   const [curso, setCurso] = useState({ etapa: 'PARIENDO', inicio: '', fin: '', servidas: '', prenadas: '', vacias: '' });
@@ -141,6 +145,21 @@ export default function NuevoProcesoPage() {
   const libres = torosLibres(toros);
   const elegidosToros = Object.keys(toroIds).map(Number);
   const nombrePaso = pasos[paso];
+  // IATF (R2): las inseminadas y las sin inseminar no quedan juntas. Con la
+  // forma de los lotes de la ficha para separarIatf.
+  const iatfDe = (l) => separarIatf({ cabezas: l.cabezas, potrero: { id: l.potreroId } }, { cabezas: String(entran(l)), ...donde[l.loteId] });
+  const lugares = () => {
+    const destinos = {};
+    const sinInseminarA = {};
+    if (modalidad === 'IATF' && !repartir) {
+      for (const l of lotes) {
+        const { api } = iatfDe(l);
+        if (api.potreroId) destinos[l.loteId] = api.potreroId;
+        if (api.sinInseminarA) sinInseminarA[l.loteId] = api.sinInseminarA;
+      }
+    }
+    return { destinos, sinInseminarA };
+  };
   const cuerpoCrear = () =>
     cuerpoProceso({
       modalidad,
@@ -149,6 +168,7 @@ export default function NuevoProcesoPage() {
       cabezas,
       ...datos,
       toroIds: elegidosToros,
+      ...lugares(),
       ...(repartir && { reparto }),
       ...(conCurso && { enCurso: curso, roles }),
     });
@@ -200,6 +220,13 @@ export default function NuevoProcesoPage() {
     );
   }
 
+  // R5: las vacías para volver a servir (de una IATF) entran a un entore con toros.
+  const vaciasAIatf = modalidad === 'IATF' && lotes.some((l) => paraServir.has(l.loteId));
+  // R2: en una IATF de una parte, falta elegir a dónde va un grupo.
+  const repartidasDe = (l) => filasDe(l.loteId).reduce((s, f) => s + (Number.parseInt(f.cabezas, 10) || 0), 0);
+  const faltaLugar =
+    modalidad === 'IATF' &&
+    (repartir ? lotes.some((l) => entran(l) < l.cabezas && repartidasDe(l) < entran(l)) : lotes.some((l) => iatfDe(l).falta));
   const opcion = (activa) => `flex min-h-11 w-full flex-col rounded-lg border px-4 py-3 text-left ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie hover:border-campo-400'}`;
   return (
     <Camino
@@ -212,7 +239,7 @@ export default function NuevoProcesoPage() {
       }}
       onSeguir={seguir}
       textoSeguir={nombrePaso === 'Revisar' ? 'Confirmar' : pasos[paso + 1] === 'Revisar' ? 'Revisar' : 'Seguir'}
-      puedeSeguir={nombrePaso === 'Qué' || lotes.length > 0}
+      puedeSeguir={nombrePaso === 'Qué' || (lotes.length > 0 && !(nombrePaso === 'A quién' && vaciasAIatf) && !(nombrePaso === 'Dónde' && faltaLugar))}
       ocupado={ocupado}
       ayuda={lotes.length ? textoAyuda(lotes, entran, modalidad, nombrePaso) : null}
     >
@@ -246,6 +273,11 @@ export default function NuevoProcesoPage() {
 
       {nombrePaso === 'A quién' && (
         <section aria-label="A quién" className="space-y-2">
+          {vaciasAIatf && (
+            <p className="rounded-md bg-amber-500/15 px-3 py-2 text-sm text-amber-900" role="status">
+              Las vacías para volver a servir entran a un entore con toros (una sola vez): volvé al primer paso y elegí Entore con toros.
+            </p>
+          )}
           {!potreros && <p className="text-suelo-600">Cargando…</p>}
           {potreros && hembras.length === 0 && <p className="text-suelo-600">No hay lotes de hembras libres (sin otro proceso abierto) en esta estancia.</p>}
           <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie">
@@ -306,11 +338,11 @@ export default function NuevoProcesoPage() {
             ))}
           {lotes.map((l) => (
             <label key={l.loteId} className={etiqueta}>
-              {modalidad === 'IATF' ? '¿Cuántas se van a inseminar?' : '¿Cuántas entran al servicio?'} ({l.lote}, tiene {formatNumero(l.cabezas)})
+              {modalidad === 'IATF' ? '¿Cuántas se van a inseminar?' : '¿Cuántas entran al servicio?'} ({l.lote}: en {l.potrero} hay {formatNumero(l.cabezas)})
               <input inputMode="numeric" value={cabezas[l.loteId] ?? ''} onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`} />
               <span className="mt-1 block text-xs text-suelo-500">
                 {modalidad === 'IATF'
-                  ? 'Dejalo vacío si se insemina todo el lote. Las que no, quedan aparte como "sin inseminar", para otro día.'
+                  ? 'Dejalo vacío si se insemina todo el lote. Las que no, quedan aparte como "sin inseminar", para otro día (en otro potrero que las inseminadas).'
                   : 'Dejalo vacío si entran todas.'}
               </span>
             </label>
@@ -388,6 +420,47 @@ export default function NuevoProcesoPage() {
               <span className="text-xs text-suelo-500">{modalidad === 'TOROS' ? 'Por ejemplo, 25 por potrero con un toro.' : 'Llevarlas a otros potreros.'}</span>
             </button>
           </div>
+          {!repartir &&
+            modalidad === 'IATF' &&
+            lotes.map((l) => {
+              const s = iatfDe(l);
+              const d = donde[l.loteId] ?? {};
+              const seVan = d.seVan ?? 'INSEMINADAS';
+              const poner = (cambios) => setDonde((x) => ({ ...x, [l.loteId]: { ...x[l.loteId], ...cambios } }));
+              const otros = (potreros ?? []).filter((p) => p.id !== l.potreroId);
+              return (
+                <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3" data-donde={l.loteId}>
+                  <legend className="px-1 text-sm font-semibold">
+                    {l.lote}: en {l.potrero} hay {formatNumero(l.cabezas)} · se inseminan {formatNumero(s.n)}
+                  </legend>
+                  {s.parte && (
+                    <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={`${l.lote}: qué grupo se va`}>
+                      {[
+                        ['INSEMINADAS', `Las ${formatNumero(s.n)} inseminadas a…`],
+                        ['SIN', `Las ${formatNumero(s.sinInseminar)} sin inseminar a…`],
+                      ].map(([valor, t]) => (
+                        <button key={valor} type="button" onClick={() => poner({ seVan: valor })} aria-pressed={seVan === valor} className={opcion(seVan === valor)}>
+                          <span className="font-semibold">{t}</span>
+                          <span className="text-xs text-suelo-500">Las otras se quedan en {l.potrero}.</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <label className="block text-xs text-suelo-600">
+                    {s.parte ? (seVan === 'SIN' ? 'Las sin inseminar van a' : 'Las inseminadas van a') : 'Dónde quedan'}
+                    <select aria-label={`${l.lote}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner({ potreroId: e.target.value })} className={`${inputChico} mt-1 w-full`}>
+                      <option value="">{s.parte ? 'Elegí el potrero…' : `Se quedan en ${l.potrero}`}</option>
+                      {otros.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {opcionPotrero(p, s.parte ? '' : 'Moverlas a ')}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {s.parte && <p className="text-xs text-suelo-500">Las inseminadas y las sin inseminar no pueden quedar en el mismo potrero: en el campo no se distinguen.</p>}
+                </fieldset>
+              );
+            })}
           {repartir &&
             lotes.map((l) => {
               const filas = filasDe(l.loteId);

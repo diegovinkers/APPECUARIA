@@ -58,9 +58,10 @@ const sinIndefinidos = (o) => Object.fromEntries(Object.entries(o).filter(([, v]
 //   Un servicio: los lotes elegidos (con menos cabezas, una parte), la fecha y los toros.
 //     reparto: { [loteId]: [{ potreroId, cabezas, toros }] } (repartirlas en potreros).
 //     destinos: { [loteId]: potreroId } (IATF: a dónde van las inseminadas).
+//     sinInseminarA: { [loteId]: potreroId } (IATF de una parte: a dónde van las sin inseminar, R2).
 //   Uno en curso: los números de antes (enCurso) y el rol de cada lote (roles).
 //   toroIds: los toros uno por uno (fase 6), van al potrero de las vacas.
-export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {}, toroIds = [] }) {
+export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {}, sinInseminarA = {}, toroIds = [] }) {
   const base = sinIndefinidos({ campoId, modalidad, nombre: texto(nombre), nota: texto(nota) });
   if (enCurso) {
     return {
@@ -90,6 +91,7 @@ export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fech
         loteId: l.loteId,
         cabezas: n != null && n !== l.cabezas ? n : undefined,
         potreroId: modalidad === 'IATF' && destinos[l.loteId] ? Number(destinos[l.loteId]) : undefined,
+        sinInseminarA: modalidad === 'IATF' && sinInseminarA[l.loteId] ? Number(sinInseminarA[l.loteId]) : undefined,
         reparto: filas.length ? filas : undefined,
       });
     }),
@@ -115,22 +117,29 @@ export function gruposDiagnostico(d = {}) {
 
 export const totalDiagnostico = (d = {}) => Object.values(d.prenadas ?? {}).reduce((s, t) => s + numero(t), 0) + numero(d.vacias);
 
-// El destino que se propone: las preñadas se quedan, con la categoría
-// sugerida; las vacías, para decidir después.
+// El destino que se propone: las preñadas se quedan, con su categoría; las
+// vacías no tienen destino hasta que se elige (reglas del campo: ya no hay
+// "decidir después"), con la categoría de invernar sugerida para el engorde.
 export function destinoPorDefecto(lote, clase) {
   return clase === 'VACIAS'
-    ? { tipo: 'DESPUES', categoriaId: String(lote.sugeridas?.VACIA ?? lote.categoriaId ?? '') }
+    ? { tipo: '', categoriaId: String(lote.sugeridas?.VACIA ?? lote.categoriaId ?? '') }
     : // La preñez no cambia la categoría de la madre (fase 6, docs/PECUARIA.md §9).
       { tipo: 'QUEDAN', categoriaId: String(lote.categoriaId ?? '') };
 }
 
 // Un destino de la pantalla → lo que va a la API ({ destino, categoriaId? }).
-//   tipo: QUEDAN · POTRERO · DESPUES · REENTORE · SALEN (y, de antes, INVERNADA · VENTA)
-//   REENTORE: volver a intentar (a otro potrero, para el próximo servicio).
-//   SALEN: solo moverlas (al potrero elegido; salen del proceso).
+//   tipo: QUEDAN · POTRERO · ENTORE · ENGORDE (reglas del campo) y, de antes,
+//   DESPUES · REENTORE · SALEN · INVERNADA · VENTA.
+//   ENTORE: las vacías de una IATF, al entore con toros (una sola vez).
+//   ENGORDE: salen del proceso, con la categoría de invernar.
 export function destinoParaApi(d, lote) {
   const cat = d.categoriaId ? { categoriaId: Number(d.categoriaId) } : {};
+  const potrero = d.potreroId ? { potreroId: Number(d.potreroId) } : {};
   switch (d.tipo) {
+    case 'ENTORE':
+      return { destino: { reentore: true, ...potrero } };
+    case 'ENGORDE':
+      return { destino: { invernada: true, ...potrero }, ...cat };
     case 'QUEDAN':
       return { destino: { potreroId: lote.potrero.id }, ...cat };
     case 'POTRERO':
@@ -150,22 +159,142 @@ export function destinoParaApi(d, lote) {
   }
 }
 
+// --- La ecografía con las reglas del campo (R1/R4, 25/11) ---
+//
+// Preñadas y vacías se separan siempre: se van las vacías, las preñadas o las
+// dos (a potreros distintos). Si hoy se ecografía solo una parte, las sin
+// ecografiar se quedan y se van las dos. Las vacías tienen destino: entore
+// con toros (solo las de una IATF) o engorde. Las preñadas de varios meses
+// pueden separarse por mes, cada mes a su potrero.
+//   e (lo elegido en la pantalla): { seVan: VACIAS | PRENADAS | DOS, vaciasA: ENTORE | ENGORDE,
+//     potreroVacias, potreroPrenadas, porMes, potreroMes: { [mes]: id }, categoriaVacias }
+
+// Lo que hay para decidir en un lote: los grupos, las sin ecografiar, si se
+// pregunta quiénes se van y si se puede separar por mes.
+export function opcionesEcografia(lote, d = {}) {
+  const grupos = gruposDiagnostico(d);
+  const prenadas = grupos.filter((g) => g.clave !== 'vacias');
+  const vacias = grupos.find((g) => g.clave === 'vacias') ?? null;
+  const sinEcografiar = Math.max(0, (lote.cabezas ?? 0) - totalDiagnostico(d));
+  return {
+    prenadas,
+    vacias,
+    sinEcografiar,
+    // Solo se pregunta si hay los dos grupos y nadie más queda en el potrero.
+    pregunta: Boolean(vacias && prenadas.length && !sinEcografiar),
+    porMes: prenadas.length > 1,
+  };
+}
+
+// Quiénes tienen que irse a otro potrero sí o sí: { prenadas, vacias }.
+export function quienesSeVan(lote, d = {}, e = {}) {
+  const o = opcionesEcografia(lote, d);
+  if (o.sinEcografiar) return { prenadas: o.prenadas.length > 0, vacias: Boolean(o.vacias) };
+  if (!o.pregunta) return { prenadas: false, vacias: false };
+  const seVan = e.seVan ?? 'VACIAS';
+  return { prenadas: seVan === 'PRENADAS' || seVan === 'DOS', vacias: seVan === 'VACIAS' || seVan === 'DOS' };
+}
+
+// El potrero final de cada grupo ({ [clave]: id }): el elegido o, si no se
+// va, el del lote. Un grupo que se tiene que ir y no tiene potrero queda null.
+function potrerosEcografia(lote, d, e = {}) {
+  const o = opcionesEcografia(lote, d);
+  const van = quienesSeVan(lote, d, e);
+  const aca = lote.potrero?.id ?? null;
+  const elegido = (v) => (v ? Number(v) : null);
+  const r = {};
+  for (const g of o.prenadas) {
+    const p = o.porMes && e.porMes ? elegido(e.potreroMes?.[g.clave]) : elegido(e.potreroPrenadas);
+    r[g.clave] = van.prenadas ? p : (p ?? aca);
+  }
+  if (o.vacias) r.vacias = van.vacias ? elegido(e.potreroVacias) : (elegido(e.potreroVacias) ?? aca);
+  return r;
+}
+
+const mayuscula = (t) => `${t.charAt(0).toUpperCase()}${t.slice(1)}`;
+
+// Lo que falta (o está mal) para seguir, en palabras; null si está todo.
+export function faltaEcografia(lote, d = {}, e = {}, { iatf = false } = {}) {
+  const o = opcionesEcografia(lote, d);
+  if (!o.prenadas.length && !o.vacias) return 'Escribí las preñadas y las vacías';
+  if (o.vacias && iatf && !e.vaciasA) return 'Elegí qué pasa con las vacías: entore con toros o engorde';
+  const van = quienesSeVan(lote, d, e);
+  const p = potrerosEcografia(lote, d, e);
+  const aca = lote.potrero?.id ?? null;
+  for (const [clave, id] of Object.entries(p)) {
+    const seVa = clave === 'vacias' ? van.vacias : van.prenadas;
+    if (seVa && (id == null || id === aca)) return `Elegí a qué potrero van las ${clave === 'vacias' ? 'vacías' : 'preñadas'}`;
+  }
+  // Ningún estado en el mismo potrero que otro (las sin ecografiar se quedan
+  // en el del lote). Las preñadas sin separar por mes son un solo grupo.
+  const ocupados = new Map();
+  if (o.sinEcografiar) ocupados.set(aca, 'las sin ecografiar');
+  const grupos = o.porMes && e.porMes ? o.prenadas.map((g) => [g.clave, `las ${g.nombre.toLowerCase()}`]) : o.prenadas.length ? [[o.prenadas[0].clave, 'las preñadas']] : [];
+  if (o.vacias) grupos.push(['vacias', 'las vacías']);
+  for (const [clave, nombre] of grupos) {
+    const id = p[clave];
+    if (ocupados.has(id)) return `${mayuscula(nombre)} y ${ocupados.get(id)} no pueden quedar en el mismo potrero`;
+    ocupados.set(id, nombre);
+  }
+  return null;
+}
+
+// Los grupos para la API: [{ clave, destino, categoriaId? }].
+export function gruposEcografia(lote, d = {}, e = {}, { iatf = false } = {}) {
+  const o = opcionesEcografia(lote, d);
+  const p = potrerosEcografia(lote, d, e);
+  const grupos = o.prenadas.map((g) => ({ clave: g.clave, destino: { potreroId: p[g.clave] ?? lote.potrero?.id } }));
+  if (o.vacias) {
+    const aEntore = iatf && e.vaciasA === 'ENTORE';
+    const potrero = p.vacias ? { potreroId: p.vacias } : {};
+    const categoria = e.categoriaVacias ?? lote.sugeridas?.VACIA;
+    grupos.push({
+      clave: 'vacias',
+      destino: aEntore ? { reentore: true, ...potrero } : { invernada: true, ...potrero },
+      ...(!aEntore && categoria && { categoriaId: Number(categoria) }),
+    });
+  }
+  return grupos;
+}
+
 // El cuerpo del diagnóstico: lo cargado de cada lote y la decisión de cada grupo.
-//   datos: { [loteId]: { prenadas, vacias } } · destinos: { [loteId]: { [clave]: destino } }
-export function cuerpoDiagnostico({ fecha, metodo, lotes, datos = {}, destinos = {}, nota }) {
+//   datos: { [loteId]: { prenadas, vacias } } · elecciones: { [loteId]: e } · iatf: el proceso es una IATF
+export function cuerpoDiagnostico({ fecha, metodo, lotes, datos = {}, elecciones = {}, nota, iatf = false }) {
   const lineas = lotes.map((l) => {
     const d = datos[l.loteId] ?? {};
     const prenadas = Object.fromEntries(Object.entries(d.prenadas ?? {}).filter(([, t]) => numero(t) > 0).map(([mes, t]) => [mes, numero(t)]));
     return { loteId: l.loteId, prenadas, vacias: numero(d.vacias) };
   });
-  const decision = lotes.map((l) => ({
-    loteId: l.loteId,
-    grupos: gruposDiagnostico(datos[l.loteId]).map((g) => {
-      const clase = g.clave === 'vacias' ? 'VACIAS' : 'PRENADAS';
-      return { clave: g.clave, ...destinoParaApi(destinos[l.loteId]?.[g.clave] ?? destinoPorDefecto(l, clase), l) };
-    }),
-  }));
+  const decision = lotes.map((l) => ({ loteId: l.loteId, grupos: gruposEcografia(l, datos[l.loteId], elecciones[l.loteId], { iatf }) }));
   return sinIndefinidos({ fecha, metodo, nota: texto(nota), lineas, decision });
+}
+
+// --- IATF: inseminar una parte (R1/R2) ---
+// Con menos inseminadas que el lote se va un grupo: las inseminadas
+// (potreroId) o las sin inseminar (sinInseminarA). Con todas, se pueden quedar.
+//   d: { cabezas (texto; vacío = todas), seVan: INSEMINADAS | SIN, potreroId }
+export function separarIatf(lote, d = {}) {
+  const n = entero(d.cabezas) ?? lote.cabezas;
+  const parte = n < lote.cabezas;
+  const potrero = d.potreroId ? Number(d.potreroId) : null;
+  const seVan = d.seVan ?? 'INSEMINADAS';
+  let falta = null;
+  if (!(n > 0)) falta = 'Escribí cuántas se inseminan';
+  else if (n > lote.cabezas) falta = `El lote tiene ${lote.cabezas}`;
+  else if (parte && (!potrero || potrero === lote.potrero?.id)) {
+    falta = `Elegí a qué potrero van las ${seVan === 'SIN' ? `${lote.cabezas - n} sin inseminar` : `${n} inseminadas`}`;
+  }
+  const api = !potrero || potrero === lote.potrero?.id ? {} : parte && seVan === 'SIN' ? { sinInseminarA: potrero } : { potreroId: potrero };
+  return { n, parte, sinInseminar: lote.cabezas - n, falta, api };
+}
+
+// --- Destete (R9): terneros y vacas, cada uno con su destino ---
+//   d: { potreroId (terneros), madresPotreroId (vacío = se quedan) }
+export function faltaDestete(lote, d = {}) {
+  if (!d.potreroId) return 'Elegí a qué potrero van los terneros';
+  const vacas = d.madresPotreroId ? Number(d.madresPotreroId) : (lote.potrero?.id ?? null);
+  if (Number(d.potreroId) === vacas) return 'Los terneros y las vacas no pueden quedar en el mismo potrero';
+  return null;
 }
 
 // --- Eventos: "¿De qué proceso?" (pedido de Diego, 20/11) ---

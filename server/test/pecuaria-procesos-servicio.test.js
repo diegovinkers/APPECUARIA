@@ -29,11 +29,12 @@ async function preparar() {
   const p5 = await base.potrero('P5', { hectareas: 40, usoNombre: 'Campo natural', fecha: '2026-07-01', lotes: [['Vacas 2', 'Vacas de cría', 50, 420]] });
   const p3 = await base.potrero('P3', { hectareas: 20, usoNombre: 'Campo natural', fecha: '2026-07-01', lotes: [['Toros', 'Toros', 4, 800]] });
   const p8 = await base.potrero('P8', { hectareas: 60, usoNombre: 'Campo natural', fecha: '2026-07-01' });
+  const p9 = await base.potrero('P9', { hectareas: 60, usoNombre: 'Campo natural', fecha: '2026-07-01' });
   const toros = {};
   for (const id of ['T-014', 'T-022']) {
     toros[id] = (await base.agent.post(`${API}/campos/${base.campo.id}/toros`).send({ identificacion: id, raza: 'Angus', loteId: p3.lote.Toros.id }).expect(201)).body;
   }
-  return { ...base, P1: p1.potrero, P5: p5.potrero, P3: p3.potrero, P8: p8.potrero, Vacas: p1.lote.Vacas, Vacas2: p5.lote['Vacas 2'], Toros: p3.lote.Toros, toros };
+  return { ...base, P1: p1.potrero, P5: p5.potrero, P3: p3.potrero, P8: p8.potrero, P9: p9.potrero, Vacas: p1.lote.Vacas, Vacas2: p5.lote['Vacas 2'], Toros: p3.lote.Toros, toros };
 }
 
 // El stock de la estancia: por potrero y categoría, y el total por categoría.
@@ -143,11 +144,26 @@ describe('el servicio del ejemplo, paso a paso', () => {
     expect(f.toros.every((t) => t.hasta)).toBe(true);
     expect(f.cronograma.find((i) => i.clave === 'FIN_SERVICIO')).toMatchObject({ estado: 'HECHA', real: '2026-11-01' });
 
-    // Ecografía, día 1: 85 preñadas y 15 vacías de las 200 de P1.
-    await etapa(agent, proceso.id, 'DIAGNOSTICO', { fecha: '2026-11-20', lineas: [{ loteId: base.Vacas.id, prenadas: { sin: 85 }, vacias: 15 }] });
+    // Ecografía, día 1: 85 preñadas y 15 vacías de las 200 de P1. Reglas del
+    // campo: las preñadas van a P8 y las vacías (de un entore) a engorde en P9
+    // (acá sin cambiar la categoría); las sin ecografiar quedan en P1.
+    const eco = (fecha, prenadas, vacias) => ({
+      fecha,
+      lineas: [{ loteId: base.Vacas.id, prenadas: { sin: prenadas }, vacias }],
+      decision: [
+        {
+          loteId: base.Vacas.id,
+          grupos: [
+            { clave: 'sin', destino: { potreroId: base.P8.id } },
+            { clave: 'vacias', destino: { invernada: true, potreroId: base.P9.id }, categoriaId: base.cat['Vacas de cría'] },
+          ],
+        },
+      ],
+    });
+    await etapa(agent, proceso.id, 'DIAGNOSTICO', eco('2026-11-20', 85, 15));
     expect(await cabezasDe('Vacas')).toMatchObject({ cabezas: 100, activo: true });
     expect(await cabezasDe('Vacas · preñadas')).toMatchObject({ cabezas: 85 });
-    expect(await cabezasDe('Vacas · vacías')).toMatchObject({ cabezas: 15 });
+    expect(await cabezasDe('Vacas · engorde')).toMatchObject({ cabezas: 15 });
     await cuadra();
     f = await ficha(agent, proceso.id);
     expect(f.cronograma.find((i) => i.clave === 'DIAGNOSTICO')).toMatchObject({ avance: 'faltan 150 por ecografiar' });
@@ -155,22 +171,22 @@ describe('el servicio del ejemplo, paso a paso', () => {
     expect(f.lotes.filter((l) => l.activo).every((l) => l.categoria === 'Vacas de cría')).toBe(true);
 
     // Día 2: 80 preñadas y 20 vacías de las 100 que quedaban: se suman a las de ayer.
-    await etapa(agent, proceso.id, 'DIAGNOSTICO', { fecha: '2026-11-21', lineas: [{ loteId: base.Vacas.id, prenadas: { sin: 80 }, vacias: 20 }] });
+    await etapa(agent, proceso.id, 'DIAGNOSTICO', eco('2026-11-21', 80, 20));
     expect(await cabezasDe('Vacas · preñadas')).toMatchObject({ cabezas: 165 });
-    expect(await cabezasDe('Vacas · vacías')).toMatchObject({ cabezas: 35 });
+    expect(await cabezasDe('Vacas · engorde')).toMatchObject({ cabezas: 35 });
     expect((await cabezasDe('Vacas')).activo).toBe(false);
     expect(await prisma.lote.count({ where: { nombre: { startsWith: 'Vacas ·' } } })).toBe(2);
     await cuadra();
     f = await ficha(agent, proceso.id);
     expect(f.embudo).toMatchObject({ servidas: 250, prenadas: 165, vacias: 35 });
     expect(f.lotes.find((l) => l.nombre === 'Vacas · preñadas')).toMatchObject({ rol: 'PRENADAS', cabezas: 165 });
-    expect(f.lotes.find((l) => l.nombre === 'Vacas · vacías')).toMatchObject({ rol: 'VACIAS', cabezas: 35 });
+    expect(f.lotes.find((l) => l.nombre === 'Vacas · engorde')).toMatchObject({ rol: 'LIBRES', destino: 'INVERNADA', cabezas: 35 });
     // Falta la tanda de P5.
     expect(f.cronograma.find((i) => i.clave === 'DIAGNOSTICO')).toMatchObject({ avance: 'faltan 50 por ecografiar' });
 
-    // Las 35 vacías van a P8 para volver a servir.
-    await etapa(agent, proceso.id, 'DECISION', { fecha: '2026-11-22', lineas: [{ loteId: (await cabezasDe('Vacas · vacías')).id, destino: { reentore: true, potreroId: base.P8.id } }] });
-    expect((await stock(campo.id)).porPotrero).toMatchObject({ 'P1 Vacas de cría': 165, 'P8 Vacas de cría': 35, 'P5 Vacas de cría': 50 });
+    // Preñadas en P8, vacías en P9 y la tanda de P5 sin ecografiar.
+    expect((await stock(campo.id)).porPotrero).toMatchObject({ 'P8 Vacas de cría': 165, 'P9 Vacas de cría': 35, 'P5 Vacas de cría': 50 });
+    expect(f.etapa).toBe('ESPERA_DIAGNOSTICO');
     await cuadra();
   });
 });

@@ -168,26 +168,34 @@ describe('nuevo entore con ternero al pie y destete (fase 7)', () => {
 
     // El entore nuevo sigue: fin (sale el toro) y ecografía (40 preñadas, 10 vacías).
     await etapa(agent, nuevo.id, 'FIN_SERVICIO', { fecha: '2026-11-10', salenToros: [{ toroId: toro.id, potreroId: P3.id }] });
-    const eco = await etapa(agent, nuevo.id, 'DIAGNOSTICO', { fecha: '2026-11-20', lineas: [{ loteId: paridas.id, prenadas: { sin: 40 }, vacias: 10 }] });
-    const vacias = await lote('Vacas · vacías');
+    // Reglas del campo: las vacías de un entore van a engorde; como tienen la
+    // cría al pie (en el proceso viejo), se quedan con sus terneros hasta el
+    // destete (excepción de R1), y acá sin cambiar la categoría.
+    const ecografia = (fecha) => ({
+      fecha,
+      lineas: [{ loteId: paridas.id, prenadas: { sin: 40 }, vacias: 10 }],
+      decision: [{ loteId: paridas.id, grupos: [{ clave: 'vacias', destino: { invernada: true }, categoriaId: base.cat['Vacas de cría'] }] }],
+    });
+    const eco = await etapa(agent, nuevo.id, 'DIAGNOSTICO', ecografia('2026-11-20'));
+    const vacias = await lote('Vacas · engorde');
     expect(vacias).toMatchObject({ cabezas: 10, potreroId: P1.id, categoria: 'Vacas de cría' });
     // La parte que se apartó sigue en el proceso viejo como parida de septiembre.
     expect(await roles(proceso.id)).toEqual(
       expect.arrayContaining([
         ['Vacas · paridas sep', 'PARIDAS', '2026-09', 'está'],
-        ['Vacas · vacías', 'PARIDAS', '2026-09', 'está'],
+        ['Vacas · engorde', 'PARIDAS', '2026-09', 'está'],
       ]),
     );
     expect((await stock(campo.id)).porCategoria).toEqual(SIEMPRE);
 
     // Anular la ecografía: la parte deja también el proceso viejo.
     await agent.post(`${API}/procesos/${nuevo.id}/cargas/${eco.grupoId ?? eco.ficha.etapas.find((e) => e.clave === 'DIAGNOSTICO').cargas[0].grupoId}/anular`).expect(200);
-    expect(await prisma.procesoLote.count({ where: { lote: { nombre: 'Vacas · vacías' } } })).toBe(0);
+    expect(await prisma.procesoLote.count({ where: { lote: { nombre: 'Vacas · engorde' } } })).toBe(0);
     expect(await lote('Vacas · paridas sep')).toMatchObject({ cabezas: 50 });
     // (la reversión queda con la fecha de hoy: lo que sigue va desde hoy)
-    await etapa(agent, nuevo.id, 'DIAGNOSTICO', { fecha: hoy(), lineas: [{ loteId: paridas.id, prenadas: { sin: 40 }, vacias: 10 }] });
+    await etapa(agent, nuevo.id, 'DIAGNOSTICO', ecografia(hoy()));
     // (el lote anulado conserva su nombre: la parte nueva lleva otro)
-    const { nombre: lasVacias } = await prisma.lote.findFirst({ where: { nombre: { startsWith: 'Vacas · vacías' }, activo: true } });
+    const { nombre: lasVacias } = await prisma.lote.findFirst({ where: { nombre: { startsWith: 'Vacas · engorde' }, activo: true } });
 
     // Destete de septiembre en el viejo: los terneros a P8; las madres (y la
     // parte de las vacías) dejan el proceso viejo, siguen en el nuevo y no

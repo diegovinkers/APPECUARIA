@@ -20,8 +20,25 @@ import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { fotoActual, nombreLibre } from './lotes.js';
 import { fechaUY } from './stock.service.js';
 import { tipoPorClave } from './tipos.repository.js';
-import { TEXTO_ETAPA, campaniaDe, embudo, etapaActual, fechasServicio, mesesEsperados, planDecision, sugerirCategoria, sumarDias, textoMeses } from './procesos.calculos.js';
+import {
+  NO_REENTORE,
+  TEXTO_ETAPA,
+  campaniaDe,
+  conviven,
+  diagnosticoAMedias,
+  embudo,
+  etapaActual,
+  fechasServicio,
+  mesesEsperados,
+  nombreEstado,
+  planDecision,
+  sugerirCategoria,
+  sumarDias,
+  textoMeses,
+  vacasYTernerosPorPotrero,
+} from './procesos.calculos.js';
 import { sugerencias } from './procesos.sugerencias.js';
+import { avisosDeMezcla } from './mezcla.js';
 import { aplicar, revertirEventoEn } from './movimientos.service.js';
 import { aplicarEntradaSalida } from './entradas-salidas.service.js';
 import { ETAPAS_UNICAS, PLANTILLAS, TIPOS_REPRODUCCION, etapaDe, etapaDePlantilla } from './procesos.plantillas.js';
@@ -133,6 +150,17 @@ async function lotesParaEmpezar(db, ids, campoId) {
   return { campoId: campo, anteriores, conCria, lotes: ids.map((id) => ({ ...porId.get(id), cabezas: cabezas.get(id) })) };
 }
 
+// R5 (reglas del campo): nunca dos entores seguidos. Las vacías que quedaron
+// para volver a servir vienen de una IATF y entran a un entore con toros.
+async function exigirUnSoloEntore(db, anteriores, lotes, modalidad) {
+  for (const [loteId, procesoId] of anteriores) {
+    const anterior = await db.proceso.findUnique({ where: { id: procesoId }, select: { nombre: true, datos: true } });
+    const lote = lotes.find((l) => l.id === loteId);
+    if (!esIatf(anterior?.datos?.modalidad)) throw badRequest(`Las vacías de ${lote.nombre} vienen del entore "${anterior?.nombre}": van a engorde, no se vuelven a servir`);
+    if (modalidad !== 'TOROS') throw badRequest(`Las vacías de ${lote.nombre} vienen de la IATF "${anterior.nombre}": se vuelven a servir una sola vez, en un entore con toros`);
+  }
+}
+
 async function nombreLibreProceso(db, campoId, base) {
   for (let k = 1; ; k++) {
     const nombre = k === 1 ? base : `${base} (${k})`;
@@ -150,6 +178,7 @@ async function planCrear(db, body) {
   const enCurso = body.enCurso ?? null;
   const ids = enCurso ? enCurso.lotes.map((l) => l.loteId) : (body.lineas ?? []).map((l) => l.loteId);
   const { campoId, lotes, anteriores, conCria } = await lotesParaEmpezar(db, ids, body.campoId ?? null);
+  await exigirUnSoloEntore(db, anteriores, lotes, body.modalidad);
   const dia = enCurso ? enCurso.inicio : (body.fecha ?? hoyISO());
   const campania = campaniaDe(dia);
 
@@ -178,7 +207,7 @@ async function planCrear(db, body) {
 // lote, el reparto en potreros y, en una IATF, a dónde van las inseminadas.
 async function lineasDeServicio(db, lineasBody, lotes, campoId) {
   // Los potreros del reparto y del IATF: que existan y sean de la estancia.
-  const ids = [...new Set(lineasBody.flatMap((l) => [...(l.reparto ?? []).map((r) => r.potreroId), ...(l.potreroId ? [l.potreroId] : [])]))];
+  const ids = [...new Set(lineasBody.flatMap((l) => [...(l.reparto ?? []).map((r) => r.potreroId), ...(l.potreroId ? [l.potreroId] : []), ...(l.sinInseminarA ? [l.sinInseminarA] : [])]))];
   const potreros = new Map((await db.potrero.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true, campoId: true } })).map((p) => [p.id, p]));
   const potrero = (id) => {
     const p = potreros.get(id);
@@ -199,7 +228,8 @@ async function lineasDeServicio(db, lineasBody, lotes, campoId) {
     const repartidas = reparto.reduce((s, r) => s + r.cabezas, 0);
     if (repartidas > cabezas) throw badRequest(`En el lote ${lote.nombre} se reparten ${repartidas} cabezas, pero entran al servicio ${cabezas}`);
     const destino = linea.potreroId ? potrero(linea.potreroId) : null;
-    return { lote, cabezas, reparto, destino };
+    const sinInseminarA = linea.sinInseminarA ? potrero(linea.sinInseminarA) : null;
+    return { lote, cabezas, reparto, destino, sinInseminarA };
   });
 }
 
@@ -221,6 +251,7 @@ export async function vistaPreviaCrear(body) {
   try {
     await prisma.$transaction(async (tx) => {
       const { plan, ctx } = await crearEn(tx, body, null);
+      if (ctx) ctx.avisos = sinRepetir([...ctx.avisos, ...(await avisosDeLaCarga(tx, ctx))]);
       throw new Simulacion({
         nombre: plan.nombre,
         campania: plan.campania,
@@ -323,6 +354,8 @@ async function crearEn(tx, body, usuarioId) {
           datos: {
             modalidad: plan.modalidad,
             ...(reparto.length && { reparto: reparto.map((r) => ({ potrero: r.potrero.nombre, cabezas: r.cabezas, ...(r.toros != null && { toros: r.toros }) })) }),
+            // R6: las vacías de una IATF que entran a este entore (para avisar en los dos).
+            ...(plan.anteriores.has(lote.id) && { anteriorProcesoId: plan.anteriores.get(lote.id) }),
           },
         },
       });
@@ -356,9 +389,14 @@ const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 //   va a "<lote> · IATF dd/mm" (al potrero elegido o en el mismo); el lote
 //   queda "sin inseminar" para otro día. Con todas inseminadas, el lote
 //   entero puede ir al potrero elegido.
-async function acomodarAlEmpezar(ctx, { lote, cabezas, reparto, destino }, modalidad, registro) {
+//   Reglas del campo (R1/R2): las inseminadas y las sin inseminar no quedan
+//   en el mismo potrero. O se van las inseminadas (destino o reparto) o se van
+//   las sin inseminar (sinInseminarA): el lote entero, después de apartar las
+//   inseminadas.
+async function acomodarAlEmpezar(ctx, { lote, cabezas, reparto, destino, sinInseminarA = null }, modalidad, registro) {
   const { tx, dia, usuarioId, nota } = ctx;
   const aparte = modalidad === 'IATF' && cabezas < lote.cabezas;
+  if (aparte) separarInseminadas(lote, cabezas, [...reparto.map((r) => r.potreroId), ...(cabezas > reparto.reduce((s, r) => s + r.cabezas, 0) ? [destino?.id ?? lote.potreroId] : [])], sinInseminarA);
   let quedan = lote.cabezas;
   for (const [i, r] of reparto.entries()) {
     const base = { loteOrigenId: lote.id, cabezas: r.cabezas, destinoPotreroId: r.potreroId, fecha: dia, nota };
@@ -382,9 +420,25 @@ async function acomodarAlEmpezar(ctx, { lote, cabezas, reparto, destino }, modal
     }
     await guardarRol(ctx, lote.id, { rol: 'SIN_SERVIR' }, registro);
     ctx.pasos.push({ texto: `${(lote.cabezas - cabezas).toLocaleString('es-UY')} quedan sin inseminar en ${lote.nombre}` });
+    if (sinInseminarA && sinInseminarA.id !== lote.potreroId) {
+      const p = await aplicar(tx, { loteOrigenId: lote.id, cabezas: lote.cabezas - cabezas, destinoPotreroId: sinInseminarA.id, modo: 'ENTERO', fecha: dia, nota }, usuarioId, await extraDe(ctx, registro));
+      ctx.pasos.push({ texto: textoDelPlan(p) });
+    }
   } else if (destino && quedan > 0 && quedan === lote.cabezas && destino.id !== lote.potreroId) {
     const p = await aplicar(tx, { loteOrigenId: lote.id, cabezas: quedan, destinoPotreroId: destino.id, modo: 'ENTERO', fecha: dia, nota }, usuarioId, await extraDe(ctx, registro));
     ctx.pasos.push({ texto: textoDelPlan(p) });
+  }
+}
+
+// R1/R2: las inseminadas (en esos potreros) y las sin inseminar (en
+// sinInseminarA o, si no se mueven, donde está el lote) no pueden quedar juntas.
+function separarInseminadas(lote, cabezas, potrerosInseminadas, sinInseminarA) {
+  const sinId = sinInseminarA?.id ?? lote.potreroId;
+  if (potrerosInseminadas.includes(sinId)) {
+    const sin = lote.cabezas - cabezas;
+    throw badRequest(
+      `En ${lote.nombre} se inseminan ${cabezas} de ${lote.cabezas}: las inseminadas y las ${sin} sin inseminar no pueden quedar en el mismo potrero. Elegí a dónde van las inseminadas o las sin inseminar`,
+    );
   }
 }
 
@@ -445,9 +499,9 @@ function nombreGrupo(clave) {
   return MES.test(clave) ? `preñadas ${nombreMes(clave)}` : clave;
 }
 
-// El sufijo del lote que forma un bloque: "preñadas oct", "preñadas nov–dic", "vacías".
+// El sufijo del lote que forma un bloque: "preñadas oct", "preñadas nov–dic", "vacías" o "engorde".
 function sufijoDe(bloque) {
-  if (bloque.clase === 'VACIAS') return 'vacías';
+  if (bloque.clase === 'VACIAS') return bloque.destino === 'INVERNADA' ? 'engorde' : 'vacías';
   const meses = [...new Set(bloque.grupos.filter((c) => MES.test(c)))].sort();
   if (!meses.length) return 'preñadas';
   return `preñadas ${textoMeses(meses)}`;
@@ -619,9 +673,12 @@ async function guardarRol(ctx, loteId, { rol, mes = null, destino = null, hasta 
 // Hace la decisión de un lote (diseño §8): planDecision dice los pasos; cada
 // uno es un movimiento que cuelga del ancla. Después, el rol de cada lote que
 // quedó. Un error dice de qué grupo es ("Preñadas oct: ...").
-async function ejecutarDecision(ctx, lote, grupos, registro) {
-  const plan = planDecision({ lote, grupos });
-  if (plan.error) throw badRequest(plan.error);
+//   separar: reglas del campo (R1/R4), para las cargas nuevas. La modalidad
+//   del proceso va siempre: las vacías de un entore no se vuelven a servir (R5).
+//   juntas: los grupos pueden quedar en el mismo potrero (las paridas con cría al pie).
+async function ejecutarDecision(ctx, lote, grupos, registro, { separar = false, juntas = false } = {}) {
+  const plan = planDecision({ lote, grupos, modalidad: ctx.proceso.datos?.modalidad ?? null, separar, juntas });
+  if (plan.error) throw badRequest(separar ? `En el lote ${lote.nombre}: ${plan.error}` : plan.error);
   const { tx, dia, usuarioId } = ctx;
   const creados = new Map(); // grupos del bloque → lote creado (o al que se sumó)
   // Ecografía por partes (fase 6): si en el potrero ya hay una parte de este
@@ -699,8 +756,10 @@ async function ejecutarDecision(ctx, lote, grupos, registro) {
     const n = b.cabezas.toLocaleString('es-UY');
     if (b.clase === 'PRENADAS') await guardarRol(ctx, loteId, { rol: 'PRENADAS', mes }, registro);
     else if (b.clase === 'SIN') await guardarRol(ctx, loteId, { rol: 'VIENTRES' }, registro);
-    else if (b.destino === 'INVERNADA') await guardarRol(ctx, loteId, { rol: 'LIBRES', destino: 'INVERNADA', hasta: dia }, registro);
-    else if (b.destino === 'SALEN') {
+    else if (b.destino === 'INVERNADA') {
+      await guardarRol(ctx, loteId, { rol: 'LIBRES', destino: 'INVERNADA', hasta: dia }, registro);
+      ctx.pasos.push({ texto: `${n} vacías: a engorde, salen del proceso` });
+    } else if (b.destino === 'SALEN') {
       await guardarRol(ctx, loteId, { rol: 'LIBRES', hasta: dia }, registro);
       ctx.pasos.push({ texto: `${n} vacías: salen del proceso` });
     } else if (b.destino === 'REENTORE') {
@@ -747,6 +806,13 @@ async function moverUnToro(ctx, toro, potreroId, registro) {
   const p = await aplicar(ctx.tx, cuerpo, ctx.usuarioId, await extraDe(ctx, registro));
   ctx.pasos.push({ texto: `Toro ${toro.identificacion}: ${textoDelPlan(p)}` });
   return p.loteDestino.id;
+}
+
+// Un potrero elegido en una carga: que exista, esté activo y sea de la estancia del proceso.
+async function potreroDeLaEstancia(ctx, potreroId, que = 'El potrero elegido') {
+  const p = await ctx.tx.potrero.findUnique({ where: { id: Number(potreroId) }, select: { id: true, nombre: true, campoId: true, activo: true } });
+  if (!p || p.campoId !== ctx.proceso.campoId || !p.activo) throw badRequest(`${que} no es de esta estancia`);
+  return p;
 }
 
 async function potreroDelProceso(ctx, potreroId, toro) {
@@ -857,6 +923,7 @@ async function cargaTanda(ctx, body) {
   const nuevos = ids.filter((id) => !propios.has(id));
   const { anteriores } = nuevos.length ? await lotesParaEmpezar(tx, nuevos, proceso.campoId) : { anteriores: new Map() };
   const filas = await tx.lote.findMany({ where: { id: { in: ids } }, include: { categoria: true } });
+  await exigirUnSoloEntore(tx, anteriores, filas, modalidad);
   const cabezas = await cabezasDeHoy(tx, filas);
   const lotes = filas.map((l) => ({ ...l, cabezas: cabezas.get(l.id) ?? 0 }));
   for (const l of lotes) if (l.campoId !== proceso.campoId || !l.activo || !l.cabezas) throw badRequest(`El lote ${l.nombre} no tiene animales en esta estancia`);
@@ -907,14 +974,17 @@ async function parteConElMismoEstado(ctx, lote, bloque) {
   if (bloque.clase === 'SIN') return null;
   const meses = [...new Set(bloque.grupos.filter((c) => MES.test(c)))];
   const mes = meses.length === 1 && !bloque.grupos.includes('sin') ? meses[0] : null;
-  const rol = bloque.clase === 'PRENADAS' ? 'PRENADAS' : 'VACIAS';
+  // Las de engorde (reglas del campo) salen del proceso: se suman a la parte
+  // de engorde de un día anterior, aunque ya no esté en el proceso.
+  const engorde = bloque.clase === 'VACIAS' && bloque.destino === 'INVERNADA';
+  const rol = bloque.clase === 'PRENADAS' ? 'PRENADAS' : engorde ? 'LIBRES' : 'VACIAS';
   if (rol === 'VACIAS' && !['DESPUES', 'REENTORE', null].includes(bloque.destino)) return null;
-  const destino = rol === 'VACIAS' && bloque.destino === 'REENTORE' ? 'REENTORE' : null;
+  const destino = engorde ? 'INVERNADA' : rol === 'VACIAS' && bloque.destino === 'REENTORE' ? 'REENTORE' : null;
   const raiz = lote.raizId ?? lote.id;
   const pls = await ctx.tx.procesoLote.findMany({
     where: {
       procesoId: ctx.proceso.id,
-      hasta: null,
+      ...(!engorde && { hasta: null }),
       rol,
       mes,
       destino,
@@ -935,9 +1005,11 @@ async function cargaSimple(ctx, body) {
     await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
     const r = lineaSimple(ctx.etapa, linea, lote);
     if (r.error) throw badRequest(r.error);
-    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, ctx.etapa === 'ABORTO' && body.aVacias ? { aVacias: true } : r.datos);
+    const aEngorde = ctx.etapa === 'ABORTO' && body.aVacias;
+    const destino = aEngorde ? await destinoDelAborto(ctx, lote, r.cabezas, linea.potreroId ?? body.potreroId ?? null) : null;
+    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, aEngorde ? { aVacias: true, engorde: true } : r.datos);
     ctx.lineas.at(-1).registroId = registro.id;
-    if (ctx.etapa === 'ABORTO' && body.aVacias) await abortoAVacias(ctx, lote, r.cabezas, registro);
+    if (aEngorde) await abortoAVacias(ctx, lote, r.cabezas, registro, { potreroId: destino, categoriaId: linea.categoriaId ?? body.categoriaId ?? null });
   }
 }
 
@@ -950,8 +1022,10 @@ const gruposDelDiagnostico = (datos) => [
 ];
 
 // El diagnóstico (ecografía o tacto) con la decisión de cada grupo (diseño §8).
-// Lo que no se decide: las preñadas se quedan en su potrero, con la categoría
-// sugerida; las vacías, para decidir después.
+// Reglas del campo (R1/R4): se decide y se separa en el momento. Las vacías
+// tienen destino (entore con toros, solo si el proceso es una IATF, o engorde)
+// y preñadas, vacías y sin ecografiar quedan en potreros distintos. Lo que no
+// se decide: las preñadas se quedan en su potrero.
 async function cargaDiagnostico(ctx, body) {
   if (!body.lineas?.length) throw badRequest('Escribí las preñadas y las vacías de cada lote');
   const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
@@ -974,17 +1048,24 @@ async function cargaDiagnostico(ctx, body) {
     const finales = grupos.map((g) => {
       const d = dec.find((x) => x.clave === g.clave);
       const vacia = g.clase === 'VACIAS';
-      const destino = d?.destino ?? (vacia ? { despues: true } : { potreroId: lote.potreroId });
+      const destino = d?.destino ?? (vacia ? null : { potreroId: lote.potreroId });
       // La categoría de la madre no cambia (docs/PECUARIA.md §9): el estado va en el rol.
-      const categoriaId = d?.categoriaId ?? (vacia && destino.invernada ? sugerida('VACIA') : lote.categoriaId);
+      const categoriaId = d?.categoriaId ?? (vacia && destino?.invernada ? sugerida('VACIA') : lote.categoriaId);
       return { ...g, destino, categoriaId };
     });
-    await ejecutarDecision(ctx, lote, finales, registro);
+    for (const g of finales) if (g.destino?.potreroId) await potreroDeLaEstancia(ctx, g.destino.potreroId);
+    // Excepción de R1: las paridas con su cría al pie (en otro proceso) siguen
+    // con sus terneros hasta el destete, aunque estén vacías.
+    const conCria = await ctx.tx.procesoLote.findFirst({
+      where: { loteId: lote.id, rol: 'PARIDAS', hasta: null, procesoId: { not: ctx.proceso.id }, proceso: { estado: 'ABIERTO' } },
+    });
+    await ejecutarDecision(ctx, lote, finales, registro, { separar: true, juntas: Boolean(conCria) });
   }
 }
 
-// La revisión del diagnóstico: "de 10 vacías, 2 estaban preñadas". Con
-// aLoteId, las que cambian se suman a ese lote del proceso.
+// La revisión del diagnóstico: "de 10 vacías, 2 estaban preñadas". Las que
+// cambian se suman al lote del grupo nuevo (R1): el elegido (aLoteId) o, si
+// no se elige, uno del proceso con ese estado (primero de la misma familia).
 async function cargaRevision(ctx, body) {
   const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
   const tipo = await tipoPorClave(ctx.tx, 'ECOGRAFIA');
@@ -992,14 +1073,12 @@ async function cargaRevision(ctx, body) {
     await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
     const r = lineaRevision(linea, lote);
     if (r.error) throw badRequest(r.error);
-    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, r.datos);
-    if (!r.aLoteId) {
-      ctx.avisos.push(`Las que cambian siguen en el lote ${lote.nombre}: separalas con el + si hace falta`);
-      continue;
-    }
-    if (r.datos.aPrenadas && r.datos.aVacias) throw badRequest(`En el lote ${lote.nombre}: para mandarlas a otro lote, que cambien en un solo sentido`);
-    const destino = await ctx.tx.procesoLote.findUnique({ where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId: r.aLoteId } }, include: { lote: true } });
+    if (r.datos.aPrenadas && r.datos.aVacias) throw badRequest(`En el lote ${lote.nombre}: que cambien en un solo sentido (a preñadas o a vacías); la otra revisión, aparte`);
     const rolDestino = r.datos.aPrenadas ? 'PRENADAS' : 'VACIAS';
+    const aLoteId = r.aLoteId ?? (await loteDelGrupo(ctx, lote, rolDestino));
+    if (!aLoteId) throw badRequest(`No hay un lote de ${rolDestino === 'PRENADAS' ? 'preñadas' : 'vacías'} en el proceso para mandar las que cambian de ${lote.nombre}`);
+    const registro = await crearAncla(ctx, tipo, lote, r.cabezas, r.datos);
+    const destino = await ctx.tx.procesoLote.findUnique({ where: { procesoId_loteId: { procesoId: ctx.proceso.id, loteId: aLoteId } }, include: { lote: true } });
     if (!destino || destino.rol !== rolDestino || !destino.lote.activo) throw badRequest(`El lote de destino tiene que ser de ${rolDestino === 'PRENADAS' ? 'preñadas' : 'vacías'} del proceso`);
     const p = await aplicar(
       ctx.tx,
@@ -1011,10 +1090,42 @@ async function cargaRevision(ctx, body) {
   }
 }
 
+// El lote del proceso con ese estado al que van las que cambian en una
+// revisión: de la misma familia si hay, si no cualquiera (activo, sin salir).
+async function loteDelGrupo(ctx, lote, rol) {
+  const raiz = lote.raizId ?? lote.id;
+  const pls = await ctx.tx.procesoLote.findMany({
+    where: { procesoId: ctx.proceso.id, rol, hasta: null, loteId: { not: lote.id }, ...(rol === 'VACIAS' && { destino: null }), lote: { activo: true } },
+    include: { lote: { select: { id: true, raizId: true } } },
+    orderBy: { id: 'asc' },
+  });
+  const deLaFamilia = pls.find((pl) => (pl.lote.raizId ?? pl.lote.id) === raiz);
+  return (deLaFamilia ?? pls[0])?.loteId ?? null;
+}
+
+// Los estados de los otros lotes del proceso que están hoy en ese potrero
+// (sin los que salieron). Las vacías con destino, como VACIAS:<destino>.
+async function estadosEnPotrero(ctx, potreroId, excepto = []) {
+  const pls = await ctx.tx.procesoLote.findMany({
+    where: { procesoId: ctx.proceso.id, hasta: null, loteId: { notIn: excepto }, rol: { not: 'LIBRES' }, lote: { activo: true, potreroId } },
+    select: { rol: true, destino: true },
+  });
+  return [...new Set(pls.map((pl) => (pl.rol === 'VACIAS' && pl.destino ? `VACIAS:${pl.destino}` : pl.rol)))];
+}
+
+// R1 entre lotes: lo que llega a un potrero con ese estado no puede quedar con
+// otro estado del proceso que no conviva con él.
+async function exigirSinMezcla(ctx, potreroId, estado, excepto, quien) {
+  const choca = (await estadosEnPotrero(ctx, potreroId, excepto)).find((e) => !conviven(estado, e));
+  if (choca) throw badRequest(`${quien} pueden quedar con las ${nombreEstado(choca)} del proceso: en el campo no se distinguen. Elegí otro potrero`);
+}
+
 const destinoDecision = (d) => (d?.venta ? 'VENTA' : d?.invernada ? 'INVERNADA' : d?.reentore ? 'REENTORE' : d?.salen ? 'SALEN' : d?.potreroId ? 'MOVER' : null);
 
 // Lo que se decide después con las vacías (diseño §8, "Decidir"): cada lote
-// de vacías sin destino, entero, a venta, invernada, reentore u otro potrero.
+// de vacías sin destino, entero. Solo queda para lo cargado antes de las
+// reglas del campo (25/11): los destinos son los de R4 (entore con toros si el
+// proceso es una IATF, o engorde) y el potrero, sin mezclarse con otro estado.
 async function cargaDecision(ctx, body) {
   if (!body.lineas?.length) throw badRequest('Elegí qué hacés con las vacías');
   const tipo = await tipoPorClave(ctx.tx, 'ECOGRAFIA');
@@ -1027,11 +1138,17 @@ async function cargaDecision(ctx, body) {
     const nombre = pl?.lote.nombre ?? (await ctx.tx.lote.findUnique({ where: { id: linea.loteId }, select: { nombre: true } }))?.nombre ?? 'elegido';
     if (!pl || pl.rol !== 'VACIAS' || pl.destino || pl.hasta || !pl.lote.activo) throw badRequest(`El lote ${nombre} no tiene nada para decidir`);
     const destino = destinoDecision(linea.destino);
-    if (!destino) throw badRequest(`Elegí qué hacés con las vacías del lote ${nombre}`);
+    const entore = !esIatf(ctx.proceso.datos?.modalidad);
+    if (destino === 'REENTORE' && entore) throw badRequest(NO_REENTORE);
+    if (destino !== 'REENTORE' && destino !== 'INVERNADA') {
+      throw badRequest(entore ? `Las vacías de ${nombre} van a engorde: elegí el potrero` : `Elegí qué pasa con las vacías de ${nombre}: entore con toros o engorde`);
+    }
+    const potreroId = linea.destino.potreroId ? (await potreroDeLaEstancia(ctx, linea.destino.potreroId)).id : pl.lote.potreroId;
+    await exigirSinMezcla(ctx, potreroId, destino === 'REENTORE' ? 'VACIAS:REENTORE' : 'LIBRES', [pl.loteId], `Las vacías de ${nombre} no`);
     const lote = { ...pl.lote, cabezas: (await cabezasDeHoy(ctx.tx, [pl.lote])).get(pl.loteId) };
     const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { destino });
     const categoriaId = linea.categoriaId ?? (destino === 'INVERNADA' ? sugerirCategoria('VACIA', lote.categoria, categorias).id : lote.categoriaId);
-    await ejecutarDecision(ctx, lote, [{ clave: 'vacias', cabezas: lote.cabezas, clase: 'VACIAS', destino: linea.destino, categoriaId }], registro);
+    await ejecutarDecision(ctx, lote, [{ clave: 'vacias', cabezas: lote.cabezas, clase: 'VACIAS', destino: { ...linea.destino, potreroId }, categoriaId }], registro, { separar: true });
   }
 }
 
@@ -1048,13 +1165,19 @@ async function cargaInseminacion(ctx, body) {
     const n = aNumero(linea.cabezas);
     if (!Number.isInteger(n) || n < 1) throw badRequest(`Escribí cuántas se inseminaron del lote ${lote.nombre}`);
     if (n > lote.cabezas) throw badRequest(`El lote ${lote.nombre} tiene ${lote.cabezas} sin inseminar`);
-    const potreroId = linea.potreroId ? Number(linea.potreroId) : lote.potreroId;
+    const potreroId = linea.potreroId ? (await potreroDeLaEstancia(ctx, linea.potreroId)).id : lote.potreroId;
+    const sinInseminarA = linea.sinInseminarA ? await potreroDeLaEstancia(ctx, linea.sinInseminarA) : null;
+    if (n < lote.cabezas) separarInseminadas(lote, n, [potreroId], sinInseminarA);
     const registro = await crearAncla(ctx, tipo, lote, n, {});
     const base = { loteOrigenId: lote.id, cabezas: n, destinoPotreroId: potreroId, fecha: ctx.dia, nota: ctx.nota };
     if (n < lote.cabezas) {
       const p = await aplicar(ctx.tx, { ...base, modo: 'NUEVO', parteFamilia: { sufijo: `IATF ${ddmm(ctx.dia)}` } }, ctx.usuarioId, await extraDe(ctx, registro));
       ctx.pasos.push({ texto: textoDelPlan(p) });
       await guardarRol(ctx, p.loteDestino.id, { rol: 'VIENTRES' }, registro);
+      if (sinInseminarA && sinInseminarA.id !== lote.potreroId) {
+        const q = await aplicar(ctx.tx, { loteOrigenId: lote.id, cabezas: lote.cabezas - n, destinoPotreroId: sinInseminarA.id, modo: 'ENTERO', fecha: ctx.dia, nota: ctx.nota }, ctx.usuarioId, await extraDe(ctx, registro));
+        ctx.pasos.push({ texto: textoDelPlan(q) });
+      }
     } else {
       if (potreroId !== lote.potreroId) {
         const p = await aplicar(ctx.tx, { ...base, modo: 'ENTERO' }, ctx.usuarioId, await extraDe(ctx, registro));
@@ -1065,17 +1188,20 @@ async function cargaInseminacion(ctx, body) {
   }
 }
 
-// Terminar la inseminación: las que quedaron sin inseminar van al repaso con
-// toro (siguen en el proceso y cuentan como servidas) o salen del proceso.
-// En los dos casos se pueden mover enteras a otro potrero.
+// Terminar la inseminación: las que quedaron sin inseminar salen del proceso
+// (se pueden mover enteras a otro potrero). Reglas del campo (R3): ya no van
+// al repaso con toro (si meten un toro antes de la ecografía, se hace por
+// fuera de la app); lo guardado así antes se sigue mostrando. "Las dejo para
+// otro día" no es una carga: no se anota nada.
 async function cargaFinInseminacion(ctx, body) {
   const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
   const tipo = await tipoPorClave(ctx.tx, 'INSEMINACION');
   for (const { lote, linea } of elegidos) {
-    const destino = linea.destino;
-    if (destino !== 'REPASO' && destino !== 'SALEN') throw badRequest(`Elegí qué pasa con las sin inseminar de ${lote.nombre}: al repaso con toro o salen del proceso`);
+    const destino = linea.destino ?? 'SALEN';
+    if (destino === 'REPASO') throw badRequest(`El repaso con toro ya no se anota: si meten un toro antes de la ecografía, se hace por fuera de la app. Las sin inseminar de ${lote.nombre} salen del proceso o las dejás para otro día`);
+    if (destino !== 'SALEN') throw badRequest(`Las sin inseminar de ${lote.nombre} salen del proceso o las dejás para otro día`);
     const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { destino });
-    const potreroId = linea.potreroId ? Number(linea.potreroId) : null;
+    const potreroId = linea.potreroId ? (await potreroDeLaEstancia(ctx, linea.potreroId)).id : null;
     if (potreroId && potreroId !== lote.potreroId) {
       const p = await aplicar(ctx.tx, { loteOrigenId: lote.id, cabezas: lote.cabezas, destinoPotreroId: potreroId, modo: 'ENTERO', fecha: ctx.dia, nota: ctx.nota }, ctx.usuarioId, await extraDe(ctx, registro));
       ctx.pasos.push({ texto: textoDelPlan(p) });
@@ -1239,41 +1365,58 @@ async function cargaParicion(ctx, body) {
   }
 }
 
-// El fin de la parición de un lote: las que quedaron sin parir pasan a
-// vacías ("falladas"), con la misma decisión que en el diagnóstico (por
-// defecto, para decidir después).
+// El fin de la parición de un lote: las que quedaron sin parir ("falladas")
+// van a engorde (R7): salen del proceso, con la categoría de invernar
+// sugerida, y no quedan con las paridas ni con otro estado del proceso.
 async function cargaFinParicion(ctx, body) {
   const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
   const tipo = await tipoPorClave(ctx.tx, 'PARICION');
   const categorias = await ctx.tx.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
   for (const { lote, linea } of elegidos) {
     await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
-    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { falladas: lote.cabezas });
-    const destino = linea.destino ?? { despues: true };
-    const categoriaId = linea.categoriaId ?? (destino.invernada ? sugerirCategoria('VACIA', lote.categoria, categorias).id : lote.categoriaId);
-    await ejecutarDecision(ctx, lote, [{ clave: 'vacias', cabezas: lote.cabezas, clase: 'VACIAS', destino, categoriaId }], registro);
+    const elegido = linea.potreroId ?? linea.destino?.potreroId ?? body.potreroId ?? null;
+    const potreroId = elegido ? (await potreroDeLaEstancia(ctx, elegido)).id : lote.potreroId;
+    await exigirSinMezcla(ctx, potreroId, 'LIBRES', [lote.id], `Las que no parieron en ${lote.nombre} van a engorde: no`);
+    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { falladas: lote.cabezas, engorde: true });
+    const categoriaId = linea.categoriaId ?? sugerirCategoria('VACIA', lote.categoria, categorias).id;
+    await ejecutarDecision(ctx, lote, [{ clave: 'vacias', cabezas: lote.cabezas, clase: 'VACIAS', destino: { invernada: true, potreroId }, categoriaId }], registro, { separar: true });
   }
 }
 
-// Un aborto con "pasarlas a vacías": las que abortaron se van a un lote de
-// vacías del proceso (en el mismo potrero, de la familia), para decidir después.
-async function abortoAVacias(ctx, lote, cabezas, registro) {
-  const raizId = lote.raizId ?? lote.id;
-  const vacias = await ctx.tx.procesoLote.findFirst({
-    where: { procesoId: ctx.proceso.id, rol: 'VACIAS', destino: null, hasta: null, lote: { activo: true, potreroId: lote.potreroId, OR: [{ id: raizId }, { raizId }] } },
-  });
-  const extra = await extraDe(ctx, registro);
-  const base = { loteOrigenId: lote.id, cabezas, destinoPotreroId: lote.potreroId, fecha: ctx.dia, nota: ctx.nota };
-  if (vacias && vacias.loteId !== lote.id) {
-    const p = await aplicar(ctx.tx, { ...base, modo: 'SUMAR', loteDestinoId: vacias.loteId }, ctx.usuarioId, extra);
-    ctx.pasos.push({ texto: textoDelPlan(p) });
-  } else if (cabezas === lote.cabezas) {
-    await guardarRol(ctx, lote.id, { rol: 'VACIAS' }, registro);
-  } else {
-    const p = await aplicar(ctx.tx, { ...base, modo: 'NUEVO', parteFamilia: { sufijo: 'vacías' } }, ctx.usuarioId, extra);
-    ctx.pasos.push({ texto: textoDelPlan(p) });
-    await guardarRol(ctx, p.loteDestino.id, { rol: 'VACIAS' }, registro);
+// El potrero de las que abortaron (R7): si es una parte del lote, otro (no
+// pueden quedar con las preñadas); si abortaron todas, pueden quedarse. En los
+// dos casos, sin otro estado del proceso en ese potrero.
+async function destinoDelAborto(ctx, lote, cabezas, potreroId) {
+  const destino = potreroId ? (await potreroDeLaEstancia(ctx, potreroId)).id : lote.potreroId;
+  if (cabezas < lote.cabezas && destino === lote.potreroId) {
+    throw badRequest(`Las que abortaron en ${lote.nombre} van a engorde: elegí otro potrero (no pueden quedar con las preñadas)`);
   }
+  await exigirSinMezcla(ctx, destino, 'LIBRES', [lote.id], `Las que abortaron en ${lote.nombre} van a engorde: no`);
+  return destino;
+}
+
+// Un aborto con "sacarlas" (R7, 25/11): las que abortaron van a engorde. Salen
+// del proceso, al potrero elegido, con la categoría de invernar sugerida. Si
+// abortaron todas, el lote entero (cambia de potrero o de categoría).
+async function abortoAVacias(ctx, lote, cabezas, registro, { potreroId, categoriaId }) {
+  const categorias = await ctx.tx.categoria.findMany({ where: { activo: true }, select: { id: true, nombre: true } });
+  const categoria = categoriaId ? Number(categoriaId) : sugerirCategoria('VACIA', lote.categoria, categorias).id;
+  const extra = await extraDe(ctx, registro);
+  const base = { loteOrigenId: lote.id, cabezas, destinoPotreroId: potreroId, fecha: ctx.dia, nota: ctx.nota };
+  let loteId = lote.id;
+  if (cabezas < lote.cabezas) {
+    const p = await aplicar(ctx.tx, { ...base, modo: 'NUEVO', parteFamilia: { categoriaId: categoria, sufijo: 'engorde' } }, ctx.usuarioId, extra);
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+    loteId = p.loteDestino.id;
+  } else if (potreroId !== lote.potreroId) {
+    const p = await aplicar(ctx.tx, { ...base, modo: 'ENTERO', ...(categoria !== lote.categoriaId && { categoriaId: categoria }) }, ctx.usuarioId, extra);
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+  } else if (categoria !== lote.categoriaId) {
+    const p = await aplicar(ctx.tx, { ...base, modo: 'CATEGORIA', categoriaId: categoria }, ctx.usuarioId, extra);
+    ctx.pasos.push({ texto: textoDelPlan(p) });
+  }
+  await guardarRol(ctx, loteId, { rol: 'LIBRES', destino: 'INVERNADA', hasta: ctx.dia }, registro);
+  ctx.pasos.push({ texto: `${plural(cabezas, 'abortó', 'abortaron')}: a engorde, salen del proceso` });
 }
 
 // --- Bajas (fase 8) ---
@@ -1351,6 +1494,8 @@ async function quedanCrias(ctx, madresId, mes) {
 // también las partes de su familia que se apartaron en otro proceso (el
 // entore nuevo). La categoría de la madre no cambia (fase 7), salvo que se
 // elija otra.
+//   Reglas del campo (R9): las vacas también tienen destino: se quedan o se
+//   van a otro potrero (madresPotreroId), y terneros y vacas no quedan juntos.
 async function cargaDestete(ctx, body) {
   if (!body.lineas?.length) throw badRequest('Elegí los terneros que se destetan');
   const elegidos = await lotesDeLaCarga(ctx.tx, ctx.proceso, ctx.etapaDef, body.lineas);
@@ -1358,6 +1503,12 @@ async function cargaDestete(ctx, body) {
   for (const { lote, linea, pl } of elegidos) {
     await exigirLibre(ctx.tx, ctx.proceso.id, ctx.etapa, lote);
     if (!linea.destinoPotreroId) throw badRequest(`Elegí a qué potrero se van los terneros del lote ${lote.nombre}`);
+    const destinoTerneros = (await potreroDeLaEstancia(ctx, linea.destinoPotreroId, 'El potrero de los terneros')).id;
+    const madresA = linea.madresPotreroId ? (await potreroDeLaEstancia(ctx, linea.madresPotreroId, 'El potrero de las vacas')).id : null;
+    if (destinoTerneros === lote.potreroId && !madresA) throw badRequest(`Los terneros de ${lote.nombre} ya están en ese potrero: elegí otro, o mové las vacas`);
+    if ((madresA ?? lote.potreroId) === destinoTerneros) {
+      throw badRequest(`Los terneros y las vacas de ${lote.nombre} no pueden quedar en el mismo potrero: en el destete se separan. Elegí otro potrero para unos de los dos`);
+    }
     if (linea.cabezas != null && linea.cabezas !== '' && Number(linea.cabezas) !== lote.cabezas) {
       throw badRequest(`El lote ${lote.nombre} se desteta entero (${lote.cabezas} cabezas)`);
     }
@@ -1367,7 +1518,7 @@ async function cargaDestete(ctx, body) {
       throw badRequest(`Las madres de ${lote.nombre} no están en su potrero: juntalas con los terneros (con el +) para destetar desde acá`);
     }
     const peso = aNumero(linea.pesoPromedioKg);
-    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { destetados: lote.cabezas, ...(peso != null && { pesoPromedioKg: peso }) });
+    const registro = await crearAncla(ctx, tipo, lote, lote.cabezas, { destetados: lote.cabezas, ...(peso != null && { pesoPromedioKg: peso }), ...(madresA && { vacasA: madresA }) });
     const extra = await extraDe(ctx, registro);
     const p = await aplicar(
       ctx.tx,
@@ -1393,8 +1544,18 @@ async function cargaDestete(ctx, body) {
     for (const m of todas) {
       if (await quedanCrias(ctx, m.id, pl.mes)) continue;
       const categoriaId = linea.categoriaMadresId ?? m.categoriaId;
-      if (categoriaId !== m.categoriaId) {
-        const n = (await cabezasDeHoy(ctx.tx, [m])).get(m.id);
+      // Las vacas que estaban con los terneros se mueven si se eligió.
+      const mover = madresA && m.potreroId === lote.potreroId && madresA !== m.potreroId;
+      const n = (await cabezasDeHoy(ctx.tx, [m])).get(m.id) ?? 0;
+      if (n && mover) {
+        const q = await aplicar(
+          ctx.tx,
+          { loteOrigenId: m.id, cabezas: n, destinoPotreroId: madresA, modo: 'ENTERO', ...(categoriaId !== m.categoriaId && { categoriaId }), fecha: ctx.dia, nota: ctx.nota },
+          ctx.usuarioId,
+          extra,
+        );
+        ctx.pasos.push({ texto: textoDelPlan(q) });
+      } else if (n && categoriaId !== m.categoriaId) {
         const q = await aplicar(ctx.tx, { loteOrigenId: m.id, cabezas: n, destinoPotreroId: m.potreroId, modo: 'CATEGORIA', categoriaId, fecha: ctx.dia, nota: ctx.nota }, ctx.usuarioId, extra);
         ctx.pasos.push({ texto: textoDelPlan(q) });
       }
@@ -1599,11 +1760,52 @@ const resumenCarga = (ctx) => ({
   avisos: ctx.avisos,
 });
 
+// R10 (reglas del campo): los avisos por mezcla de los potreros que toca una
+// carga (adonde llegaron o de donde salieron sus movimientos, y los de sus
+// lotes), como quedan después de la carga. Avisa; no bloquea.
+async function avisosDeLaCarga(tx, ctx) {
+  const ids = new Set(ctx.lineas.map((l) => l.lote.potreroId).filter(Boolean));
+  if (ctx.evento) {
+    const movs = await tx.movimiento.findMany({ where: { eventoId: ctx.evento.id }, select: { potreroOrigenId: true, potreroDestinoId: true } });
+    for (const m of movs) for (const id of [m.potreroOrigenId, m.potreroDestinoId]) if (id) ids.add(id);
+  }
+  return avisosDePotreros(tx, [...ids]);
+}
+
+// Los avisos por mezcla de esos potreros, con lo que hay hoy en cada uno.
+export async function avisosDePotreros(db, potreroIds) {
+  if (!potreroIds.length) return [];
+  const lotes = await db.lote.findMany({
+    where: { activo: true, potreroId: { in: potreroIds } },
+    include: {
+      potrero: { select: { nombre: true } },
+      categoria: { select: { nombre: true, sexo: true } },
+      procesos: { where: { hasta: null, proceso: { estado: 'ABIERTO' } }, select: { rol: true, proceso: { select: { id: true, nombre: true } } } },
+    },
+  });
+  const cabezas = await cabezasDeHoy(db, lotes);
+  const avisos = [];
+  for (const potreroId of potreroIds) {
+    const aca = lotes.filter((l) => l.potreroId === potreroId && cabezas.get(l.id) > 0);
+    if (aca.length < 2) continue;
+    const filas = aca.flatMap((l) => {
+      const base = { nombre: l.nombre, categoria: l.categoria.nombre, sexo: l.categoria.sexo };
+      return l.procesos.length ? l.procesos.map((pl) => ({ ...base, rol: pl.rol, proceso: pl.proceso })) : [base];
+    });
+    avisos.push(...avisosDeMezcla(filas, { potrero: aca[0].potrero.nombre }));
+  }
+  return avisos;
+}
+
+const sinRepetir = (lista) => [...new Set(lista)];
+
 export async function vistaPreviaEtapa(id, etapa, body) {
   try {
     await prisma.$transaction(async (tx) => {
       const proceso = await procesoParaCargar(tx, id);
-      const { grupoId, dia, ...resumen } = resumenCarga(await cargar(tx, proceso, etapa, body, null));
+      const ctx = await cargar(tx, proceso, etapa, body, null);
+      ctx.avisos = sinRepetir([...ctx.avisos, ...(await avisosDeLaCarga(tx, ctx))]);
+      const { grupoId, dia, ...resumen } = resumenCarga(ctx);
       throw new Simulacion(resumen);
     }, TX);
   } catch (error) {
@@ -1804,10 +2006,26 @@ export async function ficha(id) {
     sugeridas: sugeridas(pl),
   }));
 
+  // Reglas del campo (25/11).
+  const vivos = lotes.filter((l) => l.activo && l.cabezas > 0);
+  const avisos = [];
+  // R5: lo viejo que no cumple (vacías de un entore marcadas para volver a servir).
+  const reentoreDeEntore = vivos.filter((l) => l.rol === 'VACIAS' && l.destino === 'REENTORE');
+  if (!esIatf && reentoreDeEntore.length) {
+    avisos.push(`${plural(reentoreDeEntore.reduce((s, l) => s + l.cabezas, 0), 'vacía quedó', 'vacías quedaron')} para volver a servir, pero son de un entore: van a engorde, no se vuelven a servir`);
+  }
+
   return {
     proceso: { ...toProceso(p), campo: p.campo },
     etapa,
     textoEtapa: TEXTO_ETAPA[etapa],
+    // La ecografía por partes: cuántas faltan ecografiar (o null).
+    aMedias: diagnosticoAMedias(anclas, lotes.map((l) => ({ loteId: l.loteId, rol: l.rol, activo: l.activo, cabezas: l.cabezas }))),
+    // R8: vacas y terneros por potrero ("P12: 40 vacas (25 paridas · 15 preñadas) · 24 terneros").
+    porPotrero: vacasYTernerosPorPotrero(vivos.map((l) => ({ rol: l.rol, cabezas: l.cabezas, potreroId: l.potrero?.id ?? null, potrero: l.potrero?.nombre ?? null }))),
+    // R6: las vacías de una IATF que pasaron a un entore (en los dos procesos).
+    enlaces: await enlacesDeVacias(p),
+    avisos,
     proxima,
     // Las etapas con su fecha esperada y la real (docs/PECUARIA.md §9).
     cronograma,
@@ -1836,6 +2054,62 @@ export async function ficha(id) {
     siguientes: (p.siguientes ?? []).map((s) => ({ id: s.id, nombre: s.nombre, estado: s.estado, fechaInicio: fechaISO(s.fechaInicio) })),
     // Las vacías que quedaron para volver a servir: se ofrece empezar con ellas.
     paraEnganchar: lotes.filter((l) => l.rol === 'VACIAS' && l.destino === 'REENTORE' && l.activo).map((l) => ({ loteId: l.loteId, lote: l.nombre, cabezas: l.cabezas })),
+  };
+}
+
+// R6: las vacías de una IATF que se volvieron a servir en un entore (nuevo,
+// con "+ Nuevo proceso", o en curso, con una tanda). El inicio o la tanda del
+// entore guardan anteriorProcesoId; los de antes de las reglas del campo, sin
+// ese dato, se cuentan por el proceso enganchado (todo su inicio).
+//   van:    desde la IATF, a qué entore fueron ("12 vacías → entore X (desde el 10/01)")
+//   vienen: en el entore, de qué IATF vienen ("12 vienen de la IATF X")
+async function enlacesDeVacias(p) {
+  const anclas = (where) =>
+    prisma.eventoRegistro.findMany({
+      where: { anulado: false, etapa: { in: ['INICIO', 'TANDA'] }, ...where },
+      select: { procesoId: true, fecha: true, cabezas: true, datos: true, proceso: { select: { id: true, nombre: true, estado: true, datos: true } } },
+    });
+  const juntar = (filas, clave) => {
+    const por = new Map();
+    for (const f of filas) {
+      const k = clave(f);
+      const e = por.get(k) ?? { procesoId: k, cabezas: 0, desde: fechaISO(f.fecha) };
+      e.cabezas += f.cabezas;
+      if (fechaISO(f.fecha) < e.desde) e.desde = fechaISO(f.fecha);
+      por.set(k, e);
+    }
+    return [...por.values()];
+  };
+  const van = juntar(
+    (await anclas({ datos: { path: ['anteriorProcesoId'], equals: p.id } })).filter((a) => a.proceso.estado !== 'ANULADO'),
+    (a) => a.procesoId,
+  );
+  // Los de antes: los procesos que siguieron con vacías de este (reentore) sin el dato.
+  for (const s of p.siguientes ?? []) {
+    if (!esReentore({ ...s, procesoAnteriorId: p.id }) || van.some((v) => v.procesoId === s.id)) continue;
+    const delInicio = await anclas({ procesoId: s.id, etapa: 'INICIO' });
+    if (delInicio.length) van.push(...juntar(delInicio, () => s.id));
+  }
+  const nombres = new Map((p.siguientes ?? []).map((s) => [s.id, s.nombre]));
+  for (const v of van) if (!nombres.has(v.procesoId)) nombres.set(v.procesoId, (await prisma.proceso.findUnique({ where: { id: v.procesoId }, select: { nombre: true } }))?.nombre);
+
+  const propias = (await anclas({ procesoId: p.id })).filter((a) => a.datos?.anteriorProcesoId);
+  const vienen = juntar(propias, (a) => a.datos.anteriorProcesoId);
+  if (!vienen.length && p.procesoAnterior && esReentore(p)) {
+    const delInicio = await anclas({ procesoId: p.id, etapa: 'INICIO' });
+    if (delInicio.length) vienen.push(...juntar(delInicio, () => p.procesoAnterior.id));
+  }
+  const anteriores = new Map();
+  for (const v of vienen) anteriores.set(v.procesoId, await prisma.proceso.findUnique({ where: { id: v.procesoId }, select: { nombre: true, datos: true } }));
+
+  const cab = (n) => plural(n, 'vacía', 'vacías');
+  return {
+    van: van.map((v) => ({ ...v, nombre: nombres.get(v.procesoId) ?? null, texto: `${cab(v.cabezas)} → entore "${nombres.get(v.procesoId)}" (desde el ${ddmm(v.desde)})` })),
+    vienen: vienen.map((v) => {
+      const a = anteriores.get(v.procesoId);
+      const de = esIatf(a?.datos?.modalidad) ? 'la IATF' : 'el entore';
+      return { ...v, nombre: a?.nombre ?? null, texto: `${plural(v.cabezas, 'viene', 'vienen')} de ${de} "${a?.nombre}"` };
+    }),
   };
 }
 

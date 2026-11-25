@@ -550,6 +550,9 @@ export const procesoSchema = z
           cabezas: enteroPositivo('Las cabezas tienen que ser un número entero mayor que cero').optional(),
           // IATF: el potrero al que van las inseminadas (si no, se quedan).
           potreroId: idPositivo('El potrero no es válido').optional(),
+          // IATF con menos inseminadas que el lote (reglas del campo, R2): o se
+          // van las inseminadas (potreroId) o se van las sin inseminar (acá).
+          sinInseminarA: idPositivo('El potrero de las sin inseminar no es válido').optional(),
           // Repartirlas en potreros: cada fila, una parte del mismo lote.
           reparto: z
             .array(

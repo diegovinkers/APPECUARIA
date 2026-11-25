@@ -153,7 +153,26 @@ export default function ProcesoPage() {
     );
   }
 
-  const { proceso, embudo, etapas, lotes, proxima, pendientes, cronograma = [], estados = {}, toros = [], anterior = null, siguientes = [], paraEnganchar = [] } = datos;
+  const {
+    proceso,
+    embudo,
+    etapas,
+    lotes,
+    proxima,
+    pendientes,
+    cronograma = [],
+    estados = {},
+    toros = [],
+    anterior = null,
+    siguientes = [],
+    paraEnganchar = [],
+    // Reglas del campo (25/11): el diagnóstico a medias, los avisos, las
+    // vacías que pasaron de una IATF a un entore (R6) y cada potrero (R8).
+    aMedias = null,
+    avisos = [],
+    enlaces = { van: [], vienen: [] },
+    porPotrero = [],
+  } = datos;
   const esEntore = !['IATF', 'IA'].includes(proceso.datos?.modalidad);
   const abierto = proceso.estado === 'ABIERTO';
   const registra = abierto && puedo('pecuaria:CREAR');
@@ -219,7 +238,8 @@ export default function ProcesoPage() {
         )}
       </div>
       <p className="text-sm text-suelo-600">
-        {textoTipo(proceso.datos?.modalidad)} · {proceso.campo.nombre} · campaña {proceso.campania} · {abierto ? datos.textoEtapa.toLowerCase() : proceso.estado === 'CERRADO' ? 'cerrado' : 'anulado'}
+        {textoTipo(proceso.datos?.modalidad)} · {proceso.campo.nombre} · campaña {proceso.campania} ·{' '}
+        <span data-testid="etapa">{abierto ? (aMedias?.texto ?? datos.textoEtapa).toLowerCase() : proceso.estado === 'CERRADO' ? 'cerrado' : 'anulado'}</span>
       </p>
 
       {renombrando && (
@@ -237,6 +257,9 @@ export default function ProcesoPage() {
       <div className="mt-3">
         <ErrorList errors={errors} />
         <Notice tone="ok">{aviso}</Notice>
+        {avisos.map((a) => (
+          <Notice key={a}>{a}</Notice>
+        ))}
       </div>
 
       {sueltos && (
@@ -304,9 +327,9 @@ export default function ProcesoPage() {
 
       <Cronograma items={cronograma} registra={registra} onDescartar={descartar} />
 
-      <Enganchados anterior={anterior} siguientes={siguientes} />
+      <Enganchados anterior={anterior} siguientes={siguientes} enlaces={enlaces} />
 
-      <StockProceso lotes={lotes} estados={estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} />
+      <StockProceso lotes={lotes} estados={estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} porPotrero={porPotrero} />
 
       <TorosDelProceso toros={toros} />
 
@@ -480,7 +503,7 @@ function TorosDelProceso({ toros }) {
 }
 
 // El stock del proceso: los lotes por estado, con el nombre de Configuración.
-function StockProceso({ lotes, estados, total }) {
+function StockProceso({ lotes, estados, total, porPotrero = [] }) {
   const grupos = lotesPorEstado(lotes, estados);
   if (!grupos.length) return null;
   return (
@@ -488,6 +511,14 @@ function StockProceso({ lotes, estados, total }) {
       <h2 className="mb-2 mt-6 flex items-baseline justify-between text-lg font-semibold">
         Stock del proceso <span className="text-sm font-normal text-suelo-600">{formatNumero(total)} cab hoy</span>
       </h2>
+      {/* R8: cuántas vacas y terneros hay en cada potrero. */}
+      {porPotrero.length > 0 && (
+        <ul className="mb-3 space-y-0.5 rounded-lg border border-suelo-200 bg-suelo-50 px-3 py-2 text-sm text-suelo-700" aria-label="Por potrero">
+          {porPotrero.map((p) => (
+            <li key={p.potreroId ?? p.texto}>{p.texto}</li>
+          ))}
+        </ul>
+      )}
       <div className="space-y-3" aria-label="Stock del proceso">
         {grupos.map((g) => (
           <section key={g.rol} data-rol={g.rol} className={`rounded-lg border border-suelo-200 bg-superficie ${g.rol === 'LIBRES' ? 'opacity-70' : ''}`}>
@@ -520,10 +551,24 @@ function StockProceso({ lotes, estados, total }) {
 
 // Los procesos enganchados (fase 8): de cuál viene este y cuáles siguieron
 // (las vacías que volvieron a servirse, las paridas que entraron a otro entore).
-function Enganchados({ anterior, siguientes }) {
-  if (!anterior && !siguientes.length) return null;
+//   enlaces (R6): las vacías de una IATF que pasaron a un entore, en los dos
+//   ("12 vacías → entore X (desde el 10/01)" / "12 vienen de la IATF Y").
+function Enganchados({ anterior, siguientes, enlaces = { van: [], vienen: [] } }) {
+  const hayEnlaces = enlaces.van.length > 0 || enlaces.vienen.length > 0;
+  if (!anterior && !siguientes.length && !hayEnlaces) return null;
   return (
     <section aria-label="Procesos enganchados" className="mt-4 rounded-lg border border-suelo-200 bg-superficie p-3 text-sm">
+      {hayEnlaces && (
+        <ul className="mb-2 space-y-1" aria-label="Vacías entre procesos">
+          {[...enlaces.vienen, ...enlaces.van].map((e) => (
+            <li key={`${e.procesoId}-${e.texto}`}>
+              <Link to={`/pecuaria/procesos/${e.procesoId}`} className="font-medium text-campo-700 hover:underline">
+                {e.texto}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
       {anterior && (
         <p>
           Viene de{' '}

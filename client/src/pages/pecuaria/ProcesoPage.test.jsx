@@ -307,3 +307,35 @@ describe('bajas y procesos enganchados (fase 8)', () => {
     expect(aviso.querySelector('a').getAttribute('href')).toBe('/pecuaria/procesos/nuevo?desde=7');
   });
 });
+
+describe('las reglas del campo en la ficha (25/11)', () => {
+  it('el diagnóstico a medias va en la etapa; los avisos, arriba', async () => {
+    await montar({
+      ...FICHA,
+      etapa: 'ESPERA_DIAGNOSTICO',
+      textoEtapa: 'Esperando el diagnóstico',
+      aMedias: { lotes: 1, cabezas: 23, texto: 'Diagnóstico a medias: faltan 23' },
+      avisos: ['10 vacías quedaron para volver a servir, pero son de un entore: van a engorde, no se vuelven a servir'],
+    });
+    expect(contenedor.querySelector('[data-testid="etapa"]').textContent).toBe('diagnóstico a medias: faltan 23');
+    expect(contenedor.textContent).toContain('pero son de un entore: van a engorde');
+  });
+
+  it('las vacías entre la IATF y el entore (R6), con su enlace', async () => {
+    await montar({
+      ...FICHA,
+      enlaces: {
+        van: [{ procesoId: 9, cabezas: 12, desde: '2027-01-10', texto: '12 vacías → entore "Servicio 26-27 · Vacas" (desde el 10/01)' }],
+        vienen: [],
+      },
+    });
+    const enlace = contenedor.querySelector('[aria-label="Vacías entre procesos"] a');
+    expect(enlace.textContent).toBe('12 vacías → entore "Servicio 26-27 · Vacas" (desde el 10/01)');
+    expect(enlace.getAttribute('href')).toBe('/pecuaria/procesos/9');
+  });
+
+  it('vacas y terneros por potrero (R8), arriba del stock', async () => {
+    await montar({ ...FICHA, porPotrero: [{ potreroId: 12, texto: 'P12: 40 vacas (25 paridas · 15 preñadas) · 24 terneros' }] });
+    expect(contenedor.querySelector('[aria-label="Por potrero"]').textContent).toBe('P12: 40 vacas (25 paridas · 15 preñadas) · 24 terneros');
+  });
+});

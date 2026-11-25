@@ -21,6 +21,7 @@ import { detallePotrero, fechaUY, parametrosCarga } from './stock.service.js';
 import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
 import { listarEventos } from './eventos.service.js';
 import { listPotrerosTodas } from './lugares.repository.js';
+import { avisosDeMezcla } from './mezcla.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const potreroSelect = { id: true, nombre: true, campoId: true, tipo: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
@@ -230,6 +231,25 @@ async function avisosDeProceso(db, plan, body) {
   return [];
 }
 
+// R10 (reglas del campo): lo que queda junto en el potrero de destino después
+// de mover. Si se suman a un lote, toman su lugar (no se agregan aparte).
+async function avisosDeMezclaMover(db, plan) {
+  if (plan.mismoPotrero) return [];
+  const ids = plan.fotoDestino.lineas.filter((l) => l.cabezas > 0).map((l) => l.loteId);
+  const conProcesos = { procesos: { where: { hasta: null, proceso: { estado: 'ABIERTO' } }, select: { rol: true, proceso: { select: { id: true, nombre: true } } } } };
+  const lotes = await db.lote.findMany({ where: { id: { in: ids } }, include: { categoria: { select: { nombre: true, sexo: true } }, ...conProcesos } });
+  const fila = (l, categoria) => {
+    const base = { nombre: l.nombre, categoria: categoria.nombre, sexo: categoria.sexo };
+    return l.procesos.length ? l.procesos.map((pl) => ({ ...base, rol: pl.rol, proceso: pl.proceso })) : [base];
+  };
+  const filas = lotes.flatMap((l) => fila(l, l.categoria));
+  if (plan.modo !== 'SUMAR') {
+    const propio = await db.lote.findUnique({ where: { id: plan.lote.id }, include: conProcesos });
+    filas.push(...fila(propio, plan.categoriaDestino));
+  }
+  return avisosDeMezcla(filas, { potrero: plan.destino.nombre });
+}
+
 export async function vistaPrevia(body) {
   const plan = await planificar(prisma, body);
   const kg = await parametrosCarga();
@@ -249,7 +269,7 @@ export async function vistaPrevia(body) {
     loteMadres: plan.madres?.nombre ?? null,
     origen: lado(plan.origen, plan.fotoOrigen, plan.lineasOrigen),
     destino: plan.mismoPotrero ? null : lado(plan.destino, plan.fotoDestino, plan.lineasDestino),
-    avisos: await avisosDeProceso(prisma, plan, body),
+    avisos: [...(await avisosDeProceso(prisma, plan, body)), ...(await avisosDeMezclaMover(prisma, plan))],
   };
 }
 

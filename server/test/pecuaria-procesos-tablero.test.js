@@ -109,37 +109,46 @@ describe('el tablero en la lista de procesos, paso a paso', () => {
     expect(await tablero()).toEqual(['entore VIENTRES Entore: 200']);
 
     await etapa(entore.id, 'FIN_SERVICIO', { fecha: '2025-11-01' });
-    await etapa(entore.id, 'DIAGNOSTICO', { fecha: '2025-12-01', lineas: [{ loteId: p1.lote.Vacas.id, prenadas: { sin: 165 }, vacias: 35 }] });
-    // La ecografía reparte: 165 a Preñadas; las vacías, sin decidir, quedan en Entore.
-    expect(await tablero()).toEqual(['entore VACIAS_A_DECIDIR Entore: 35', 'prenadas PRENADAS Entore: 165']);
+    // La ecografía reparte: 165 a Preñadas; las vacías (de un entore) van a
+    // engorde en el momento y salen del proceso (reglas del campo).
+    await etapa(entore.id, 'DIAGNOSTICO', {
+      fecha: '2025-12-01',
+      lineas: [{ loteId: p1.lote.Vacas.id, prenadas: { sin: 165 }, vacias: 35 }],
+      decision: [{ loteId: p1.lote.Vacas.id, grupos: [{ clave: 'vacias', destino: { invernada: true, potreroId: p9.potrero.id } }] }],
+    });
+    expect(await tablero()).toEqual(['prenadas PRENADAS Entore: 165']);
 
     await etapa(entore.id, 'PARICION', { fecha: '2026-05-10', lineas: [{ loteId: await loteId(entore.id, 'PRENADAS'), madres: 40, terneros: 40 }] });
-    expect(await tablero()).toEqual(['cria PARIDAS Entore: 40 +40', 'entore VACIAS_A_DECIDIR Entore: 35', 'prenadas PRENADAS Entore: 125']);
+    expect(await tablero()).toEqual(['cria PARIDAS Entore: 40 +40', 'prenadas PRENADAS Entore: 125']);
 
     await etapa(entore.id, 'DESTETE', { fecha: '2026-11-10', lineas: [{ loteId: await loteId(entore.id, 'CRIAS', 'Terneros'), destinoPotreroId: p9.potrero.id }] });
-    expect(await tablero()).toEqual(['entore VACIAS_A_DECIDIR Entore: 35', 'prenadas PRENADAS Entore: 125']);
+    expect(await tablero()).toEqual(['prenadas PRENADAS Entore: 125']);
   });
 
-  it('IATF: Inseminación → las sin inseminar al toro y las vacías a un entore, en Entore con el color', async () => {
-    const { p1, p8, etapa, crear, loteId, tablero } = await preparar();
-    const iatf = await crear({ fecha: '2025-08-01', modalidad: 'IATF', nombre: 'IATF', lineas: [{ loteId: p1.lote.Vacas.id, cabezas: 150 }] });
+  it('IATF: Inseminación → las vacías a un entore, en Entore con el color', async () => {
+    const { p1, p8, p9, etapa, crear, loteId, tablero } = await preparar();
+    // Las 150 inseminadas van a P8 (no se quedan con las sin inseminar).
+    const iatf = await crear({ fecha: '2025-08-01', modalidad: 'IATF', nombre: 'IATF', lineas: [{ loteId: p1.lote.Vacas.id, cabezas: 150, potreroId: p8.potrero.id }] });
     expect(await tablero()).toEqual(['iatf VIENTRES IATF: 200']);
 
-    // Las 50 sin inseminar van al repaso con toro: pasan a Entore, con el color.
-    await etapa(iatf.id, 'FIN_INSEMINACION', { fecha: '2025-08-02', lineas: [{ loteId: await loteId(iatf.id, 'SIN_SERVIR'), destino: 'REPASO' }] });
-    expect(await tablero()).toEqual(['entore VIENTRES IATF: 50 *', 'iatf VIENTRES IATF: 150']);
+    // Las 50 sin inseminar salen del proceso (ya no hay repaso con toro).
+    await etapa(iatf.id, 'FIN_INSEMINACION', { fecha: '2025-08-02', lineas: [{ loteId: await loteId(iatf.id, 'SIN_SERVIR'), destino: 'SALEN' }] });
+    expect(await tablero()).toEqual(['iatf VIENTRES IATF: 150']);
 
-    // Ecografía de las inseminadas: 100 preñadas y 50 vacías (sin decidir: siguen en Inseminación).
+    // Ecografía de las inseminadas: 100 preñadas se quedan; las 50 vacías, a
+    // P9 para el entore: a Entore con el color.
     const inseminadas = await loteId(iatf.id, 'VIENTRES', 'Vacas · IATF');
-    await etapa(iatf.id, 'DIAGNOSTICO', { fecha: '2025-09-01', lineas: [{ loteId: inseminadas, prenadas: { sin: 100 }, vacias: 50 }] });
-    expect(await tablero()).toEqual(['entore VIENTRES IATF: 50 *', 'iatf VACIAS_A_DECIDIR IATF: 50', 'prenadas PRENADAS IATF: 100']);
+    await etapa(iatf.id, 'DIAGNOSTICO', {
+      fecha: '2025-09-01',
+      lineas: [{ loteId: inseminadas, prenadas: { sin: 100 }, vacias: 50 }],
+      decision: [{ loteId: inseminadas, grupos: [{ clave: 'vacias', destino: { reentore: true, potreroId: p9.potrero.id } }] }],
+    });
+    expect(await tablero()).toEqual(['entore VACIAS_REENTORE IATF: 50 *', 'prenadas PRENADAS IATF: 100']);
 
-    // Las vacías, a volver a servir: a Entore con el color; y al empezar su entore, siguen ahí.
+    // Al empezar su entore, siguen ahí.
     const vacias = await loteId(iatf.id, 'VACIAS');
-    await etapa(iatf.id, 'DECISION', { fecha: '2025-09-05', lineas: [{ loteId: vacias, destino: { reentore: true, potreroId: p8.potrero.id } }] });
-    expect(await tablero()).toEqual(['entore VACIAS_REENTORE IATF: 50 *', 'entore VIENTRES IATF: 50 *', 'prenadas PRENADAS IATF: 100']);
     const entore = await crear({ fecha: '2025-09-10', modalidad: 'TOROS', nombre: 'Entore de las vacías', lineas: [{ loteId: vacias }] });
     expect((await prisma.proceso.findUnique({ where: { id: entore.id } })).datos).toMatchObject({ reentore: true });
-    expect(await tablero()).toEqual(['entore VIENTRES Entore de las vacías: 50 *', 'entore VIENTRES IATF: 50 *', 'prenadas PRENADAS IATF: 100']);
+    expect(await tablero()).toEqual(['entore VIENTRES Entore de las vacías: 50 *', 'prenadas PRENADAS IATF: 100']);
   });
 });

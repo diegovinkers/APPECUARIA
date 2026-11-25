@@ -3,6 +3,12 @@ import {
   aplicaServicio,
   campaniasParaFiltro,
   cuerpoDiagnostico,
+  faltaDestete,
+  faltaEcografia,
+  gruposEcografia,
+  opcionesEcografia,
+  quienesSeVan,
+  separarIatf,
   cuerpoProceso,
   destinoParaApi,
   destinoPorDefecto,
@@ -117,20 +123,15 @@ describe('diagnóstico (puro)', () => {
     expect(totalDiagnostico({ prenadas: { '2027-10': '18', sin: '2' }, vacias: '10' })).toBe(30);
   });
 
-  it('el destino por defecto: las preñadas se quedan con la categoría del lote (no cambia, fase 6); las vacías, para decidir después', () => {
+  it('el destino por defecto: las preñadas se quedan con la categoría del lote; las vacías, sin destino (ya no hay "decidir después")', () => {
     expect(destinoPorDefecto(lote, 'PRENADAS')).toEqual({ tipo: 'QUEDAN', categoriaId: '3' });
-    expect(destinoPorDefecto(lote, 'VACIAS')).toEqual({ tipo: 'DESPUES', categoriaId: '5' });
+    expect(destinoPorDefecto(lote, 'VACIAS')).toEqual({ tipo: '', categoriaId: '5' });
   });
 
-  it('el cuerpo del diagnóstico, con la decisión de cada grupo', () => {
+  it('el cuerpo del diagnóstico, con lo elegido de cada lote', () => {
     const datos = { 1: { prenadas: { '2027-10': '18', '2027-11': '22' }, vacias: '10' } };
-    const destinos = {
-      1: {
-        '2027-10': { tipo: 'POTRERO', potreroId: '12', categoriaId: '4' },
-        vacias: { tipo: 'VENTA', guia: ' G-1 ', precio: '900', categoriaId: '5' },
-      },
-    };
-    expect(cuerpoDiagnostico({ fecha: '2026-11-18', metodo: 'TACTO', lotes: [lote], datos, destinos })).toEqual({
+    const elecciones = { 1: { seVan: 'DOS', porMes: true, potreroMes: { '2027-10': '12', '2027-11': '13' }, potreroVacias: '9', vaciasA: 'ENTORE' } };
+    expect(cuerpoDiagnostico({ fecha: '2026-11-18', metodo: 'TACTO', lotes: [lote], datos, elecciones, iatf: true })).toEqual({
       fecha: '2026-11-18',
       metodo: 'TACTO',
       lineas: [{ loteId: 1, prenadas: { '2027-10': 18, '2027-11': 22 }, vacias: 10 }],
@@ -138,16 +139,22 @@ describe('diagnóstico (puro)', () => {
         {
           loteId: 1,
           grupos: [
-            { clave: '2027-10', destino: { potreroId: 12 }, categoriaId: 4 },
-            { clave: '2027-11', destino: { potreroId: 8 }, categoriaId: 3 },
-            { clave: 'vacias', destino: { venta: { guia: 'G-1', precioVentaUsd: 900, precioVentaPor: 'CABEZA' } } },
+            { clave: '2027-10', destino: { potreroId: 12 } },
+            { clave: '2027-11', destino: { potreroId: 13 } },
+            { clave: 'vacias', destino: { reentore: true, potreroId: 9 } },
           ],
         },
       ],
     });
   });
 
-  it('las otras decisiones de las vacías', () => {
+  it('entore y engorde para las vacías (y lo de antes)', () => {
+    expect(destinoParaApi({ tipo: 'ENTORE', potreroId: '12' }, lote)).toEqual({ destino: { reentore: true, potreroId: 12 } });
+    expect(destinoParaApi({ tipo: 'ENGORDE', categoriaId: '5' }, lote)).toEqual({ destino: { invernada: true }, categoriaId: 5 });
+    expect(destinoParaApi({ tipo: 'ENGORDE', potreroId: '9', categoriaId: '5' }, lote)).toEqual({ destino: { invernada: true, potreroId: 9 }, categoriaId: 5 });
+  });
+
+  it('las otras decisiones de las vacías (lo de antes)', () => {
     expect(destinoParaApi({ tipo: 'DESPUES' }, lote)).toEqual({ destino: { despues: true } });
     expect(destinoParaApi({ tipo: 'REENTORE' }, lote)).toEqual({ destino: { reentore: true } });
     expect(destinoParaApi({ tipo: 'REENTORE', potreroId: '12' }, lote)).toEqual({ destino: { reentore: true, potreroId: 12 } });
@@ -155,6 +162,62 @@ describe('diagnóstico (puro)', () => {
     expect(destinoParaApi({ tipo: 'SALEN' }, lote)).toEqual({ destino: { salen: true, potreroId: lote.potrero.id } });
     expect(destinoParaApi({ tipo: 'INVERNADA', categoriaId: '5' }, lote)).toEqual({ destino: { invernada: true }, categoriaId: 5 });
     expect(destinoParaApi({ tipo: 'POTRERO', potreroId: '12' }, lote)).toEqual({ destino: { potreroId: 12 } });
+  });
+});
+
+describe('la ecografía con las reglas del campo (R1/R4)', () => {
+  // 50 en P8. Lo cargado: 40 preñadas y 10 vacías.
+  const lote = { loteId: 1, cabezas: 50, potrero: { id: 8 }, categoriaId: 3, sugeridas: { VACIA: 5 } };
+  const d = { prenadas: { sin: '40' }, vacias: '10' };
+
+  it('pregunta quiénes se van solo si hay preñadas y vacías y no quedan sin ecografiar', () => {
+    expect(opcionesEcografia(lote, d)).toMatchObject({ pregunta: true, sinEcografiar: 0, porMes: false });
+    expect(opcionesEcografia(lote, { prenadas: { sin: '30' }, vacias: '10' })).toMatchObject({ pregunta: false, sinEcografiar: 10 });
+    expect(opcionesEcografia(lote, { prenadas: { '2027-10': '20', '2027-11': '20' }, vacias: '10' }).porMes).toBe(true);
+    expect(quienesSeVan(lote, d, {})).toEqual({ prenadas: false, vacias: true });
+    expect(quienesSeVan(lote, d, { seVan: 'PRENADAS' })).toEqual({ prenadas: true, vacias: false });
+    expect(quienesSeVan(lote, d, { seVan: 'DOS' })).toEqual({ prenadas: true, vacias: true });
+    // Con sin ecografiar se van las dos.
+    expect(quienesSeVan(lote, { prenadas: { sin: '30' }, vacias: '10' }, { seVan: 'VACIAS' })).toEqual({ prenadas: true, vacias: true });
+  });
+
+  it('lo que falta: el destino de las vacías (IATF), el potrero de las que se van y que no queden juntas', () => {
+    expect(faltaEcografia(lote, d, {}, { iatf: true })).toMatch(/entore con toros o engorde/);
+    expect(faltaEcografia(lote, d, {})).toBe('Elegí a qué potrero van las vacías');
+    expect(faltaEcografia(lote, d, { potreroVacias: '8' })).toBe('Elegí a qué potrero van las vacías');
+    expect(faltaEcografia(lote, d, { potreroVacias: '9' })).toBeNull();
+    expect(faltaEcografia(lote, d, { seVan: 'DOS', potreroVacias: '9', potreroPrenadas: '9' })).toBe('Las vacías y las preñadas no pueden quedar en el mismo potrero');
+    expect(faltaEcografia(lote, { prenadas: { sin: '30' }, vacias: '10' }, { potreroVacias: '9' })).toBe('Elegí a qué potrero van las preñadas');
+  });
+
+  it('los grupos para la API: engorde con la categoría de invernar; las que se quedan, en el potrero del lote', () => {
+    expect(gruposEcografia(lote, d, { potreroVacias: '9' })).toEqual([
+      { clave: 'sin', destino: { potreroId: 8 } },
+      { clave: 'vacias', destino: { invernada: true, potreroId: 9 }, categoriaId: 5 },
+    ]);
+    // En un entore no hay entore para las vacías, aunque se haya elegido.
+    expect(gruposEcografia(lote, d, { potreroVacias: '9', vaciasA: 'ENTORE' })[1].destino).toEqual({ invernada: true, potreroId: 9 });
+  });
+});
+
+describe('IATF de una parte y destete (R2/R9)', () => {
+  const lote = { cabezas: 103, potrero: { id: 8 } };
+
+  it('con menos inseminadas, un grupo se va: las inseminadas (potreroId) o las sin inseminar (sinInseminarA)', () => {
+    expect(separarIatf(lote, { cabezas: '80' })).toMatchObject({ n: 80, parte: true, sinInseminar: 23, falta: 'Elegí a qué potrero van las 80 inseminadas', api: {} });
+    expect(separarIatf(lote, { cabezas: '80', potreroId: '12' }).api).toEqual({ potreroId: 12 });
+    expect(separarIatf(lote, { cabezas: '80', seVan: 'SIN', potreroId: '12' })).toMatchObject({ falta: null, api: { sinInseminarA: 12 } });
+    expect(separarIatf(lote, { cabezas: '80', seVan: 'SIN' }).falta).toBe('Elegí a qué potrero van las 23 sin inseminar');
+    // Todas: se pueden quedar.
+    expect(separarIatf(lote, { cabezas: '' })).toMatchObject({ n: 103, parte: false, falta: null, api: {} });
+    expect(separarIatf(lote, { cabezas: '200' }).falta).toBe('El lote tiene 103');
+  });
+
+  it('el destete: terneros y vacas no quedan en el mismo potrero', () => {
+    expect(faltaDestete(lote, {})).toBe('Elegí a qué potrero van los terneros');
+    expect(faltaDestete(lote, { potreroId: '8' })).toBe('Los terneros y las vacas no pueden quedar en el mismo potrero');
+    expect(faltaDestete(lote, { potreroId: '12' })).toBeNull();
+    expect(faltaDestete(lote, { potreroId: '12', madresPotreroId: '12' })).toBe('Los terneros y las vacas no pueden quedar en el mismo potrero');
   });
 });
 

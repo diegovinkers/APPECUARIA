@@ -101,16 +101,16 @@ describe('repartir en potreros al empezar', () => {
 describe('IATF por días', () => {
   async function empezar() {
     const base = await preparar();
-    const r = await crear(base.agent, { fecha: '2026-11-15', modalidad: 'IATF', lineas: [{ loteId: base.V.id, cabezas: 30 }] });
+    // Reglas del campo (R2): las inseminadas y las sin inseminar no quedan en
+    // el mismo potrero; acá las 30 inseminadas van a P13.
+    const r = await crear(base.agent, { fecha: '2026-11-15', modalidad: 'IATF', lineas: [{ loteId: base.V.id, cabezas: 30, potreroId: base.P13.id }] });
     return { ...base, proceso: r.proceso };
   }
 
-  it('el primer día: las inseminadas a un lote aparte; el resto queda "sin inseminar"', async () => {
-    const { agent, proceso, P8 } = await empezar();
-    expect(await lineas(agent, P8)).toEqual([
-      ['Lote V · IATF 15/11', 30],
-      ['Lote V', 20],
-    ]);
+  it('el primer día: las inseminadas a un lote aparte (en otro potrero); el resto queda "sin inseminar"', async () => {
+    const { agent, proceso, P8, P13 } = await empezar();
+    expect(await lineas(agent, P8)).toEqual([['Lote V', 20]]);
+    expect(await lineas(agent, P13)).toEqual([['Lote V · IATF 15/11', 30]]);
     expect(await roles(proceso.id)).toEqual([
       ['Lote V', 'SIN_SERVIR'],
       ['Lote V · IATF 15/11', 'VIENTRES'],
@@ -121,34 +121,24 @@ describe('IATF por días', () => {
     expect(f.etapas.map((e) => e.clave)).toEqual(expect.arrayContaining(['INSEMINACION', 'FIN_INSEMINACION']));
   });
 
-  it('otro día: de las sin inseminar, una parte (a otro potrero); y al terminar, las que quedan van al repaso', async () => {
+  it('otro día: de las sin inseminar, una parte (a otro potrero); el repaso con toro ya no se anota', async () => {
     const { agent, proceso, V, P8, P12 } = await empezar();
     await cargar(agent, proceso.id, 'INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id, cabezas: 15, potreroId: P12.id }] });
-    expect(await lineas(agent, P8)).toEqual([
-      ['Lote V · IATF 15/11', 30],
-      ['Lote V', 5],
-    ]);
+    expect(await lineas(agent, P8)).toEqual([['Lote V', 5]]);
     expect(await lineas(agent, P12)).toEqual([['Lote V · IATF 16/11', 15]]);
     expect((await ficha(agent, proceso.id)).embudo.servidas).toBe(45);
 
-    await cargar(agent, proceso.id, 'FIN_INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id, destino: 'REPASO' }] });
-    const f = await ficha(agent, proceso.id);
-    expect(f.embudo.servidas).toBe(50);
-    // Con repaso de toros, el cronograma suma el fin del servicio (90 días
-    // desde el repaso); lo que sigue es lo más temprano: la ecografía de la
-    // primera tanda (motor de sugerencias, 23/11).
-    expect(f.cronograma.find((i) => i.etapa === 'FIN_SERVICIO')).toMatchObject({ fecha: '2027-02-14' });
-    expect(f.proxima).toMatchObject({ etapa: 'DIAGNOSTICO', fecha: '2026-12-15' });
-    expect((await roles(proceso.id)).find(([n]) => n === 'Lote V')[1]).toBe('VIENTRES');
+    // Reglas del campo (R3): si meten un toro antes de la ecografía, se hace por fuera de la app.
+    const r = await cargar(agent, proceso.id, 'FIN_INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id, destino: 'REPASO' }] }, 400);
+    expect(r.errors[0]).toMatch(/repaso con toro ya no se anota/);
+    expect((await ficha(agent, proceso.id)).embudo.servidas).toBe(45);
+    expect((await roles(proceso.id)).find(([n]) => n === 'Lote V')[1]).toBe('SIN_SERVIR');
   });
 
   it('si se inseminan todas las que quedaban, el lote pasa entero a servido', async () => {
     const { agent, proceso, V, P8 } = await empezar();
     await cargar(agent, proceso.id, 'INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id, cabezas: 20 }] });
-    expect(await lineas(agent, P8)).toEqual([
-      ['Lote V · IATF 15/11', 30],
-      ['Lote V', 20],
-    ]);
+    expect(await lineas(agent, P8)).toEqual([['Lote V', 20]]);
     expect((await roles(proceso.id)).find(([n]) => n === 'Lote V')[1]).toBe('VIENTRES');
     // Sin repaso con toros no hay fin del entore: lo que sigue es la ecografía
     // de cada tanda (motor de sugerencias, 23/11).
@@ -165,10 +155,10 @@ describe('IATF por días', () => {
     expect((await ficha(agent, proceso.id)).embudo.servidas).toBe(30);
   });
 
-  it('al terminar, hay que decir qué pasa con las sin inseminar', async () => {
+  it('al terminar, las sin inseminar salen del proceso (es lo único que se anota)', async () => {
     const { agent, proceso, V } = await empezar();
-    const r = await cargar(agent, proceso.id, 'FIN_INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id }] }, 400);
-    expect(r.errors[0]).toMatch(/repaso|salen/i);
+    await cargar(agent, proceso.id, 'FIN_INSEMINACION', { fecha: '2026-11-16', lineas: [{ loteId: V.id }] });
+    expect((await roles(proceso.id)).find(([n]) => n === 'Lote V')[1]).toBe('LIBRES');
   });
 
   it('desde Eventos, una inseminación que empieza un proceso es una IATF', async () => {
@@ -183,11 +173,11 @@ describe('IATF por días', () => {
   });
 });
 
-describe('las vacías: volver a intentar o solo moverlas', () => {
-  async function diagnosticado(decisionVacias) {
+describe('las vacías: entore con toros (de una IATF) o engorde', () => {
+  async function diagnosticado(decisionVacias, modalidad = 'IATF') {
     const base = await preparar();
-    const { proceso } = await crear(base.agent, { fecha: '2026-11-01', modalidad: 'TOROS', lineas: [{ loteId: base.V.id }] });
-    await cargar(base.agent, proceso.id, 'FIN_SERVICIO', { fecha: '2026-11-10' });
+    const { proceso } = await crear(base.agent, { fecha: '2026-11-01', modalidad, lineas: [{ loteId: base.V.id }] });
+    if (modalidad === 'TOROS') await cargar(base.agent, proceso.id, 'FIN_SERVICIO', { fecha: '2026-11-10' });
     const body = {
       fecha: '2026-11-18',
       metodo: 'ECOGRAFIA',
@@ -198,7 +188,7 @@ describe('las vacías: volver a intentar o solo moverlas', () => {
     return { ...base, proceso, r };
   }
 
-  it('volver a intentar: van a otro potrero y quedan para el próximo servicio (primero en la lista)', async () => {
+  it('entore con toros: van a otro potrero y quedan para el próximo servicio (primero en la lista)', async () => {
     const { agent, proceso, P12, r } = await diagnosticado(({ P12: p }) => ({ destino: { reentore: true, potreroId: p.id } }));
     expect(await lineas(agent, P12)).toEqual([['Lote V · vacías', 10]]);
     const pl = (await prisma.procesoLote.findMany({ where: { procesoId: proceso.id }, include: { lote: true } })).find((x) => x.lote.nombre === 'Lote V · vacías');
@@ -209,8 +199,8 @@ describe('las vacías: volver a intentar o solo moverlas', () => {
     expect(lista[0].reentoreIds).toEqual([pl.loteId]);
   });
 
-  it('solo moverlas: van al potrero, pueden cambiar de categoría y salen del proceso', async () => {
-    const { agent, proceso, P12, cat, r } = await diagnosticado(({ P12: p, cat: c }) => ({ destino: { salen: true, potreroId: p.id }, categoriaId: c['Vacas de cría'] ?? c.Vaquillonas }));
+  it('engorde (en un entore, lo único): van al potrero, pueden cambiar de categoría y salen del proceso', async () => {
+    const { agent, proceso, P12, cat, r } = await diagnosticado(({ P12: p, cat: c }) => ({ destino: { invernada: true, potreroId: p.id }, categoriaId: c['Vacas de cría'] ?? c.Vaquillonas }), 'TOROS');
     expect((await lineas(agent, P12)).map(([, n]) => n)).toEqual([10]);
     const pl = (await prisma.procesoLote.findMany({ where: { procesoId: proceso.id }, include: { lote: true } })).find((x) => x.lote.potreroId === P12.id);
     expect(pl.rol).toBe('LIBRES');

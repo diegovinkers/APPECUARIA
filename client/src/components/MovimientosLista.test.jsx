@@ -216,14 +216,43 @@ describe('la tabla', () => {
     expect(opciones).toEqual(expect.arrayContaining(['EG 10.3', 'ELS Feedlot']));
   });
 
-  it('el evento se despliega con sus pasos', async () => {
+  it('tocar una fila abre el detalle: el múltiple, con sus pasos (25/11)', async () => {
     await montar();
-    const ver = [...contenedor.querySelectorAll('button[aria-label="Ver los pasos"]')];
-    act(() => ver[1].click());
-    const filas = filasDelCuerpo();
-    expect(filas).toHaveLength(5);
-    expect(filas[2]).toMatch(/Paso 1.*Lote nuevo.*10\.3 · A.*2 · Pesados/);
-    expect(filas[3]).toMatch(/Paso 2.*Lote entero.*2 · B.*3 · B/);
+    const detalle = () => document.querySelector('[data-testid="detalle-historial"]');
+    expect(detalle()).toBeNull();
+    act(() => contenedor.querySelectorAll('[data-testid="fila-historial"]')[1].click());
+    expect(detalle().querySelector('h2').textContent).toBe('Múltiple · 2 pasos');
+    const pasos = [...detalle().querySelectorAll('[data-testid="paso"]')].map((li) => li.textContent);
+    expect(pasos[0]).toMatch(/Lote nuevo · Terneros.*10\.3 · A → 2 · Pesados50/);
+    expect(pasos[1]).toMatch(/Lote entero · Vacas.*2 · B → 3 · B80/);
+    expect(detalle().textContent).toMatch(/Nota.*Liberar el 2/);
+    // Se cierra con la ✕.
+    act(() => [...detalle().querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Cerrar').click());
+    expect(detalle()).toBeNull();
+  });
+
+  it('el detalle de un movimiento suelto: de dónde a dónde, peso, quién; la palabra Revertir solo ahí (25/11)', async () => {
+    await montar();
+    act(() => contenedor.querySelectorAll('[data-testid="fila-historial"]')[2].click());
+    const detalle = document.querySelector('[data-testid="detalle-historial"]');
+    expect(detalle.textContent).toMatch(/Muerte/);
+    expect(detalle.textContent).toMatch(/−3/);
+    expect(detalle.textContent).toMatch(/De2 · B/);
+    expect(detalle.textContent).toMatch(/Peso450 kg promedio/);
+    expect(detalle.textContent).toMatch(/Lo cargóEncargado/);
+    expect([...detalle.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Revertir')).toBe(true);
+    // En la tabla, solo el ícono (sin la palabra).
+    expect([...contenedor.querySelectorAll('tbody button')].some((b) => b.textContent.trim() === 'Revertir')).toBe(false);
+  });
+
+  it('las columnas: en el celular Fecha, Movimiento (con la categoría debajo), Dónde y Cab. (25/11)', async () => {
+    await montar();
+    const enCelular = [...contenedor.querySelectorAll('thead th')].filter((th) => !/(^|\s)hidden(\s|$)/.test(th.className)).map((th) => th.textContent.replace(/[↕▲▼]/g, '').trim());
+    expect(enCelular).toEqual(['Fecha', 'Movimiento', 'Dónde', 'Cab.', 'Revertir']);
+    const muerte = contenedor.querySelectorAll('[data-testid="fila-historial"]')[2];
+    expect(muerte.querySelector('td:nth-child(2)').textContent).toBe('MuerteVacas');
+    expect(muerte.querySelector('td:nth-child(4)').textContent).toBe('2 →');
+    expect(contenedor.querySelectorAll('[data-testid="fila-historial"]')[1].querySelector('td:nth-child(4)').textContent).toBe('10.3 → 2, 2 → 3');
   });
 
   it('ordena tocando el título de la columna', async () => {
@@ -234,11 +263,13 @@ describe('la tabla', () => {
     expect(filasDelCuerpo()[0]).toMatch(/12\/11\/2026/);
   });
 
-  it('Revertir en la fila del evento revierte el evento entero', async () => {
+  it('el ícono de revertir en la fila del evento revierte el evento entero (sin abrir el detalle)', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     await montar();
-    const [revertir] = [...contenedor.querySelectorAll('button')].filter((b) => b.textContent === 'Revertir');
+    const [revertir] = [...contenedor.querySelectorAll('tbody button[aria-label="Revertir"]')];
+    expect(revertir.textContent).toBe('');
     await act(async () => revertir.click());
+    expect(document.querySelector('[data-testid="detalle-historial"]')).toBeNull();
     expect(api.revertirEvento).toHaveBeenCalledWith(8);
     expect(api.revertirMovimiento).not.toHaveBeenCalled();
     window.confirm.mockRestore();
@@ -259,7 +290,8 @@ describe('la tabla', () => {
   it('sin permiso de revertir no hay columna de acciones', async () => {
     estado.user = { esSuperadmin: false, permisos: ['pecuaria:VER'] };
     await montar();
-    expect([...contenedor.querySelectorAll('button')].some((b) => b.textContent === 'Revertir')).toBe(false);
+    expect(contenedor.querySelector('button[aria-label="Revertir"]')).toBeNull();
+    expect(contenedor.querySelector('thead').textContent).not.toMatch(/Revertir/);
   });
 });
 
@@ -356,13 +388,13 @@ describe('eventos en la lista (20/11)', () => {
     it('cada pestaña pide lo suyo y tiene sus columnas (Eventos: sin Peso ni Destino; Origen es "Dónde")', async () => {
       await montar('/pecuaria/historial', 'movimientos');
       expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'movimientos' }));
-      expect(titulos()).toEqual(['Fecha', 'Movimiento', 'Categoría', 'Cab.', 'Peso', 'Origen', 'Destino', 'Usuario']);
+      expect(titulos()).toEqual(['Fecha', 'Movimiento', 'Categoría', 'Dónde', 'Origen', 'Destino', 'Cab.', 'Peso', 'Usuario', 'Revertir']);
       act(() => root.unmount());
       root = createRoot(contenedor);
       await montar();
       expect(api.getMovimientos).toHaveBeenLastCalledWith(EG.id, expect.objectContaining({ ver: 'eventos' }));
-      expect(titulos()).toEqual(['Fecha', 'Evento', 'Categoría', 'Cab.', 'Dónde', 'Usuario']);
-      // Cada fila tiene tantas celdas como títulos (más la de Anular).
+      expect(titulos()).toEqual(['Fecha', 'Evento', 'Categoría', 'Dónde', 'Cab.', 'Usuario', 'Anular']);
+      // Cada fila tiene tantas celdas como títulos (con la de Anular).
       expect(contenedor.querySelector('tbody tr').children).toHaveLength(7);
     });
 
@@ -396,26 +428,29 @@ describe('eventos en la lista (20/11)', () => {
       expect([...opciones].map((o) => o.textContent)).toEqual(['Todos', 'Pesada', 'Recuento']);
     });
 
-    it('con ?ver=eventos: las cargas como filas, el total de eventos, y se despliegan los lotes', async () => {
+    it('con ?ver=eventos: las cargas como filas (el dato debajo del nombre), el total, y el detalle con sus lotes', async () => {
       await montar();
       const filas = [...contenedor.querySelectorAll('tbody tr')].map(textoCompu);
       expect(filas).toHaveLength(2);
       expect(filas[0]).toMatch(/evento.*Vacuna aftosa · 2 lotes.*Producto: Bivalente/);
       expect(contenedor.querySelector('tfoot').textContent).toMatch(/3 eventos \(uno por lote\)/);
       expect(contenedor.querySelector('tfoot').textContent).not.toMatch(/movimientos/);
-      act(() => contenedor.querySelector('button[aria-label="Ver los pasos"]').click());
-      expect([...contenedor.querySelectorAll('tbody tr')]).toHaveLength(4);
+      act(() => contenedor.querySelector('[data-testid="fila-historial"]').click());
+      const lotes = [...document.querySelectorAll('[data-testid="lote-evento"]')].map((li) => li.textContent);
+      expect(lotes).toHaveLength(2);
+      expect(lotes[0]).toMatch(/10\.3 · A.*Terneros · Producto: Bivalente80/);
     });
 
-    it('"Anular" en la fila anula la carga entera; en un lote desplegado, solo ese', async () => {
+    it('el ícono de la fila anula la carga entera; en el detalle, un lote solo', async () => {
       vi.spyOn(window, 'confirm').mockReturnValue(true);
       await montar();
-      const anular = () => [...contenedor.querySelectorAll('button')].filter((b) => b.textContent === 'Anular');
-      await act(async () => anular()[0].click());
+      await act(async () => contenedor.querySelector('tbody button[aria-label="Anular"]').click());
       expect(api.anularGrupoEventos).toHaveBeenCalledWith('g1');
-      act(() => contenedor.querySelector('button[aria-label="Ver los pasos"]').click());
-      await act(async () => anular()[1].click());
+      act(() => contenedor.querySelector('[data-testid="fila-historial"]').click());
+      await act(async () => document.querySelector('button[aria-label="Anular solo A"]').click());
       expect(api.anularEventoRegistro).toHaveBeenCalledWith(41);
+      // Anulado, el detalle se cierra.
+      expect(document.querySelector('[data-testid="detalle-historial"]')).toBeNull();
     });
   });
 });

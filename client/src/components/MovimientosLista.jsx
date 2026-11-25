@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   anularEventoRegistro,
@@ -15,6 +15,7 @@ import { formatFecha, formatNumero, nombreConSigla, textoVenta } from './pecuari
 import usePuede from '../hooks/usePuede';
 import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
 import PanelFiltros from './PanelFiltros';
+import Icono from './Icono';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const iso = (d) => d.toLocaleDateString('sv-SE');
@@ -45,35 +46,38 @@ const NOMBRE_MODO = {
 };
 const NOMBRE_EVENTO = { MULTIPLE: 'Múltiple', ENTRE_CAMPOS: 'Entre campos', REVERSION: 'Reversión', PROCESO: 'Proceso' };
 
-// [clave, título, solo en la compu]. En el celular la tabla tiene que entrar
-// sin scroll de costado: las "solo en la compu" se esconden y su dato va como
-// segunda línea, chica, debajo del tipo.
+// Las columnas (25/11, recomendación aprobada por Diego: pocas y claras; el
+// resto va al detalle que se abre al tocar la fila).
+// [clave, título, dónde se ve: 'ambos' | 'compu' | 'celular'].
+// Celular: Fecha | Movimiento (debajo, la categoría) | Dónde (potreros) | Cab.
+// Compu:   suma Categoría, Origen y Destino (con el lote), Peso y Usuario.
 const COLUMNAS = [
-  ['fecha', 'Fecha', false],
-  ['tipo', 'Movimiento', false],
-  ['categoria', 'Categoría', true],
-  ['cabezas', 'Cab.', false],
-  ['peso', 'Peso', true],
-  ['origen', 'Origen', true],
-  ['destino', 'Destino', true],
-  ['usuario', 'Usuario', true],
+  ['fecha', 'Fecha', 'ambos'],
+  ['tipo', 'Movimiento', 'ambos'],
+  ['categoria', 'Categoría', 'compu'],
+  ['donde', 'Dónde', 'celular'],
+  ['origen', 'Origen', 'compu'],
+  ['destino', 'Destino', 'compu'],
+  ['cabezas', 'Cab.', 'ambos'],
+  ['peso', 'Peso', 'compu'],
+  ['usuario', 'Usuario', 'compu'],
 ];
 // La pestaña Eventos: un evento no va de un lado a otro, se anota en un lugar.
-// El dato (el peso, el producto, el resultado) va debajo del nombre.
+// Debajo del nombre, el dato que importa (el peso, el producto, el resultado).
 const COLUMNAS_EVENTOS = [
-  ['fecha', 'Fecha', false],
-  ['tipo', 'Evento', false],
-  ['categoria', 'Categoría', true],
-  ['cabezas', 'Cab.', false],
-  ['origen', 'Dónde', true],
-  ['usuario', 'Usuario', true],
+  ['fecha', 'Fecha', 'ambos'],
+  ['tipo', 'Evento', 'ambos'],
+  ['categoria', 'Categoría', 'compu'],
+  ['origen', 'Dónde', 'ambos'],
+  ['cabezas', 'Cab.', 'ambos'],
+  ['usuario', 'Usuario', 'compu'],
 ];
+const VISTA = { ambos: '', compu: 'hidden md:table-cell', celular: 'md:hidden' };
 // Los tipos del filtro de cada pestaña: en Movimientos, los que mueven, entran
 // o salen, más el recuento (que puede cambiar las cabezas); en Eventos, los
 // que se anotan.
 export const tiposDe = (tipos, ver) =>
   tipos.filter((t) => (ver === 'eventos' ? t.efecto === 'REGISTRO' : t.efecto !== 'REGISTRO' || t.clave === 'RECUENTO'));
-const SOLO_COMPU = 'hidden md:table-cell';
 // "13/11/2026" → "13/11" (en el celular, para que entre).
 const fechaCorta = (f) => formatFecha(f).slice(0, 5);
 
@@ -95,6 +99,8 @@ function lado(m, cual, campoId, corto = false) {
   const campo = [m.campo, m.campoOtro].find((c) => c?.id === potrero.campoId);
   return `${cual === 'origen' ? '←' : '→'} ${campo?.nombre ?? 'otro campo'} · ${texto}`;
 }
+
+const tramo = (o, d) => (o !== '—' && d !== '—' ? `${o} → ${d}` : o !== '—' ? `${o} →` : d !== '—' ? `→ ${d}` : '—');
 
 const categoriaDe = (m) =>
   m.categoriaOrigen && m.categoriaDestino && m.categoriaOrigen !== m.categoriaDestino
@@ -142,6 +148,7 @@ function filaEventos(lista, campoId) {
     guia: '',
     venta: null,
     detalle: unicos(eventos.map((x) => x.texto)).join(' · '),
+    donde: unicos(eventos.map((x) => lugarEvento(x, campoId, true))).join(', ') || '—',
   };
 }
 
@@ -192,6 +199,7 @@ export function armarFilas(movimientos, campoId, registros = []) {
         guia: m.guia ?? '',
         // Una venta con precio: el valor en dólares ("USD 11.520 · USD 3,2/kg").
         venta: textoVenta(m),
+        donde: tramo(lado(m, 'origen', campoId, true), lado(m, 'destino', campoId, true)),
       };
     }
     const pasos = [...f.pasos].sort((a, b) => a.id - b.id);
@@ -216,6 +224,7 @@ export function armarFilas(movimientos, campoId, registros = []) {
       nota: f.evento.nota,
       guia: unicos(pasos.map((m) => m.guia)).join(', '),
       venta: null,
+      donde: unicos(pasos.map((m) => tramo(lado(m, 'origen', campoId, true), lado(m, 'destino', campoId, true)))).join(', ') || '—',
     };
   });
   // Movimientos y eventos juntos, del más nuevo al más viejo (por fecha y por
@@ -291,7 +300,8 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
   const [errors, setErrors] = useState([]);
   const [aviso, setAviso] = useState(null);
   const [orden, setOrden] = useState({ col: 'fecha', dir: 'desc' });
-  const [abiertos, setAbiertos] = useState(() => new Set());
+  // La fila tocada: su detalle se abre en un modal.
+  const [detalle, setDetalle] = useState(null);
   const [pagina, setPagina] = useState(1);
 
   const filtrosApi = useMemo(() => {
@@ -334,13 +344,6 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
   const pag = paginar(filas, pagina);
 
   const ordenarPor = (col) => setOrden((o) => ({ col, dir: o.col === col && o.dir === 'desc' ? 'asc' : 'desc' }));
-  const alternar = (clave) =>
-    setAbiertos((a) => {
-      const nuevo = new Set(a);
-      if (nuevo.has(clave)) nuevo.delete(clave);
-      else nuevo.add(clave);
-      return nuevo;
-    });
 
   async function onAnular(fila, evento = null) {
     const texto = evento
@@ -353,6 +356,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
       else await anularGrupoEventos(fila.eventos[0].grupoId);
       setErrors([]);
       setAviso('Anulado.');
+      setDetalle(null);
       await cargar();
     } catch (error) {
       setAviso(null);
@@ -371,6 +375,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
       else await revertirMovimiento(fila.m.id);
       setErrors([]);
       setAviso('Revertido.');
+      setDetalle(null);
       await cargar();
     } catch (error) {
       setAviso(null);
@@ -453,16 +458,16 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
           {hayFiltros
             ? `No hay ${nombreLista} con esos filtros.`
             : deEventos
-              ? 'Todavía no hay eventos. Se anotan con el botón Eventos.'
+              ? 'Todavía no hay eventos. Se anotan con el botón + (Eventos).'
               : 'Todavía no hay movimientos. Se registran con el botón +.'}
         </p>
       ) : (
         // Se achica para que entre en la pantalla; lo que no entra, scrollea adentro.
         <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-movimientos">
-          <table className="w-full border-separate md:min-w-[56rem] border-spacing-0 text-left text-sm">
+          <table className="w-full border-separate border-spacing-0 text-left text-sm md:min-w-[56rem]">
             <thead className="text-xs text-suelo-600">
               <tr>
-                {titulos.map(([col, titulo, soloCompu], i) => (
+                {titulos.map(([col, titulo, vista], i) => (
                   <TituloOrdenable
                     key={col}
                     col={col}
@@ -471,29 +476,28 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                     onOrdenar={ordenarPor}
                     derecha={col === 'cabezas' || col === 'peso'}
                     fija={i === 0}
-                    className={soloCompu ? SOLO_COMPU : ''}
+                    className={VISTA[vista]}
                   />
                 ))}
-                {conRevertir && <th scope="col" className="sticky top-0 z-10 border-b border-suelo-300 bg-suelo-100 px-2 py-1.5" aria-label="Acciones" />}
+                {conRevertir && (
+                  <th scope="col" className="sticky top-0 z-10 w-9 border-b border-suelo-300 bg-suelo-100 px-1 py-1.5">
+                    <span className="sr-only">{deEventos ? 'Anular' : 'Revertir'}</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {pag.filas.map((fila, n) => {
-                const abierto = abiertos.has(fila.clave);
-                return (
-                  <Fragment key={fila.clave}>
-                    <Fila fila={fila} deEventos={deEventos} par={n % 2 === 1} abierto={abierto} onAlternar={() => alternar(fila.clave)} conRevertir={conRevertir} onRevertir={() => onRevertir(fila)} />
-                    {fila.pasos &&
-                      abierto &&
-                      fila.pasos.map((m, n) => (
-                        <Paso key={m.id} m={m} n={n + 1} campoId={lugar} conRevertir={conRevertir} />
-                      ))}
-                    {fila.eventos?.length > 1 &&
-                      abierto &&
-                      fila.eventos.map((e) => <LoteEvento key={e.id} e={e} deEventos={deEventos} campoId={lugar} conRevertir={conRevertir} onAnular={() => onAnular(fila, e)} />)}
-                  </Fragment>
-                );
-              })}
+              {pag.filas.map((fila, n) => (
+                <Fila
+                  key={fila.clave}
+                  fila={fila}
+                  titulos={titulos}
+                  par={n % 2 === 1}
+                  onAbrir={() => setDetalle(fila)}
+                  conRevertir={conRevertir}
+                  onRevertir={() => onRevertir(fila)}
+                />
+              ))}
             </tbody>
             <tfoot className="acostado:hidden">
               <tr>
@@ -521,65 +525,106 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
         </div>
       )}
       {datos && <Paginador {...pag} onCambiar={setPagina} de={filas.length} />}
+      {detalle && (
+        <Detalle
+          fila={detalle}
+          campoId={lugar}
+          conRevertir={conRevertir}
+          onRevertir={() => onRevertir(detalle)}
+          onAnular={(e) => onAnular(detalle, e)}
+          onCerrar={() => setDetalle(null)}
+        />
+      )}
     </div>
   );
 }
 
-function Fila({ fila, deEventos = false, par, abierto, onAlternar, conRevertir, onRevertir }) {
+// Una fila: lo justo (25/11). Tocarla abre el detalle; el ícono de la
+// derecha revierte (o anula) sin abrirlo.
+function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
   const colorCabezas = fila.signo === '+' ? 'text-emerald-800' : fila.signo === '−' ? 'text-red-700' : '';
   // Filas alternadas, como en Excel.
   const fondo = par ? '[&>td]:bg-suelo-50' : '[&>td]:bg-superficie';
-  return (
-    <tr className={`${fondo} ${fila.revertido ? 'text-suelo-400' : ''}`}>
-      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap font-medium`}>
-        {fila.pasos || fila.eventos?.length > 1 ? (
-          <button type="button" onClick={onAlternar} aria-expanded={abierto} aria-label={abierto ? 'Cerrar los pasos' : 'Ver los pasos'} className="mr-1 text-campo-600">
-            {abierto ? '▾' : '▸'}
-          </button>
-        ) : null}
+  // Debajo del tipo: en un evento, el dato (o la categoría); en un movimiento, la categoría.
+  const debajo = fila.eventos ? fila.detalle || fila.categoria : fila.categoria;
+  const celdas = {
+    fecha: (
+      <>
         <span className="md:hidden">{fechaCorta(fila.fecha)}</span>
         <span className="hidden md:inline">{formatFecha(fila.fecha)}</span>
-      </td>
-      <td className={celda}>
+      </>
+    ),
+    tipo: (
+      <>
         {fila.eventos && <span className="mr-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
-        <span className={fila.eventos && fila.revertido ? 'line-through' : ''}>{fila.tipo}</span>
+        <span className={`font-medium ${fila.eventos && fila.revertido ? 'line-through' : ''}`}>{fila.tipo}</span>
         {fila.revertido && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">{fila.eventos ? 'anulado' : 'revertido'}</span>}
-        {fila.detalle && <span className="block text-xs text-suelo-600">{fila.detalle}</span>}
-        {/* En el celular: categoría, de dónde a dónde, peso y quién, debajo del tipo. */}
-        <span className="block text-xs text-suelo-600 md:hidden">
-          {fila.categoria}
-          {fila.eventos
-            ? ` · ${fila.origenCorto}`
-            : fila.origenCorto !== '—' || fila.destinoCorto !== '—'
-              ? ` · ${fila.origenCorto} → ${fila.destinoCorto}`
-              : ''}
-          {fila.peso ? ` · ${formatNumero(fila.peso)} kg` : ''}
-          {fila.usuario ? ` · ${fila.usuario}` : ''}
-          {fila.venta ? ` · ${fila.venta}` : ''}
-        </span>
-        {/* En la compu, el valor de la venta va como detalle debajo del tipo. */}
-        {fila.venta && (
-          <span className="hidden text-xs text-suelo-600 md:block" data-testid="venta">
-            Venta: {fila.venta}
-          </span>
-        )}
-        {fila.guia && <span className="block text-xs text-suelo-500">Guía {fila.guia}</span>}
-        {fila.nota && <span className="block text-xs text-suelo-500">{fila.nota}</span>}
-      </td>
-      <td className={`${celda} ${SOLO_COMPU}`}>{fila.categoria}</td>
-      <td className={`${celda} text-right font-semibold tabular-nums ${colorCabezas}`}>
+        {debajo && debajo !== '—' && <span className="block truncate text-xs text-suelo-600">{debajo}</span>}
+      </>
+    ),
+    categoria: fila.categoria,
+    donde: fila.donde,
+    origen: fila.eventos ? (
+      <>
+        <span className="md:hidden">{fila.origenCorto}</span>
+        <span className="hidden md:inline">{fila.origen}</span>
+      </>
+    ) : (
+      fila.origen
+    ),
+    destino: fila.destino,
+    cabezas: (
+      <span className={`font-semibold ${colorCabezas}`}>
         {fila.signo}
         {formatNumero(fila.cabezas)}
-      </td>
-      {!deEventos && <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{fila.peso ? `${formatNumero(fila.peso)} kg` : '—'}</td>}
-      <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteOrigen ? <LadoConLink m={fila.m} texto={fila.origen} lote={fila.m.loteOrigen} /> : fila.origen}</td>
-      {!deEventos && <td className={`${celda} ${SOLO_COMPU}`}>{fila.m?.loteDestino ? <LadoConLink m={fila.m} texto={fila.destino} lote={fila.m.loteDestino} /> : fila.destino}</td>}
-      <td className={`${celda} ${SOLO_COMPU} whitespace-nowrap text-suelo-600`}>{fila.usuario}</td>
+      </span>
+    ),
+    peso: fila.peso ? `${formatNumero(fila.peso)} kg` : '—',
+    usuario: <span className="text-suelo-600">{fila.usuario}</span>,
+  };
+  return (
+    <tr
+      className={`${fondo} cursor-pointer hover:[&>td]:bg-campo-50 ${fila.revertido ? 'text-suelo-400' : ''}`}
+      onClick={onAbrir}
+      data-testid="fila-historial"
+    >
+      {titulos.map(([col, , vista], i) => (
+        <td
+          key={col}
+          className={`${celda} ${VISTA[vista]} ${i === 0 ? 'sticky left-0 z-[5] whitespace-nowrap font-medium' : ''} ${col === 'cabezas' || col === 'peso' ? 'text-right tabular-nums' : ''} ${col === 'usuario' ? 'whitespace-nowrap' : ''}`}
+        >
+          {col === 'tipo' ? (
+            // El tipo es el botón (para el teclado y los lectores de pantalla).
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAbrir();
+              }}
+              className="block w-full min-w-0 text-left"
+              aria-label={`Ver el detalle: ${fila.tipo}`}
+            >
+              {celdas.tipo}
+            </button>
+          ) : (
+            celdas[col]
+          )}
+        </td>
+      ))}
       {conRevertir && (
-        <td className={`${celda} whitespace-nowrap`}>
+        <td className={`${celda} w-9 px-1 text-center align-middle`}>
           {fila.puedeRevertir && (
-            <button type="button" onClick={onRevertir} className="text-xs text-red-700 hover:underline">
-              {fila.eventos ? 'Anular' : 'Revertir'}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRevertir();
+              }}
+              aria-label={fila.eventos ? 'Anular' : 'Revertir'}
+              title={fila.eventos ? 'Anular' : 'Revertir'}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-700 hover:bg-red-500/10"
+            >
+              <Icono nombre={fila.eventos ? 'anular' : 'deshacer'} className="h-4 w-4" />
             </button>
           )}
         </td>
@@ -588,8 +633,9 @@ function Fila({ fila, deEventos = false, par, abierto, onAlternar, conRevertir, 
   );
 }
 
-// El texto del lado, con el nombre del lote como link a su historial.
+// El potrero y el lote de un lado, con el lote como link a su historial.
 function LadoConLink({ texto, lote }) {
+  if (!lote) return texto;
   const i = texto.lastIndexOf(lote.nombre);
   if (i < 0) return texto;
   return (
@@ -602,55 +648,156 @@ function LadoConLink({ texto, lote }) {
   );
 }
 
-function Paso({ m, n, campoId, conRevertir }) {
+function Dato({ titulo, children }) {
+  if (children == null || children === '' || children === '—') return null;
   return (
-    <tr className="text-suelo-700 [&>td]:bg-campo-50">
-      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap pl-7 text-xs text-suelo-500`}>Paso {n}</td>
-      <td className={celda}>
-        {tipoDe(m)}
-        <span className="block text-xs text-suelo-600 md:hidden">
-          {categoriaDe(m)} · {lado(m, 'origen', campoId, true)} → {lado(m, 'destino', campoId, true)}
-        </span>
-      </td>
-      <td className={`${celda} ${SOLO_COMPU}`}>{categoriaDe(m)}</td>
-      <td className={`${celda} text-right tabular-nums`}>{formatNumero(m.cabezas)}</td>
-      <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{m.pesoPromedioKg ? `${formatNumero(m.pesoPromedioKg)} kg` : '—'}</td>
-      <td className={`${celda} ${SOLO_COMPU}`}>{lado(m, 'origen', campoId)}</td>
-      <td className={`${celda} ${SOLO_COMPU}`}>{lado(m, 'destino', campoId)}</td>
-      <td className={`${celda} ${SOLO_COMPU}`} />
-      {conRevertir && <td className={celda} />}
-    </tr>
+    <div className="flex gap-3 py-1.5">
+      <dt className="w-24 shrink-0 text-suelo-500">{titulo}</dt>
+      <dd className="min-w-0 flex-1 text-suelo-900">{children}</dd>
+    </div>
   );
 }
 
-// Un lote de una carga de eventos (al desplegarla).
-function LoteEvento({ e, deEventos = false, campoId, conRevertir, onAnular }) {
+const fechaHora = (iso) => (iso ? new Date(iso).toLocaleString('es-UY', { dateStyle: 'short', timeStyle: 'short' }) : '');
+
+// El detalle de una fila (25/11): todo lo que no entra en la tabla, grande y
+// a la vista. Abajo, revertir o anular con la palabra (y pide confirmación).
+// En el celular sube desde abajo; en la compu es una ventana al medio.
+export function Detalle({ fila, campoId, conRevertir, onRevertir, onAnular, onCerrar }) {
+  useEffect(() => {
+    const tecla = (e) => e.key === 'Escape' && onCerrar();
+    document.addEventListener('keydown', tecla);
+    return () => document.removeEventListener('keydown', tecla);
+  }, [onCerrar]);
+  const { m } = fila;
+  const colorCabezas = fila.signo === '+' ? 'text-emerald-800' : fila.signo === '−' ? 'text-red-700' : '';
+  const accion = fila.eventos ? 'Anular' : 'Revertir';
   return (
-    <tr className={`text-suelo-700 [&>td]:bg-sky-50 ${e.anulado ? 'text-suelo-400' : ''}`}>
-      <td className={`${celda} sticky left-0 z-[5] whitespace-nowrap pl-7 text-xs text-suelo-500`}>Lote</td>
-      <td className={celda}>
-        <span className={e.anulado ? 'line-through' : ''}>{e.lote?.nombre ?? e.potrero?.nombre ?? '—'}</span>
-        {e.anulado && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">anulado</span>}
-        <span className="block text-xs text-suelo-600">
-          {e.texto || e.categoria}
-          <span className="md:hidden"> · {lugarEvento(e, campoId, true)}</span>
-        </span>
-      </td>
-      <td className={`${celda} ${SOLO_COMPU}`}>{e.categoria}</td>
-      <td className={`${celda} text-right tabular-nums`}>{formatNumero(e.cabezas)}</td>
-      {!deEventos && <td className={`${celda} ${SOLO_COMPU} text-right tabular-nums`}>{e.tipo.clave === 'PESADA' && e.datos?.pesoPromedioKg ? `${formatNumero(e.datos.pesoPromedioKg)} kg` : '—'}</td>}
-      <td className={`${celda} ${SOLO_COMPU}`}>{lugarEvento(e, campoId)}</td>
-      {!deEventos && <td className={`${celda} ${SOLO_COMPU}`}>—</td>}
-      <td className={`${celda} ${SOLO_COMPU}`} />
-      {conRevertir && (
-        <td className={`${celda} whitespace-nowrap`}>
-          {e.puedeAnular && (
-            <button type="button" onClick={onAnular} className="text-xs text-red-700 hover:underline">
-              Anular
-            </button>
+    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center">
+      <button type="button" aria-label="Cerrar" onClick={onCerrar} className="absolute inset-0 bg-black/40" />
+      <div
+        role="dialog"
+        aria-label={`Detalle: ${fila.tipo}`}
+        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-superficie px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-lg lg:rounded-2xl lg:pb-5"
+        data-testid="detalle-historial"
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-suelo-300 lg:hidden" aria-hidden="true" />
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-suelo-500">
+              {formatFecha(fila.fecha)}
+              {fila.eventos && <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
+            </p>
+            <h2 className={`text-lg font-bold leading-tight ${fila.revertido ? 'text-suelo-400 line-through' : ''}`}>{fila.tipo}</h2>
+            {fila.revertido && <p className="mt-0.5 text-sm font-semibold text-red-700">{fila.eventos ? 'Anulado' : 'Revertido'}</p>}
+          </div>
+          <p className={`shrink-0 text-right leading-tight ${colorCabezas}`}>
+            <span className="block text-3xl font-bold tabular-nums">
+              {fila.signo}
+              {formatNumero(fila.cabezas)}
+            </span>
+            <span className="text-xs text-suelo-500">cabezas</span>
+          </p>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="-mr-1 rounded-md p-1 text-suelo-500 hover:bg-suelo-200/70">
+            <Icono nombre="cerrar" />
+          </button>
+        </div>
+
+        <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1 text-sm">
+          <dl className="divide-y divide-suelo-200 border-y border-suelo-200">
+            <Dato titulo="Categoría">{fila.categoria}</Dato>
+            {m && (
+              <>
+                <Dato titulo="De">{m.potreroOrigen ? <LadoConLink texto={lado(m, 'origen', campoId)} lote={m.loteOrigen} /> : null}</Dato>
+                <Dato titulo="A">{m.potreroDestino ? <LadoConLink texto={lado(m, 'destino', campoId)} lote={m.loteDestino} /> : null}</Dato>
+                <Dato titulo="Peso">{m.pesoPromedioKg ? `${formatNumero(m.pesoPromedioKg)} kg promedio` : null}</Dato>
+                <Dato titulo="Causa">{m.causa?.nombre}</Dato>
+              </>
+            )}
+            {fila.eventos && <Dato titulo="Dato">{fila.detalle}</Dato>}
+            <Dato titulo="Venta">{fila.venta}</Dato>
+            <Dato titulo="Guía">{fila.guia}</Dato>
+            <Dato titulo="Nota">{fila.nota}</Dato>
+            <Dato titulo="Lo cargó">
+              {fila.usuario ? `${fila.usuario}${fila.creadoEn ? ` · ${fechaHora(fila.creadoEn)}` : ''}` : null}
+            </Dato>
+          </dl>
+
+          {fila.pasos && (
+            <section className="mt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-suelo-500">
+                {fila.pasos.length === 1 ? 'El movimiento' : `Los ${fila.pasos.length} pasos`}
+              </h3>
+              <ol className="mt-1 divide-y divide-suelo-200 rounded-lg border border-suelo-200">
+                {fila.pasos.map((p, n) => (
+                  <li key={p.id} className="flex items-start gap-2 px-2.5 py-2" data-testid="paso">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-campo-100 text-[11px] font-bold text-campo-800">{n + 1}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">
+                        {tipoDe(p)} · {categoriaDe(p)}
+                      </span>
+                      <span className="block text-xs text-suelo-600">
+                        {p.potreroOrigen ? <LadoConLink texto={lado(p, 'origen', campoId)} lote={p.loteOrigen} /> : '—'} →{' '}
+                        {p.potreroDestino ? <LadoConLink texto={lado(p, 'destino', campoId)} lote={p.loteDestino} /> : '—'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums">{formatNumero(p.cabezas)}</span>
+                  </li>
+                ))}
+              </ol>
+            </section>
           )}
-        </td>
-      )}
-    </tr>
+
+          {fila.eventos && (
+            <section className="mt-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-suelo-500">
+                {fila.eventos.length === 1 ? 'Dónde' : `En ${fila.eventos.length} lotes`}
+              </h3>
+              <ul className="mt-1 divide-y divide-suelo-200 rounded-lg border border-suelo-200">
+                {fila.eventos.map((e) => (
+                  <li key={e.id} className={`flex items-start gap-2 px-2.5 py-2 ${e.anulado ? 'text-suelo-400' : ''}`} data-testid="lote-evento">
+                    <span className="min-w-0 flex-1">
+                      <span className={`block font-medium ${e.anulado ? 'line-through' : ''}`}>
+                        {e.lote ? <LadoConLink texto={lugarEvento(e, campoId)} lote={e.lote} /> : lugarEvento(e, campoId)}
+                      </span>
+                      <span className="block text-xs text-suelo-600">
+                        {e.categoria}
+                        {e.texto ? ` · ${e.texto}` : ''}
+                        {e.anulado ? ' · anulado' : ''}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums">{formatNumero(e.cabezas)}</span>
+                    {conRevertir && fila.eventos.length > 1 && e.puedeAnular && (
+                      <button
+                        type="button"
+                        onClick={() => onAnular(e)}
+                        aria-label={`Anular solo ${e.lote?.nombre ?? 'este lote'}`}
+                        title="Anular solo este lote"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-red-700 hover:bg-red-500/10"
+                      >
+                        <Icono nombre="anular" className="h-4 w-4" />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        {conRevertir && fila.puedeRevertir && (
+          <button
+            type="button"
+            onClick={onRevertir}
+            className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-600 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-500/10"
+          >
+            <Icono nombre={fila.eventos ? 'anular' : 'deshacer'} className="h-4 w-4" />
+            {accion}
+            {fila.pasos?.length > 1 ? ' todo' : ''}
+            {fila.eventos?.length > 1 ? ` (los ${fila.eventos.length} lotes)` : ''}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

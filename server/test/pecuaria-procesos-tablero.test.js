@@ -41,6 +41,18 @@ describe('gruposDelProceso (puro)', () => {
     expect(grupos.find((g) => g.tipo === 'PARIDAS')).toMatchObject({ terneros: 40, proxima: { etapa: 'DESTETE' } });
   });
 
+  it('el diagnóstico a medias va en los grupos en servicio (las sin ecografiar), no en los demás', () => {
+    const grupos = gruposDelProceso({
+      modalidad: 'IATF',
+      fechaInicio: '2025-08-01',
+      items,
+      aMedias: 'Diagnóstico a medias: faltan 23',
+      lotes: [l(1, 'VIENTRES', 23, 'P9'), l(2, 'PRENADAS', 60, 'P8')],
+    });
+    expect(grupos.find((g) => g.tipo === 'VIENTRES').aMedias).toBe('Diagnóstico a medias: faltan 23');
+    expect(grupos.find((g) => g.tipo === 'PRENADAS').aMedias).toBeUndefined();
+  });
+
   it('una IATF: los vientres en Inseminación; lo que pasa al toro y las vacías para volver a servir, en Entore con el color', () => {
     const lotes = [l(1, 'VIENTRES', 150, 'P1'), l(2, 'VIENTRES', 50, 'P1'), l(3, 'SIN_SERVIR', 7, 'P1'), l(4, 'VACIAS', 30, 'P8', 'REENTORE'), l(5, 'VACIAS', 4, 'P8')];
     const grupos = gruposDelProceso({ modalidad: 'IATF', alToro: { repasoTodo: false, loteIds: new Set([2]) }, fechaInicio: '2025-08-01', lotes });

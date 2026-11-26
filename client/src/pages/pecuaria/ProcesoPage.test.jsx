@@ -339,3 +339,37 @@ describe('las reglas del campo en la ficha (25/11)', () => {
     expect(contenedor.querySelector('[aria-label="Por potrero"]').textContent).toBe('P12: 40 vacas (25 paridas · 15 preñadas) · 24 terneros');
   });
 });
+
+describe('transferencia de embriones en la ficha (26/11)', () => {
+  const TE = {
+    ...FICHA,
+    proceso: { ...FICHA.proceso, nombre: 'Embriones 2026-27 · Vacas', datos: { modalidad: 'TE' } },
+    estados: { ...FICHA.estados, VACIAS: 'Vacía' },
+    embudo: { ...FICHA.embudo, servidas: 80, embriones: 82, noAptas: 23 },
+    lotes: [
+      { loteId: 1, nombre: 'Vacas · TE 01/12', potrero: { id: 8, nombre: 'P8' }, categoria: 'Vacas de cría', cabezas: 80, rol: 'VIENTRES', activo: true },
+      { loteId: 3, nombre: 'Vacas', potrero: { id: 1, nombre: 'P1' }, categoria: 'Vacas de cría', cabezas: 23, rol: 'VACIAS', destino: 'REENTORE', activo: true },
+    ],
+    paraEnganchar: [{ loteId: 3, lote: 'Vacas', cabezas: 23 }],
+  };
+
+  it('el tipo, las transferidas con los embriones y las no aptas, y las que van al toro', async () => {
+    await montar(TE);
+    expect(contenedor.textContent).toContain('Embriones · Estancia Ejemplo');
+    const embudo = contenedor.querySelector('[aria-label="Embudo"]');
+    expect(embudo.textContent).toContain('Transferidas');
+    expect(embudo.textContent).toContain('82 embriones · 23 no aptas');
+    expect(contenedor.querySelector('[aria-label="Stock del proceso"] [data-rol="VACIAS"]').textContent).toContain('Vacía o no apta (al toro)');
+    const aviso = contenedor.querySelector('[data-testid="para-enganchar"]');
+    expect(aviso.textContent).toContain('23 van al toro, no aptas o vacías (Vacas)');
+    expect(aviso.querySelector('a').textContent).toBe('Empezar el entore');
+    expect(aviso.querySelector('a').getAttribute('href')).toBe('/pecuaria/procesos/nuevo?desde=7');
+  });
+
+  it('una transferencia no ofrece los toros en Más opciones', async () => {
+    await montar(TE);
+    await abrirMenu();
+    expect(contenedor.querySelector('a[href="/pecuaria/procesos/7/etapa/TOROS"]')).toBeNull();
+    expect(contenedor.querySelector('a[href="/pecuaria/procesos/7/tanda"]')).not.toBeNull();
+  });
+});

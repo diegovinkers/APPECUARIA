@@ -67,10 +67,10 @@ const cambiar = async (el, valor) => {
 const campo = (aria) => contenedor.querySelector(`[aria-label="${aria}"]`);
 
 describe('nuevo proceso', () => {
-  it('solo entore con toros o IATF', async () => {
+  it('entore con toros, IATF o transferencia de embriones (26/11)', async () => {
     await montar();
     const opciones = [...contenedor.querySelectorAll('section[aria-label="Qué"] button')].map((b) => b.querySelector('span').textContent);
-    expect(opciones).toEqual(['Entore con toros', 'IATF']);
+    expect(opciones).toEqual(['Entore con toros', 'IATF', 'Transferencia de embriones']);
   });
 
   it('las vacías para volver a servir, primero y marcadas', async () => {
@@ -285,5 +285,63 @@ describe('procesos enganchados (fase 8)', () => {
     expect(filas[0].textContent).toContain('Lote R');
     expect(filas[0].textContent).toContain('para volver a servir');
     expect(filas[0].querySelector('input[type="checkbox"]').checked).toBe(true);
+  });
+});
+
+describe('transferencia de embriones (26/11)', () => {
+  async function hastaDatos() {
+    await montar();
+    await click(boton('Transferencia de embriones'));
+    await click(boton('Seguir'));
+    await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[1]); // Lote V, 50 en P8
+    await click(boton('Seguir'));
+  }
+  const input = (texto) => [...contenedor.querySelectorAll('label')].find((l) => l.textContent.startsWith(texto)).querySelector('input');
+
+  it('pregunta a cuántas se les transfirió y los embriones usados; las no aptas van al toro', async () => {
+    await hastaDatos();
+    expect(contenedor.textContent).toContain('Fecha de la transferencia');
+    expect(contenedor.textContent).toContain('¿A cuántas se les transfirió? (Lote V: en P8 hay 50)');
+    expect(contenedor.textContent).toContain('Las que no (no aptas) van al toro');
+    expect(contenedor.querySelector('[data-testid="embriones"]')).not.toBeNull();
+    await cambiar(input('¿A cuántas se les transfirió?'), '40');
+    expect(contenedor.textContent).toContain('1 lote · 40 a transferir');
+    expect(input('¿Cuántos embriones se usaron?').placeholder).toBe('40');
+    await cambiar(input('¿Cuántos embriones se usaron?'), '42');
+    await cambiar(input('¿De qué embriones?'), 'Wagyu, partida 3');
+    expect(contenedor.textContent).toContain('"Embriones 2026-27 · …"');
+    await click(boton('Seguir'));
+
+    // Dónde: las transferidas y las no aptas, en potreros distintos.
+    expect(contenedor.querySelector('[data-donde] legend').textContent).toBe('Lote V: en P8 hay 50 · se transfieren 40');
+    const opciones = [...contenedor.querySelectorAll('[aria-label="Lote V: qué grupo se va"] button')].map((b) => b.querySelector('span').textContent);
+    expect(opciones).toEqual(['Las 40 transferidas a…', 'Las 10 no aptas a…']);
+    expect(contenedor.textContent).toContain('Las no aptas van al toro');
+    expect(boton('Revisar').disabled).toBe(true);
+    await click(boton('Las 10 no aptas a…'));
+    await cambiar(campo('Lote V: a qué potrero'), '13');
+    await click(boton('Revisar'));
+    expect(api.vistaPreviaProceso).toHaveBeenCalledWith(
+      expect.objectContaining({ modalidad: 'TE', embriones: { usados: 42, detalle: 'Wagyu, partida 3' }, lineas: [{ loteId: 1, cabezas: 40, sinInseminarA: 13 }] }),
+    );
+  });
+
+  it('sin decir cuántos embriones, no los manda (el servidor cuenta uno por transferida)', async () => {
+    await hastaDatos();
+    await click(boton('Seguir'));
+    await click(boton('Revisar'));
+    const cuerpo = api.vistaPreviaProceso.mock.calls[0][0];
+    expect(cuerpo.modalidad).toBe('TE');
+    expect(cuerpo.embriones).toBeUndefined();
+    expect(cuerpo.lineas).toEqual([{ loteId: 1 }]);
+  });
+
+  it('las vacías o no aptas para volver a servir no entran a otra transferencia (R5)', async () => {
+    await montar();
+    await click(boton('Transferencia de embriones'));
+    await click(boton('Seguir'));
+    await click(contenedor.querySelectorAll('section[aria-label="A quién"] input[type="checkbox"]')[0]); // Lote R
+    expect(contenedor.textContent).toContain('entran a un entore con toros');
+    expect(boton('Seguir').disabled).toBe(true);
   });
 });

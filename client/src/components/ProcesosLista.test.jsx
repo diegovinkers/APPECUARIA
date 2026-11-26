@@ -114,6 +114,12 @@ describe('la lista de procesos', () => {
     expect(a.querySelector('[data-atrasada="true"]')).toBeNull();
   });
 
+  it('el diagnóstico a medias reemplaza a la etapa (reglas del campo)', async () => {
+    api.getProcesos.mockResolvedValue({ data: [{ ...PROCESOS[1], aMedias: { lotes: 1, cabezas: 23, texto: 'Diagnóstico a medias: faltan 23' } }] });
+    await montar();
+    expect(filas()[0].textContent).toContain('Inseminación · Diagnóstico a medias: faltan 23');
+  });
+
   it('con todas las estancias, la sigla adelante', async () => {
     await montar({ todas: true });
     expect(api.getProcesosTodas).toHaveBeenCalled();

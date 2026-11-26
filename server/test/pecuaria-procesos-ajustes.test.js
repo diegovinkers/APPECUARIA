@@ -32,7 +32,7 @@ describe('modalidad', () => {
   it('la inseminación "común" ya no se ofrece: solo entore o IATF', async () => {
     const { agent, V } = await preparar();
     const r = await crear(agent, { fecha: '2026-11-15', modalidad: 'IA', lineas: [{ loteId: V.id }] }, 400);
-    expect(r.errors[0]).toMatch(/entore con toros o IATF/);
+    expect(r.errors[0]).toMatch(/entore con toros, IATF o transferencia de embriones/);
   });
 });
 

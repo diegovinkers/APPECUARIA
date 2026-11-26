@@ -17,6 +17,7 @@
 //   DESCARTADA el usuario la descartó (no va a pasar en este proceso)
 import { embudo, etapaActual } from './procesos.calculos.js';
 import { PLAZOS_INICIALES, fechaPlazo } from './procesos.plazos.js';
+import { esEmbriones, etapaParicion, porTandas } from './procesos.modalidad.js';
 
 export const ESTADOS_SUGERENCIA = ['PENDIENTE', 'PROXIMA', 'HOY', 'ATRASADA', 'HECHA', 'DESCARTADA'];
 const ABIERTOS = new Set(['PENDIENTE', 'PROXIMA', 'HOY', 'ATRASADA']);
@@ -104,13 +105,16 @@ function tandasDeServicio(a) {
 export function sugerencias({ proceso = {}, anclas = [], lotes = [], plazos = PLAZOS_INICIALES, hoy, descartadas = [], siguientes = [] }) {
   const p = { ...PLAZOS_INICIALES, ...plazos };
   const a = anclas.filter((x) => !x.anulado);
-  const iatf = ['IATF', 'IA'].includes(proceso.modalidad);
+  // La transferencia de embriones va como la IATF (por tandas), con su plazo de parición.
+  const iatf = porTandas(proceso.modalidad);
+  const embriones = esEmbriones(proceso.modalidad);
+  const gestacion = p[etapaParicion(proceso.modalidad)];
   const tandas = tandasDeServicio(a);
   const inicio = minimo(de(a, 'INICIO').map((x) => x.fecha)) ?? tandas[0]?.fecha ?? null;
   const items = [];
   const agregar = (item) => items.push({ avisoDias: p[item.etapa]?.avisoDias ?? 7, nombre: p[item.etapa]?.nombre ?? item.etapa, ...item });
 
-  if (inicio) items.push({ clave: 'INICIO', etapa: 'INICIO', nombre: iatf ? 'Inicio de la inseminación' : 'Inicio del entore', fecha: inicio, real: inicio, avisoDias: 0 });
+  if (inicio) items.push({ clave: 'INICIO', etapa: 'INICIO', nombre: embriones ? 'Transferencia de embriones' : iatf ? 'Inicio de la inseminación' : 'Inicio del entore', fecha: inicio, real: inicio, avisoDias: 0 });
 
   // Servicio y ecografía.
   let finServicio = null;
@@ -160,14 +164,16 @@ export function sugerencias({ proceso = {}, anclas = [], lotes = [], plazos = PL
 
   // Parición: una ventana. Hecha cuando ya no quedan preñadas por parir.
   if (inicio) {
-    const desde = fechaPlazo(minimo(tandas.map((t) => t.fecha)) ?? inicio, p.PARICION);
-    const hasta = fechaPlazo(iatf ? (maximo([...tandas.map((t) => t.fecha), finServicio]) ?? inicio) : finServicio, p.PARICION);
+    const desde = fechaPlazo(minimo(tandas.map((t) => t.fecha)) ?? inicio, gestacion);
+    const hasta = fechaPlazo(iatf ? (maximo([...tandas.map((t) => t.fecha), finServicio]) ?? inicio) : finServicio, gestacion);
     const partos = de(a, 'PARICION');
     const terminada = partos.length > 0 && ['CRIA', 'TERMINADO'].includes(etapaActual(a, lotes));
     const paridas = partos.reduce((s, x) => s + num(x.datos?.madres), 0);
     agregar({
       clave: 'PARICION',
       etapa: 'PARICION',
+      nombre: p.PARICION.nombre,
+      avisoDias: gestacion.avisoDias,
       fecha: desde,
       // Una ventana de un solo día (una IATF de una tanda) es una fecha.
       ...(hasta !== desde && { hasta }),

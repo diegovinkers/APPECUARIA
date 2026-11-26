@@ -21,7 +21,7 @@ const quiet = () => {};
 // Lo que crea el seed además de los usuarios: módulos y permisos, roles de
 // ejemplo (4 de Pecuaria + 6 de ejemplo) y los catálogos de Pecuaria
 // (categorías con "Terneros/as", del 24/11; parámetros con FEEDLOT_CM_COMEDERO, del 25/11).
-const CATALOGOS = { modulos: 8, permisos: 40, roles: 10, usosSuelo: 12, categorias: 12, parametros: 6, tiposMovimiento: 29, causas: 5 };
+const CATALOGOS = { modulos: 8, permisos: 40, roles: 10, usosSuelo: 12, categorias: 12, parametros: 6, tiposMovimiento: 30, causas: 5 };
 
 describe('seed', () => {
   it('crea módulos, todos los permisos, roles, el superadmin y los usuarios de ejemplo', async () => {

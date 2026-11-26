@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { anularCargaProceso, anularProceso, asociarSueltos, cerrarProceso, descartarSugerencia, editarProceso, getProceso, getSueltos } from '../../api/pecuaria';
-import { NOMBRE_ETAPA } from '../../components/procesos';
+import { NOMBRE_ETAPA, esEmbriones, porTandas } from '../../components/procesos';
 import { getErrorMessages } from '../../api/axios';
 import usePuede from '../../hooks/usePuede';
 import { ErrorList, Notice, inputClass } from '../../components/ui';
@@ -173,7 +173,9 @@ export default function ProcesoPage() {
     enlaces = { van: [], vienen: [] },
     porPotrero = [],
   } = datos;
-  const esEntore = !['IATF', 'IA'].includes(proceso.datos?.modalidad);
+  const esEntore = !porTandas(proceso.datos?.modalidad);
+  // Transferencia de embriones (26/11): las no aptas van al toro con las vacías.
+  const embriones = esEmbriones(proceso.datos?.modalidad);
   const abierto = proceso.estado === 'ABIERTO';
   const registra = abierto && puedo('pecuaria:CREAR');
   const conAnular = puedo('pecuaria:ANULAR');
@@ -317,10 +319,10 @@ export default function ProcesoPage() {
       {paraEnganchar.length > 0 && puedo('pecuaria:CREAR') && (
         <p className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-campo-500/10 px-3 py-2 text-sm text-campo-900" data-testid="para-enganchar">
           <span>
-            {formatNumero(paraEnganchar.reduce((s, l) => s + l.cabezas, 0))} vacías para volver a servir ({paraEnganchar.map((l) => l.lote).join(', ')}).
+            {formatNumero(paraEnganchar.reduce((s, l) => s + l.cabezas, 0))} {embriones ? 'van al toro, no aptas o vacías' : 'vacías para volver a servir'} ({paraEnganchar.map((l) => l.lote).join(', ')}).
           </span>
           <Link to={`/pecuaria/procesos/nuevo?desde=${proceso.id}`} className="min-h-11 rounded-md bg-boton px-3 py-2.5 text-sm font-semibold text-white hover:bg-boton-hover">
-            Empezar con ellas
+            {embriones ? 'Empezar el entore' : 'Empezar con ellas'}
           </Link>
         </p>
       )}
@@ -329,11 +331,11 @@ export default function ProcesoPage() {
 
       <Enganchados anterior={anterior} siguientes={siguientes} enlaces={enlaces} />
 
-      <StockProceso lotes={lotes} estados={estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} porPotrero={porPotrero} />
+      <StockProceso lotes={lotes} estados={embriones ? { ...estados, VACIAS: `${estados.VACIAS ?? 'Vacía'} o no apta (al toro)` } : estados} total={activos.reduce((s, l) => s + (l.cabezas ?? 0), 0)} porPotrero={porPotrero} />
 
       <TorosDelProceso toros={toros} />
 
-      <Embudo embudo={embudo} />
+      <Embudo embudo={embudo} embriones={embriones} />
 
       {cargadas.length > 0 && (
         <>
@@ -598,9 +600,15 @@ function Enganchados({ anterior, siguientes, enlaces = { van: [], vienen: [] } }
 
 // El embudo: servidas → preñadas → paridas → destetados, con el porcentaje
 // sobre las servidas y una barra.
-function Embudo({ embudo: e }) {
+// En una transferencia de embriones, la primera fila son las transferidas, con
+// los embriones usados y las no aptas.
+function Embudo({ embudo: e, embriones = false }) {
+  const deEmbriones = [
+    e.embriones != null ? `${formatNumero(e.embriones)} ${e.embriones === 1 ? 'embrión' : 'embriones'}` : null,
+    e.noAptas ? `${formatNumero(e.noAptas)} no ${e.noAptas === 1 ? 'apta' : 'aptas'}` : null,
+  ].filter(Boolean);
   const filas = [
-    ['Servidas', e.servidas, null, null],
+    [embriones ? 'Transferidas' : 'Servidas', e.servidas, null, embriones && deEmbriones.length ? deEmbriones.join(' · ') : null],
     ['Preñadas', e.prenadas, e.porcentajes.prenez, null],
     ['Paridas', e.paridas, e.porcentajes.paricion, e.ternerosVivos != null ? `${formatNumero(e.ternerosVivos)} terneros vivos` : null],
     ['Destetados', e.destetados, e.porcentajes.destete, e.kgDestetados != null ? `${formatNumero(e.kgDestetados)} kg` : null],

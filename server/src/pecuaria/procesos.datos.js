@@ -3,6 +3,9 @@
 // como los de los eventos (eventos.datos.js), y su texto corto para la ficha.
 // Todo puro.
 import { z } from 'zod';
+import { MODALIDAD } from './procesos.modalidad.js';
+
+export { MODALIDAD };
 
 // Acepta 6, "6" o "6,0". Vacío ("", null o ausente) = sin dato.
 const numero = (schema) =>
@@ -120,8 +123,6 @@ function textoNacidos(d) {
 }
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const nombreMes = (mes) => (mes === 'sin' ? 'sin mes' : MESES[Number(mes.slice(5, 7)) - 1]);
-// IA: los procesos de antes de los ajustes del 20/11 (ahora es IATF).
-export const MODALIDAD = { TOROS: 'Entore con toros', IA: 'IATF', IATF: 'IATF' };
 
 // Lo de un ancla en una línea corta (la ficha y la lista de eventos).
 export function textoAncla(etapa, datos = {}, cabezas = 0) {
@@ -130,7 +131,7 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
     case 'INICIO':
       return `${MODALIDAD[d.modalidad] ?? 'Servicio'} · ${fmt(cabezas)} cab.${
         d.reparto?.length ? ` · repartidas: ${d.reparto.map((r) => `${r.potrero} ${fmt(r.cabezas)}${r.toros ? ` (${fmt(r.toros)} ${r.toros === 1 ? 'toro' : 'toros'})` : ''}`).join(', ')}` : ''
-      }${textoToros(d)}`;
+      }${textoEmbriones(d)}${textoToros(d)}`;
     case 'DIAGNOSTICO': {
       const p = d.prenadas;
       const total = typeof p === 'object' && p ? Object.values(p).reduce((s, n) => s + Number(n || 0), 0) : Number(p || 0);
@@ -160,7 +161,7 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
     case 'DESTETE':
       return `${fmt(d.destetados ?? cabezas)} destetados${d.pesoPromedioKg ? ` · ${fmt(d.pesoPromedioKg)} kg` : ''}`;
     case 'TANDA':
-      return `Otra tanda · ${fmt(cabezas)} cab.${textoToros(d)}`;
+      return `Otra tanda · ${fmt(cabezas)} cab.${textoEmbriones(d)}${textoToros(d)}`;
     case 'TOROS':
       return textoToros(d).replace(/^ · /, '') || 'toros';
     case 'BAJA':
@@ -169,6 +170,16 @@ export function textoAncla(etapa, datos = {}, cabezas = 0) {
       // El fin del servicio (y otras) con los toros que salieron.
       return `${fmt(cabezas)} cab.${textoToros(d)}`;
   }
+}
+
+// Lo de una transferencia de embriones (datos.embriones, datos.noAptas):
+// " · 82 embriones (Wagyu, partida 3) · 20 no aptas (al toro)".
+export function textoEmbriones(d = {}) {
+  const partes = [];
+  const usados = d?.embriones?.usados;
+  if (usados != null) partes.push(`${fmt(usados)} ${usados === 1 ? 'embrión' : 'embriones'}${d.embriones.detalle ? ` (${d.embriones.detalle})` : ''}`);
+  if (d?.noAptas) partes.push(`${fmt(d.noAptas)} ${d.noAptas === 1 ? 'no apta' : 'no aptas'} (al toro)`);
+  return partes.length ? ` · ${partes.join(' · ')}` : '';
 }
 
 // Los toros de una carga (datos.toros: [{ identificacion, accion: ENTRA | SALE }]):

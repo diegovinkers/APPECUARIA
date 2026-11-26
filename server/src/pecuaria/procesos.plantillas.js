@@ -16,7 +16,7 @@ export const PLANTILLAS = {
   REPRODUCTIVO: {
     nombre: 'Servicio',
     etapas: [
-      { clave: 'INICIO', nombre: 'Inicio del servicio', tipos: ['ENTORE', 'INSEMINACION'], unica: true, linea: true, toma: ['VIENTRES'] },
+      { clave: 'INICIO', nombre: 'Inicio del servicio', tipos: ['ENTORE', 'INSEMINACION', 'TRANSFERENCIA_EMBRIONES'], unica: true, linea: true, toma: ['VIENTRES'] },
       // IATF por días (ajustes del 20/11): otro día con las sin inseminar, y
       // al terminar, qué pasa con las que quedaron (repaso o salen). El rol
       // cambia al cargarlas, así que no se repiten para el mismo lote.
@@ -35,7 +35,7 @@ export const PLANTILLAS = {
       { clave: 'DESTETE', nombre: 'Destete', tipos: ['DESTETE'], unica: true, linea: true, toma: ['CRIAS'], mueve: true },
       // Fase 6: otra tanda de hembras que entra al servicio en otro día, y los
       // toros que entran o salen (uno por uno). No toman lotes del proceso.
-      { clave: 'TANDA', nombre: 'Tanda', tipos: ['ENTORE', 'INSEMINACION'], unica: false, linea: false, toma: [], mueve: true },
+      { clave: 'TANDA', nombre: 'Tanda', tipos: ['ENTORE', 'INSEMINACION', 'TRANSFERENCIA_EMBRIONES'], unica: false, linea: false, toma: [], mueve: true },
       { clave: 'TOROS', nombre: 'Toros', tipos: ['ENTORE'], unica: false, linea: false, toma: [], mueve: true },
       // Fase 8: una baja (muerte de vacas o de terneros) en cualquier etapa,
       // de cualquier lote que esté hoy en el proceso.
@@ -52,7 +52,7 @@ export const ETAPAS_UNICAS = new Set(PLANTILLAS.REPRODUCTIVO.etapas.filter((e) =
 export const etapaDePlantilla = (clave, tipo = 'REPRODUCTIVO') => PLANTILLAS[tipo].etapas.find((e) => e.clave === clave) ?? null;
 
 // Los tipos de evento que se cuelgan solos de un proceso abierto del lote.
-export const TIPOS_REPRODUCCION = new Set(['ENTORE', 'INSEMINACION', 'FIN_SERVICIO', 'ECOGRAFIA', 'ABORTO']);
+export const TIPOS_REPRODUCCION = new Set(['ENTORE', 'INSEMINACION', 'TRANSFERENCIA_EMBRIONES', 'FIN_SERVICIO', 'ECOGRAFIA', 'ABORTO']);
 
 // Qué etapa le toca a un evento de reproducción de un lote que ya tiene
 // `hechas` (las etapas vigentes de ese lote en el proceso) y está con `rol`.
@@ -64,6 +64,7 @@ export function etapaDe(tipoClave, hechas = [], rol = null) {
     case 'ENTORE':
       return ya.has('INICIO') ? 'REPASO' : 'INICIO';
     case 'INSEMINACION':
+    case 'TRANSFERENCIA_EMBRIONES':
       return 'INICIO';
     case 'FIN_SERVICIO':
       return 'FIN_SERVICIO';

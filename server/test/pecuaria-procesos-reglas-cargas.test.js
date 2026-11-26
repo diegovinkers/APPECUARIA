@@ -180,6 +180,10 @@ describe('R4/R5: ecografía', () => {
     let f = await ficha(agent, p.id);
     expect(f.etapa).toBe('ESPERA_DIAGNOSTICO');
     expect(f.aMedias).toMatchObject({ cabezas: 43, texto: 'Diagnóstico a medias: faltan 43' });
+    // La lista (y el tablero) también lo dicen: en el proceso y en su grupo en servicio.
+    const [enLista] = (await agent.get(`${API}/procesos`).expect(200)).body;
+    expect(enLista.aMedias).toMatchObject({ cabezas: 43 });
+    expect(enLista.grupos.find((g) => g.tipo === 'VIENTRES')).toMatchObject({ cabezas: 43, aMedias: 'Diagnóstico a medias: faltan 43' });
 
     await etapa(agent, p.id, 'DIAGNOSTICO', parte('2025-09-16', 40, 3, P8.id));
     expect(await enPotreros(campo.id)).toEqual({ 'P8 Vacas de cría': 90, 'P9 Vacas invernar': 13, 'P10 Novillos': 30, 'P2 Vacas de cría': 50 });

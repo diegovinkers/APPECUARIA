@@ -91,6 +91,8 @@ export const TIPOS_MOVIMIENTO = [
   { clave: 'PESADA', nombre: 'Pesada', efecto: 'REGISTRO', niveles: MOVER, cigam: '3' },
   { clave: 'ECOGRAFIA', nombre: 'Ecografía', efecto: 'REGISTRO', sexo: 'HEMBRA', niveles: ['CATEGORIA', 'LOTE', 'PARTE_LOTE'], cigam: '11' },
   { clave: 'INSEMINACION', nombre: 'Inseminación', efecto: 'REGISTRO', sexo: 'HEMBRA', niveles: ['CATEGORIA', 'LOTE', 'PARTE_LOTE'], cigam: '2' },
+  // Embriones Wagyu comprados, en receptoras (26/11): empieza un proceso como la IATF.
+  { clave: 'TRANSFERENCIA_EMBRIONES', nombre: 'Transferencia de embriones', efecto: 'REGISTRO', sexo: 'HEMBRA', niveles: ['CATEGORIA', 'LOTE', 'PARTE_LOTE'] },
   { clave: 'ENTORE', nombre: 'Entore o servicio', efecto: 'REGISTRO', niveles: MOVER },
   { clave: 'ABORTO', nombre: 'Aborto', efecto: 'REGISTRO', sexo: 'HEMBRA', niveles: ['LOTE', 'PARTE_LOTE'] },
   // Separa a los terneros de las madres: forma un lote nuevo.

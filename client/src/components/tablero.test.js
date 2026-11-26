@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos } from './tablero';
+import { SECCIONES_TABLERO, accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos, textoDeOrigen, textoEstadoGrupo, textoVieneDe } from './tablero';
 
 describe('armarTablero', () => {
   it('junta los grupos por sección, con el total de cabezas, y ordena por lo que vence primero', () => {
@@ -86,5 +86,41 @@ describe('avisoDeSeccion (lo que dice una sección cerrada, 25/11)', () => {
   it('sin fechas, qué falta; sin grupos, nada', () => {
     expect(avisoDeSeccion([g('VACIAS_A_DECIDIR', null)])).toEqual({ texto: 'Vacías: falta decidir', estado: null });
     expect(avisoDeSeccion([])).toBeNull();
+  });
+});
+
+describe('textoEstadoGrupo (reglas del campo, 25/11)', () => {
+  it('en servicio, con el tipo; si el diagnóstico quedó a medias, las sin ecografiar', () => {
+    expect(textoEstadoGrupo({ tipo: 'VIENTRES' }, 'IATF')).toBe('En servicio · Inseminación');
+    expect(textoEstadoGrupo({ tipo: 'VIENTRES' }, 'TOROS')).toBe('En servicio · Entore');
+    expect(textoEstadoGrupo({ tipo: 'VIENTRES', aMedias: 'Diagnóstico a medias: faltan 23' }, 'IATF')).toBe('Sin ecografiar · faltan 23');
+    expect(textoEstadoGrupo({ tipo: 'PRENADAS', aMedias: 'Diagnóstico a medias: faltan 23' }, 'IATF')).toBe('Preñadas');
+  });
+});
+
+describe('transferencia de embriones en el tablero (26/11)', () => {
+  it('la sección 1 es "Inseminación · Embriones"', () => {
+    expect(SECCIONES_TABLERO[0]).toMatchObject({ clave: 'iatf', nombre: 'Inseminación · Embriones' });
+  });
+
+  it('lo que pasa al toro dice de dónde viene, y el total de la sección lo separa', () => {
+    expect(textoVieneDe({ vieneDe: 'TE' })).toBe('de embriones');
+    expect(textoVieneDe({ vieneDe: 'IATF' })).toBe('viene de IATF');
+    expect(textoVieneDe({})).toBe('viene de IATF');
+    const t = armarTablero([
+      { id: 1, nombre: 'TE', modalidad: 'TE', grupos: [{ seccion: 'entore', tipo: 'VACIAS_REENTORE', cabezas: 23, deIatf: true, vieneDe: 'TE' }] },
+      { id: 2, nombre: 'IATF', modalidad: 'IATF', grupos: [{ seccion: 'entore', tipo: 'VACIAS_REENTORE', cabezas: 12, deIatf: true, vieneDe: 'IATF' }] },
+    ]);
+    expect(t.deIatf.entore).toBe(35);
+    expect(t.deOrigen.entore).toEqual({ IATF: 12, TE: 23 });
+    expect(textoDeOrigen(t.deOrigen.entore)).toBe('12 de IATF · 23 de embriones');
+    expect(textoDeOrigen({ IATF: 0, TE: 23 })).toBe('23 de embriones');
+    expect(textoDeOrigen(undefined)).toBe('');
+  });
+
+  it('el estado de los grupos de una transferencia', () => {
+    expect(textoEstadoGrupo({ tipo: 'VIENTRES' }, 'TE')).toBe('En servicio · Embriones');
+    expect(textoEstadoGrupo({ tipo: 'VACIAS_REENTORE' }, 'TE')).toBe('Al toro: no aptas o vacías');
+    expect(textoEstadoGrupo({ tipo: 'VACIAS_REENTORE' }, 'IATF')).toBe('Vacías para volver a servir');
   });
 });

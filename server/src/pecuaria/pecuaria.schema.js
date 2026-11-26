@@ -544,6 +544,15 @@ const enteroCero = (mensaje) => z.int({ error: mensaje }).min(0, mensaje).max(1_
 const mesProceso = z.string().regex(/^\d{4}-\d{2}$/, 'El mes tiene que tener el formato AAAA-MM');
 const rolProceso = z.enum(['VIENTRES', 'PRENADAS', 'VACIAS', 'PARIDAS', 'CRIAS'], { error: 'El rol del lote no es válido' });
 
+// Los embriones de una transferencia (al crear y en otra tanda).
+export const embrionesSchema = z.object(
+  {
+    usados: enteroCero('Los embriones usados tienen que ser un número entero').optional(),
+    detalle: textoOpcional(120, 'De qué embriones: hasta 120 caracteres').optional(),
+  },
+  { error: 'Los embriones tienen que ser un objeto' },
+);
+
 // Empezar un proceso: un servicio (con sus lotes) o uno que ya está en curso
 // (con sus números de antes y los lotes como están hoy).
 export const procesoSchema = z
@@ -551,8 +560,11 @@ export const procesoSchema = z
     campoId: idPositivo('La estancia no es válida').optional(),
     nombre: textoOpcional(120, 'El nombre del proceso no puede superar los 120 caracteres').optional(),
     fecha: fechaDato.optional(),
-    // La inseminación "común" se sacó (ajustes del 20/11): entore o IATF.
-    modalidad: z.enum(['TOROS', 'IATF'], { error: 'Elegí cómo es el servicio: entore con toros o IATF' }),
+    // La inseminación "común" se sacó (ajustes del 20/11): entore, IATF o
+    // transferencia de embriones (TE, 26/11).
+    modalidad: z.enum(['TOROS', 'IATF', 'TE'], { error: 'Elegí cómo es el servicio: entore con toros, IATF o transferencia de embriones' }),
+    // TE: cuántos embriones se usaron (por defecto, uno por transferida) y de cuáles.
+    embriones: embrionesSchema.optional(),
     toros: enteroCero('Los toros tienen que ser un número entero').optional(),
     // Los toros uno por uno (fase 6): cada uno, al potrero elegido o al de las vacas.
     asignarToros: z

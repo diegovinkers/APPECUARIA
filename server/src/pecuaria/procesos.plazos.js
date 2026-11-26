@@ -6,6 +6,7 @@
 //   { FIN_SERVICIO: { plazo: 90, unidad: 'DIAS', desde: 'INICIO', avisoDias: 7, nombre }, ... }
 // Si falta alguno, se usa el de PLAZOS_INICIALES.
 import { sumarDias, sumarMeses } from './procesos.calculos.js';
+import { etapaParicion, porTandas } from './procesos.modalidad.js';
 
 export { sumarMeses };
 
@@ -14,6 +15,9 @@ export const PLAZOS_INICIALES = {
   FIN_SERVICIO: { nombre: 'Fin del entore', plazo: 90, unidad: 'DIAS', desde: 'INICIO', avisoDias: 7, orden: 10 },
   DIAGNOSTICO: { nombre: 'Ecografía', plazo: 30, unidad: 'DIAS', desde: 'FIN_SERVICIO', avisoDias: 7, orden: 20 },
   PARICION: { nombre: 'Parición', plazo: 283, unidad: 'DIAS', desde: 'SERVICIO', avisoDias: 7, orden: 30 },
+  // La transferencia de embriones (26/11): 283 de gestación menos los 7 días
+  // que ya tiene el embrión. No está en la migración: completarPlazos lo suma.
+  PARICION_TE: { nombre: 'Parición (embriones)', plazo: 276, unidad: 'DIAS', desde: 'TRANSFERENCIA', avisoDias: 7, orden: 35 },
   NUEVO_ENTORE: { nombre: 'Nuevo entore', plazo: 70, unidad: 'DIAS', desde: 'PARTO', avisoDias: 7, orden: 40 },
   DESTETE: { nombre: 'Destete', plazo: 6, unidad: 'MESES', desde: 'PARTO', avisoDias: 7, orden: 50 },
 };
@@ -22,6 +26,7 @@ export const PLAZOS_INICIALES = {
 export const TEXTO_DESDE = {
   INICIO: 'del inicio del servicio',
   SERVICIO: 'de cada día de servicio (en el entore, del inicio al fin)',
+  TRANSFERENCIA: 'de cada día de transferencia de embriones',
   FIN_SERVICIO: 'del fin del entore (en la inseminación, de cada tanda)',
   PARTO: 'del parto',
 };
@@ -60,7 +65,8 @@ const minimo = (lista) => [...lista].sort()[0] ?? null;
 const maximo = (lista) => [...lista].sort().at(-1) ?? null;
 
 // Las fechas esperadas de un proceso, con lo que ya pasó de verdad.
-//   modalidad  TOROS (entore) o IATF (inseminación)
+//   modalidad  TOROS (entore), IATF (inseminación) o TE (transferencia de
+//              embriones: como la IATF, con su plazo de parición)
 //   inicio     el primer día del servicio
 //   finReal    el fin del entore, si ya se cargó (manda sobre los 90 días)
 //   tandas     los días de inseminación (IATF; el primero suele ser el inicio)
@@ -74,14 +80,15 @@ const maximo = (lista) => [...lista].sort().at(-1) ?? null;
 //   porParto             [{ parto, nuevoEntore, destete }]
 export function fechasDelPlan({ modalidad, inicio, finReal = null, tandas = [], partos = [] }, plazos = PLAZOS_INICIALES) {
   const p = { ...PLAZOS_INICIALES, ...plazos };
-  const entore = modalidad !== 'IATF';
+  const entore = !porTandas(modalidad);
+  const gestacion = p[etapaParicion(modalidad)];
   const diasServicio = entore ? [inicio].filter(Boolean) : (tandas.length ? tandas : [inicio].filter(Boolean));
 
   const finEntore = entore ? (finReal ?? fechaPlazo(inicio, p.FIN_SERVICIO)) : null;
   const ecografias = entore ? [fechaPlazo(finEntore, p.DIAGNOSTICO)].filter(Boolean) : diasServicio.map((t) => fechaPlazo(t, p.DIAGNOSTICO));
   const paricion = entore
-    ? { desde: fechaPlazo(inicio, p.PARICION), hasta: fechaPlazo(finEntore, p.PARICION) }
-    : { desde: fechaPlazo(minimo(diasServicio), p.PARICION), hasta: fechaPlazo(maximo(diasServicio), p.PARICION) };
+    ? { desde: fechaPlazo(inicio, gestacion), hasta: fechaPlazo(finEntore, gestacion) }
+    : { desde: fechaPlazo(minimo(diasServicio), gestacion), hasta: fechaPlazo(maximo(diasServicio), gestacion) };
   const porParto = [...partos].sort().map((parto) => ({ parto, nuevoEntore: fechaPlazo(parto, p.NUEVO_ENTORE), destete: fechaPlazo(parto, p.DESTETE) }));
   return { finEntore, ecografias, paricion, porParto };
 }

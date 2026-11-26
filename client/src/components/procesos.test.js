@@ -25,6 +25,11 @@ import {
   rutaRegistrar,
   sePuedeDescartar,
   textoTipo,
+  esEmbriones,
+  normalizarModalidad,
+  palabrasServicio,
+  porTandas,
+  textoSuelto,
 } from './procesos';
 
 describe('procesos (puro)', () => {
@@ -310,5 +315,42 @@ describe('sugerencias y cronograma (fase 5)', () => {
       ['VACIAS', 'Falladas', 35, 1],
       ['LIBRES', 'LIBRES', 0, 1],
     ]);
+  });
+});
+
+describe('transferencia de embriones (26/11)', () => {
+  it('modalidad: por tandas, embriones y el nombre corto', () => {
+    expect(['TOROS', 'IATF', 'IA', 'TE'].map(porTandas)).toEqual([false, true, true, true]);
+    expect(['TOROS', 'IATF', 'TE'].map(esEmbriones)).toEqual([false, false, true]);
+    expect(['TE', 'IA', undefined].map(normalizarModalidad)).toEqual(['TE', 'IATF', 'TOROS']);
+    expect(textoTipo('TE')).toBe('Embriones');
+  });
+
+  it('las palabras de cada forma de servicio', () => {
+    expect(palabrasServicio('TE')).toMatchObject({ verbo: 'se transfieren', hechas: 'transferidas', sin: 'no aptas', pregunta: '¿A cuántas se les transfirió?' });
+    expect(palabrasServicio('IATF')).toMatchObject({ verbo: 'se inseminan', hechas: 'inseminadas', sin: 'sin inseminar' });
+    expect(palabrasServicio('TOROS')).toMatchObject({ verbo: 'entran', pregunta: '¿Cuántas entran al servicio?' });
+  });
+
+  it('el cuerpo: embriones solo en una transferencia, y a dónde va cada grupo', () => {
+    const lote = { loteId: 1, cabezas: 50 };
+    const te = cuerpoProceso({ modalidad: 'TE', campoId: 1, elegidos: [lote], cabezas: { 1: '40' }, fecha: '2026-11-10', sinInseminarA: { 1: 13 }, embriones: { usados: '42', detalle: ' Wagyu ' } });
+    expect(te).toMatchObject({ modalidad: 'TE', embriones: { usados: 42, detalle: 'Wagyu' }, lineas: [{ loteId: 1, cabezas: 40, sinInseminarA: 13 }] });
+    expect(cuerpoProceso({ modalidad: 'TE', campoId: 1, elegidos: [lote], fecha: '2026-11-10', embriones: { usados: '', detalle: '' } }).embriones).toBeUndefined();
+    expect(cuerpoProceso({ modalidad: 'TOROS', campoId: 1, elegidos: [lote], fecha: '2026-11-10', embriones: { usados: '42' } }).embriones).toBeUndefined();
+  });
+
+  it('separar: transferidas y no aptas', () => {
+    const lote = { cabezas: 50, potrero: { id: 8 } };
+    expect(separarIatf(lote, { cabezas: '40' }, 'TE').falta).toBe('Elegí a qué potrero van las 40 transferidas');
+    expect(separarIatf(lote, { cabezas: '40', seVan: 'SIN' }, 'TE').falta).toBe('Elegí a qué potrero van las 10 no aptas');
+    expect(separarIatf(lote, { cabezas: '40' }).falta).toBe('Elegí a qué potrero van las 40 inseminadas');
+  });
+
+  it('Eventos: una transferencia de embriones puede empezar un ciclo', () => {
+    const tipo = { clave: 'TRANSFERENCIA_EMBRIONES' };
+    expect(ofreceNuevoServicio(tipo)).toBe(true);
+    expect(aplicaServicio({ tipo, sel: { nivel: 'LOTE' }, elegidos: [{ loteId: 1, sexo: 'HEMBRA' }], enProceso: new Set() })).toBe(true);
+    expect(textoSuelto(tipo)).toBe('Anotarla suelta');
   });
 });

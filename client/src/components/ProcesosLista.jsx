@@ -159,7 +159,7 @@ function TarjetaProceso({ p, todas }) {
             {p.estado !== 'ABIERTO' && <span className="ml-1 rounded bg-suelo-200 px-1.5 py-0.5 text-[11px] font-normal text-suelo-700">{p.estado === 'CERRADO' ? 'cerrado' : 'anulado'}</span>}
           </p>
           <p className="text-sm text-suelo-600">
-            {textoTipo(p.modalidad)} · {p.textoEtapa}
+            {textoTipo(p.modalidad)} · {p.aMedias?.texto ?? p.textoEtapa}
             {p.potreros?.length ? ` · ${p.potreros.join(', ')}` : ''}
           </p>
         </div>

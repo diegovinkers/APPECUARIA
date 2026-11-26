@@ -3,6 +3,41 @@
 // los botones, el filtro de campañas, cuándo se ofrece "Empieza un servicio"
 // y el cuerpo para crear un proceso. Todo puro.
 
+// Las formas de servicio (proceso.datos.modalidad), como en el servidor
+// (procesos.modalidad.js): TOROS (entore), IATF (IA: la de antes de los
+// ajustes del 20/11) y TE (transferencia de embriones, 26/11: como la IATF,
+// por tandas; las no aptas van al toro).
+export const porTandas = (modalidad) => modalidad === 'IATF' || modalidad === 'IA' || modalidad === 'TE';
+export const esEmbriones = (modalidad) => modalidad === 'TE';
+export const normalizarModalidad = (modalidad) => (modalidad === 'TE' ? 'TE' : porTandas(modalidad) ? 'IATF' : 'TOROS');
+
+// Las palabras de cada forma de servicio, para las pantallas de crear y de otra tanda.
+export function palabrasServicio(modalidad) {
+  if (esEmbriones(modalidad)) {
+    return {
+      verbo: 'se transfieren',
+      hechas: 'transferidas',
+      sin: 'no aptas',
+      aServir: 'a transferir',
+      fecha: 'Fecha de la transferencia',
+      pregunta: '¿A cuántas se les transfirió?',
+      ayuda: 'Dejalo vacío si se transfirió a todo el lote. Las que no (no aptas) van al toro: quedan en otro potrero que las transferidas.',
+    };
+  }
+  if (porTandas(modalidad)) {
+    return {
+      verbo: 'se inseminan',
+      hechas: 'inseminadas',
+      sin: 'sin inseminar',
+      aServir: 'a inseminar',
+      fecha: 'Fecha de la inseminación',
+      pregunta: '¿Cuántas se van a inseminar?',
+      ayuda: 'Dejalo vacío si se insemina todo el lote. Las que no, quedan aparte como "sin inseminar", para otro día (en otro potrero que las inseminadas).',
+    };
+  }
+  return { verbo: 'entran', hechas: 'servidas', sin: 'no entran', aServir: 'entran', fecha: 'Fecha de inicio', pregunta: '¿Cuántas entran al servicio?', ayuda: 'Dejalo vacío si entran todas.' };
+}
+
 // Con "Todas las estancias", la sigla adelante (como los potreros).
 export const nombreProceso = (p, todas) => (todas && p.campo?.sigla ? `${p.campo.sigla} ${p.nombre}` : p.nombre);
 
@@ -42,10 +77,14 @@ export function campaniasParaFiltro(hoyIso) {
 
 export const formatoPorcentaje = (n) => (n == null ? '—' : `${n} %`);
 
-// ¿Se ofrece "Empieza un servicio"? Un entore o una inseminación, lote por
-// lote, de hembras (o sin sexo) que no estén ya en un proceso abierto.
+// Los tipos de evento que empiezan un servicio (entore, IATF o transferencia).
+const EMPIEZAN_SERVICIO = new Set(['ENTORE', 'INSEMINACION', 'TRANSFERENCIA_EMBRIONES']);
+
+// ¿Se ofrece "Empieza un servicio"? Un entore, una inseminación o una
+// transferencia de embriones, lote por lote, de hembras (o sin sexo) que no
+// estén ya en un proceso abierto.
 export function aplicaServicio({ tipo, sel, elegidos, enProceso }) {
-  if (tipo?.clave !== 'ENTORE' && tipo?.clave !== 'INSEMINACION') return false;
+  if (!EMPIEZAN_SERVICIO.has(tipo?.clave)) return false;
   if (sel?.nivel !== 'LOTE' || !elegidos?.length) return false;
   return elegidos.every((l) => l.sexo !== 'MACHO' && !enProceso.has(l.loteId));
 }
@@ -57,11 +96,12 @@ const sinIndefinidos = (o) => Object.fromEntries(Object.entries(o).filter(([, v]
 // El cuerpo para crear un proceso.
 //   Un servicio: los lotes elegidos (con menos cabezas, una parte), la fecha y los toros.
 //     reparto: { [loteId]: [{ potreroId, cabezas, toros }] } (repartirlas en potreros).
-//     destinos: { [loteId]: potreroId } (IATF: a dónde van las inseminadas).
-//     sinInseminarA: { [loteId]: potreroId } (IATF de una parte: a dónde van las sin inseminar, R2).
+//     destinos: { [loteId]: potreroId } (IATF o TE: a dónde van las inseminadas o transferidas).
+//     sinInseminarA: { [loteId]: potreroId } (IATF o TE de una parte: a dónde van las sin inseminar o no aptas, R2).
+//     embriones: { usados, detalle } (TE: cuántos embriones se usaron y de cuáles).
 //   Uno en curso: los números de antes (enCurso) y el rol de cada lote (roles).
 //   toroIds: los toros uno por uno (fase 6), van al potrero de las vacas.
-export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {}, sinInseminarA = {}, toroIds = [] }) {
+export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fecha, nombre, toros, nota, enCurso, roles = {}, reparto = {}, destinos = {}, sinInseminarA = {}, toroIds = [], embriones = {} }) {
   const base = sinIndefinidos({ campoId, modalidad, nombre: texto(nombre), nota: texto(nota) });
   if (enCurso) {
     return {
@@ -77,9 +117,12 @@ export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fech
       }),
     };
   }
+  const tandas = porTandas(modalidad);
+  const deEmbriones = esEmbriones(modalidad) ? sinIndefinidos({ usados: entero(embriones.usados), detalle: texto(embriones.detalle) }) : {};
   return sinIndefinidos({
     ...base,
     fecha,
+    embriones: Object.keys(deEmbriones).length ? deEmbriones : undefined,
     toros: modalidad === 'TOROS' && !toroIds.length ? entero(toros) : undefined,
     asignarToros: modalidad === 'TOROS' && toroIds.length ? toroIds.map((toroId) => ({ toroId })) : undefined,
     lineas: elegidos.map((l) => {
@@ -90,8 +133,8 @@ export function cuerpoProceso({ modalidad, campoId, elegidos, cabezas = {}, fech
       return sinIndefinidos({
         loteId: l.loteId,
         cabezas: n != null && n !== l.cabezas ? n : undefined,
-        potreroId: modalidad === 'IATF' && destinos[l.loteId] ? Number(destinos[l.loteId]) : undefined,
-        sinInseminarA: modalidad === 'IATF' && sinInseminarA[l.loteId] ? Number(sinInseminarA[l.loteId]) : undefined,
+        potreroId: tandas && destinos[l.loteId] ? Number(destinos[l.loteId]) : undefined,
+        sinInseminarA: tandas && sinInseminarA[l.loteId] ? Number(sinInseminarA[l.loteId]) : undefined,
         reparto: filas.length ? filas : undefined,
       });
     }),
@@ -273,16 +316,18 @@ export function cuerpoDiagnostico({ fecha, metodo, lotes, datos = {}, elecciones
 // Con menos inseminadas que el lote se va un grupo: las inseminadas
 // (potreroId) o las sin inseminar (sinInseminarA). Con todas, se pueden quedar.
 //   d: { cabezas (texto; vacío = todas), seVan: INSEMINADAS | SIN, potreroId }
-export function separarIatf(lote, d = {}) {
+//   modalidad: en una transferencia de embriones, "transferidas" y "no aptas".
+export function separarIatf(lote, d = {}, modalidad = 'IATF') {
+  const w = palabrasServicio(modalidad);
   const n = entero(d.cabezas) ?? lote.cabezas;
   const parte = n < lote.cabezas;
   const potrero = d.potreroId ? Number(d.potreroId) : null;
   const seVan = d.seVan ?? 'INSEMINADAS';
   let falta = null;
-  if (!(n > 0)) falta = 'Escribí cuántas se inseminan';
+  if (!(n > 0)) falta = `Escribí cuántas ${w.verbo}`;
   else if (n > lote.cabezas) falta = `El lote tiene ${lote.cabezas}`;
   else if (parte && (!potrero || potrero === lote.potrero?.id)) {
-    falta = `Elegí a qué potrero van las ${seVan === 'SIN' ? `${lote.cabezas - n} sin inseminar` : `${n} inseminadas`}`;
+    falta = `Elegí a qué potrero van las ${seVan === 'SIN' ? `${lote.cabezas - n} ${w.sin}` : `${n} ${w.hechas}`}`;
   }
   const api = !potrero || potrero === lote.potrero?.id ? {} : parte && seVan === 'SIN' ? { sinInseminarA: potrero } : { potreroId: potrero };
   return { n, parte, sinInseminar: lote.cabezas - n, falta, api };
@@ -334,16 +379,16 @@ export function procesosParaEvento(clave, procesos = [], { loteId = null } = {})
 // Los eventos que pueden ser de un proceso.
 export const EVENTOS_DE_PROCESO = new Set(Object.keys(ETAPA_DEL_EVENTO));
 
-export const ofreceNuevoServicio = (tipo) => tipo?.clave === 'ENTORE' || tipo?.clave === 'INSEMINACION';
+export const ofreceNuevoServicio = (tipo) => EMPIEZAN_SERVICIO.has(tipo?.clave);
 
 // "Anotarla suelta" / "Anotarlo suelto", según el evento.
 export const textoSuelto = (tipo) =>
-  tipo?.clave === 'DESTETE' ? 'Destetar sin proceso' : ['ECOGRAFIA', 'INSEMINACION', 'PESADA'].includes(tipo?.clave) ? 'Anotarla suelta' : 'Anotarlo suelto';
+  tipo?.clave === 'DESTETE' ? 'Destetar sin proceso' : ['ECOGRAFIA', 'INSEMINACION', 'TRANSFERENCIA_EMBRIONES', 'PESADA'].includes(tipo?.clave) ? 'Anotarla suelta' : 'Anotarlo suelto';
 
 // --- Sugerencias y cronograma (docs/PECUARIA.md §9, fase 5) ---
 
-// Entore o inseminación (la modalidad del proceso; IA es la de antes de los ajustes).
-export const textoTipo = (modalidad) => (modalidad === 'IATF' || modalidad === 'IA' ? 'Inseminación' : 'Entore');
+// Entore, inseminación o embriones (la modalidad del proceso; IA es la de antes de los ajustes).
+export const textoTipo = (modalidad) => (esEmbriones(modalidad) ? 'Embriones' : porTandas(modalidad) ? 'Inseminación' : 'Entore');
 
 // Cómo se ve cada estado de una sugerencia: la tarjeta, el punto del
 // cronograma y la etiqueta corta.

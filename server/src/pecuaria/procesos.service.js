@@ -46,6 +46,7 @@ import { textoDatos } from './eventos.datos.js';
 import { estadosProceso, plazosProceso } from './procesos.configuracion.js';
 import { listaToros, textoToros } from './procesos.datos.js';
 import { MODALIDAD, lineaDiagnostico, lineaParicion, lineaRevision, lineaSimple, textoAncla } from './procesos.datos.js';
+import { elServicio, embrionesDeLaCarga, esEmbriones, etapaParicion, normalizarModalidad, porTandas, sufijoTanda, tipoDelServicio } from './procesos.modalidad.js';
 
 const TX = { timeout: 60_000, maxWait: 10_000 };
 const plural = (n, uno, varios) => `${n.toLocaleString('es-UY')} ${n === 1 ? uno : varios}`;
@@ -72,6 +73,10 @@ export async function parametrosProceso(db = prisma) {
   const plazos = await plazosProceso(db);
   return { gestacionDias: plazos.PARICION.plazo, diagnosticoDesdeDias: plazos.DIAGNOSTICO.plazo, lactanciaMeses: plazos.DESTETE.plazo, plazos };
 }
+
+// Los días de gestación de un proceso: en una transferencia de embriones, su
+// propio plazo (PARICION_TE, 276 días: el embrión ya tiene 7).
+const gestacionDe = (parametros, modalidad) => parametros.plazos[etapaParicion(modalidad)]?.plazo ?? parametros.gestacionDias;
 
 // --- Lotes ---
 
@@ -157,7 +162,8 @@ async function exigirUnSoloEntore(db, anteriores, lotes, modalidad) {
     const anterior = await db.proceso.findUnique({ where: { id: procesoId }, select: { nombre: true, datos: true } });
     const lote = lotes.find((l) => l.id === loteId);
     if (!esIatf(anterior?.datos?.modalidad)) throw badRequest(`Las vacías de ${lote.nombre} vienen del entore "${anterior?.nombre}": van a engorde, no se vuelven a servir`);
-    if (modalidad !== 'TOROS') throw badRequest(`Las vacías de ${lote.nombre} vienen de la IATF "${anterior.nombre}": se vuelven a servir una sola vez, en un entore con toros`);
+    // Las de una transferencia de embriones (vacías o no aptas), igual que las de una IATF.
+    if (modalidad !== 'TOROS') throw badRequest(`Las vacías de ${lote.nombre} vienen de ${elServicio(anterior.datos.modalidad)} "${anterior.nombre}": se vuelven a servir una sola vez, en un entore con toros`);
   }
 }
 
@@ -194,13 +200,21 @@ async function planCrear(db, body) {
   } else {
     lineas = await lineasDeServicio(db, body.lineas, lotes, campoId);
   }
+  // La transferencia de embriones: los embriones usados (por defecto, uno por transferida).
+  let embriones = null;
+  if (body.embriones && !esEmbriones(body.modalidad)) throw badRequest('Los embriones van en una transferencia de embriones');
+  if (esEmbriones(body.modalidad) && !enCurso) {
+    const r = embrionesDeLaCarga(body.embriones, lineas.reduce((s, l) => s + l.cabezas, 0));
+    if (r.error) throw badRequest(r.error);
+    embriones = r.embriones;
+  }
 
   const categorias = [...new Set(lotes.map((l) => l.categoria.nombre))];
   let nombre = body.nombre?.trim();
   if (nombre) await exigirNombreLibre(db, campoId, nombre);
-  else nombre = await nombreLibreProceso(db, campoId, `Servicio ${campania} · ${categorias.join(' y ')}`.slice(0, 115));
+  else nombre = await nombreLibreProceso(db, campoId, `${esEmbriones(body.modalidad) ? 'Embriones' : 'Servicio'} ${campania} · ${categorias.join(' y ')}`.slice(0, 115));
   const toros = body.toros ?? (body.asignarToros?.length || null);
-  return { campoId, lotes, anteriores, conCria, lineas, enCurso, dia, campania, nombre, modalidad: body.modalidad, toros, asignarToros: body.asignarToros ?? [], nota: body.nota ?? null };
+  return { campoId, lotes, anteriores, conCria, lineas, enCurso, dia, campania, nombre, modalidad: body.modalidad, embriones, toros, asignarToros: body.asignarToros ?? [], nota: body.nota ?? null };
 }
 
 // Las líneas de un servicio (al crear o en una tanda): cuántas entran de cada
@@ -242,7 +256,8 @@ const oracionCrear = (plan) => {
     return `Vas a cargar "${plan.nombre}", que ya está ${plan.enCurso.etapa === 'PARIENDO' ? 'pariendo' : 'diagnosticado'}: ${plural(plan.enCurso.servidas, 'servida', 'servidas')}, ${plural(plan.enCurso.prenadas, 'preñada', 'preñadas')}`;
   }
   const cabezas = plan.lineas.reduce((s, l) => s + l.cabezas, 0);
-  return `Vas a empezar "${plan.nombre}": ${MODALIDAD[plan.modalidad]} de ${plural(plan.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')}) el ${fechaUY(plan.dia)}`;
+  const embriones = plan.embriones ? ` con ${plural(plan.embriones.usados, 'embrión', 'embriones')}` : '';
+  return `Vas a empezar "${plan.nombre}": ${MODALIDAD[plan.modalidad]} de ${plural(plan.lineas.length, 'lote', 'lotes')} (${plural(cabezas, 'cabeza', 'cabezas')})${embriones} el ${fechaUY(plan.dia)}`;
 };
 
 // La vista previa hace lo mismo que crear y lo deshace (Simulacion): así
@@ -321,7 +336,7 @@ async function crearEn(tx, body, usuarioId) {
     // Datos iniciales: de todo el proceso (sin lote), sin tocar el stock.
     const e = plan.enCurso;
     const tipos = {
-      INICIO: await tipoPorClave(tx, plan.modalidad === 'TOROS' ? 'ENTORE' : 'INSEMINACION'),
+      INICIO: await tipoPorClave(tx, tipoDelServicio(plan.modalidad)),
       FIN_SERVICIO: await tipoPorClave(tx, 'FIN_SERVICIO'),
       DIAGNOSTICO: await tipoPorClave(tx, 'ECOGRAFIA'),
     };
@@ -334,7 +349,7 @@ async function crearEn(tx, body, usuarioId) {
       await tx.eventoRegistro.create({ data: { ...comun, tipoId: tipos[a.etapa].id, etapa: a.etapa, fecha: aFecha(a.fecha), nivel: 'CAMPO', cabezas: a.cabezas, datos: a.datos } });
     }
   } else {
-    const tipo = await tipoPorClave(tx, plan.modalidad === 'TOROS' ? 'ENTORE' : 'INSEMINACION');
+    const tipo = await tipoPorClave(tx, tipoDelServicio(plan.modalidad));
     // El mismo contexto que las cargas de las etapas (los movimientos van en
     // el evento PROCESO de este grupo, y se anulan juntos).
     const ctx = { tx, proceso, etapa: 'INICIO', dia: plan.dia, usuarioId, grupoId, nota: plan.nota, evento: null, lineas: [], pasos: [], avisos: [], rolesAntes: new Map(), primerAncla: null };
@@ -353,6 +368,9 @@ async function crearEn(tx, body, usuarioId) {
           cabezas,
           datos: {
             modalidad: plan.modalidad,
+            // La transferencia: los embriones de la carga (en la primera ancla) y las no aptas de cada lote.
+            ...(plan.embriones && linea === plan.lineas[0] && { embriones: plan.embriones }),
+            ...(esEmbriones(plan.modalidad) && cabezas < lote.cabezas && { noAptas: lote.cabezas - cabezas }),
             ...(reparto.length && { reparto: reparto.map((r) => ({ potrero: r.potrero.nombre, cabezas: r.cabezas, ...(r.toros != null && { toros: r.toros }) })) }),
             // R6: las vacías de una IATF que entran a este entore (para avisar en los dos).
             ...(plan.anteriores.has(lote.id) && { anteriorProcesoId: plan.anteriores.get(lote.id) }),
@@ -393,10 +411,13 @@ const ddmm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 //   en el mismo potrero. O se van las inseminadas (destino o reparto) o se van
 //   las sin inseminar (sinInseminarA): el lote entero, después de apartar las
 //   inseminadas.
+//   Transferencia de embriones (26/11): igual, con "<lote> · TE dd/mm"; las que
+//   no se transfirieron son las no aptas y van al toro ese mismo día (como las
+//   vacías de una IATF que se vuelven a servir: VACIAS con destino REENTORE).
 async function acomodarAlEmpezar(ctx, { lote, cabezas, reparto, destino, sinInseminarA = null }, modalidad, registro) {
   const { tx, dia, usuarioId, nota } = ctx;
-  const aparte = modalidad === 'IATF' && cabezas < lote.cabezas;
-  if (aparte) separarInseminadas(lote, cabezas, [...reparto.map((r) => r.potreroId), ...(cabezas > reparto.reduce((s, r) => s + r.cabezas, 0) ? [destino?.id ?? lote.potreroId] : [])], sinInseminarA);
+  const aparte = porTandas(modalidad) && cabezas < lote.cabezas;
+  if (aparte) separarInseminadas(lote, cabezas, [...reparto.map((r) => r.potreroId), ...(cabezas > reparto.reduce((s, r) => s + r.cabezas, 0) ? [destino?.id ?? lote.potreroId] : [])], sinInseminarA, modalidad);
   let quedan = lote.cabezas;
   for (const [i, r] of reparto.entries()) {
     const base = { loteOrigenId: lote.id, cabezas: r.cabezas, destinoPotreroId: r.potreroId, fecha: dia, nota };
@@ -411,15 +432,20 @@ async function acomodarAlEmpezar(ctx, { lote, cabezas, reparto, destino, sinInse
     if (sinRepartir > 0) {
       const p = await aplicar(
         tx,
-        { loteOrigenId: lote.id, cabezas: sinRepartir, destinoPotreroId: destino?.id ?? lote.potreroId, modo: 'NUEVO', parteFamilia: { sufijo: `IATF ${ddmm(dia)}` }, fecha: dia, nota },
+        { loteOrigenId: lote.id, cabezas: sinRepartir, destinoPotreroId: destino?.id ?? lote.potreroId, modo: 'NUEVO', parteFamilia: { sufijo: `${sufijoTanda(modalidad)} ${ddmm(dia)}` }, fecha: dia, nota },
         usuarioId,
         await extraDe(ctx, registro),
       );
       ctx.pasos.push({ texto: textoDelPlan(p) });
       await guardarRol(ctx, p.loteDestino.id, { rol: 'VIENTRES' }, registro);
     }
-    await guardarRol(ctx, lote.id, { rol: 'SIN_SERVIR' }, registro);
-    ctx.pasos.push({ texto: `${(lote.cabezas - cabezas).toLocaleString('es-UY')} quedan sin inseminar en ${lote.nombre}` });
+    if (esEmbriones(modalidad)) {
+      await guardarRol(ctx, lote.id, { rol: 'VACIAS', destino: 'REENTORE' }, registro);
+      ctx.pasos.push({ texto: `${plural(lote.cabezas - cabezas, 'no apta', 'no aptas')} en ${lote.nombre}: van al toro` });
+    } else {
+      await guardarRol(ctx, lote.id, { rol: 'SIN_SERVIR' }, registro);
+      ctx.pasos.push({ texto: `${(lote.cabezas - cabezas).toLocaleString('es-UY')} quedan sin inseminar en ${lote.nombre}` });
+    }
     if (sinInseminarA && sinInseminarA.id !== lote.potreroId) {
       const p = await aplicar(tx, { loteOrigenId: lote.id, cabezas: lote.cabezas - cabezas, destinoPotreroId: sinInseminarA.id, modo: 'ENTERO', fecha: dia, nota }, usuarioId, await extraDe(ctx, registro));
       ctx.pasos.push({ texto: textoDelPlan(p) });
@@ -432,10 +458,15 @@ async function acomodarAlEmpezar(ctx, { lote, cabezas, reparto, destino, sinInse
 
 // R1/R2: las inseminadas (en esos potreros) y las sin inseminar (en
 // sinInseminarA o, si no se mueven, donde está el lote) no pueden quedar juntas.
-function separarInseminadas(lote, cabezas, potrerosInseminadas, sinInseminarA) {
+function separarInseminadas(lote, cabezas, potrerosInseminadas, sinInseminarA, modalidad = 'IATF') {
   const sinId = sinInseminarA?.id ?? lote.potreroId;
   if (potrerosInseminadas.includes(sinId)) {
     const sin = lote.cabezas - cabezas;
+    if (esEmbriones(modalidad)) {
+      throw badRequest(
+        `En ${lote.nombre} se transfieren ${cabezas} de ${lote.cabezas}: las transferidas y las ${sin} no aptas no pueden quedar en el mismo potrero (las no aptas van al toro). Elegí a dónde van las transferidas o las no aptas`,
+      );
+    }
     throw badRequest(
       `En ${lote.nombre} se inseminan ${cabezas} de ${lote.cabezas}: las inseminadas y las ${sin} sin inseminar no pueden quedar en el mismo potrero. Elegí a dónde van las inseminadas o las sin inseminar`,
     );
@@ -462,13 +493,13 @@ export async function crear(body, usuarioId) {
 // Desde Eventos (Entore o Inseminación con "Empieza un servicio"): el mismo
 // crear, con el tipo como modalidad.
 export function cuerpoDesdeEvento(tipo, body) {
-  if (tipo.clave !== 'ENTORE' && tipo.clave !== 'INSEMINACION') throw badRequest('Solo un entore o una inseminación empiezan un servicio');
+  if (!['ENTORE', 'INSEMINACION', 'TRANSFERENCIA_EMBRIONES'].includes(tipo.clave)) throw badRequest('Solo un entore, una inseminación o una transferencia de embriones empiezan un servicio');
   if (!body.lineas?.length || (body.nivel && body.nivel !== 'LOTE')) throw badRequest('Para empezar un servicio, elegí los lotes');
   return {
     nombre: body.empezarServicio?.nombre ?? undefined,
     fecha: body.fecha,
     nota: body.nota,
-    modalidad: tipo.clave === 'ENTORE' ? 'TOROS' : 'IATF',
+    modalidad: { ENTORE: 'TOROS', INSEMINACION: 'IATF', TRANSFERENCIA_EMBRIONES: 'TE' }[tipo.clave],
     lineas: body.lineas.map((l) => ({ loteId: l.loteId, ...(l.cabezas != null && l.cabezas !== '' && { cabezas: Number(l.cabezas) }) })),
   };
 }
@@ -911,13 +942,14 @@ async function cargaToros(ctx, body) {
 async function cargaTanda(ctx, body) {
   const { tx, proceso } = ctx;
   if (!body.lineas?.length) throw badRequest('Elegí los lotes de la tanda');
-  const modalidad = ['IATF', 'IA'].includes(proceso.datos?.modalidad) ? 'IATF' : 'TOROS';
+  const modalidad = normalizarModalidad(proceso.datos?.modalidad);
   const ids = body.lineas.map((l) => l.loteId);
   if (new Set(ids).size !== ids.length) throw badRequest('Hay un lote elegido dos veces');
   const propios = new Map((await tx.procesoLote.findMany({ where: { procesoId: proceso.id, loteId: { in: ids }, hasta: null } })).map((pl) => [pl.loteId, pl]));
   for (const pl of propios.values()) {
     const l = await tx.lote.findUnique({ where: { id: pl.loteId }, select: { nombre: true } });
     if (modalidad === 'IATF') throw badRequest(`El lote ${l.nombre} ya está en el proceso: para inseminar más de ese lote, anotá otro día de inseminación`);
+    if (modalidad === 'TE') throw badRequest(`El lote ${l.nombre} ya está en el proceso${pl.destino === 'REENTORE' ? ': las no aptas van al toro' : ''}`);
     if (pl.rol !== 'VIENTRES') throw badRequest(`El lote ${l.nombre} ya está en el proceso y no está en servicio`);
   }
   const nuevos = ids.filter((id) => !propios.has(id));
@@ -931,7 +963,14 @@ async function cargaTanda(ctx, body) {
   const toros = listaToros(body.toros);
   if (toros.error) throw badRequest(toros.error);
   if (toros.lista.length && modalidad !== 'TOROS') throw badRequest('Los toros van en un entore');
-  const tipo = await tipoPorClave(tx, modalidad === 'TOROS' ? 'ENTORE' : 'INSEMINACION');
+  const tipo = await tipoPorClave(tx, tipoDelServicio(modalidad));
+  if (body.embriones && modalidad !== 'TE') throw badRequest('Los embriones van en una transferencia de embriones');
+  let embriones = null;
+  if (modalidad === 'TE') {
+    const r = embrionesDeLaCarga(body.embriones, lineas.reduce((s, l) => s + l.cabezas, 0));
+    if (r.error) throw badRequest(r.error);
+    embriones = r.embriones;
+  }
   let primero = null;
   for (const linea of lineas) {
     const anterior = anteriores.get(linea.lote.id);
@@ -939,6 +978,8 @@ async function cargaTanda(ctx, body) {
     if (anterior) await tx.procesoLote.update({ where: { procesoId_loteId: { procesoId: anterior, loteId: linea.lote.id } }, data: { hasta: aFecha(ctx.dia) } });
     const datos = {
       modalidad,
+      ...(embriones && !primero && { embriones }),
+      ...(modalidad === 'TE' && linea.cabezas < linea.lote.cabezas && { noAptas: linea.lote.cabezas - linea.cabezas }),
       ...(linea.reparto.length && { reparto: linea.reparto.map((r) => ({ potrero: r.potrero.nombre, cabezas: r.cabezas, ...(r.toros != null && { toros: r.toros }) })) }),
       ...(anterior && { anteriorProcesoId: anterior }),
     };
@@ -1214,14 +1255,15 @@ async function cargaFinInseminacion(ctx, body) {
 
 // Un lote del proceso con ese rol y mes, en el mismo potrero y de la misma
 // familia (o, para las crías, con el nombre de la familia y del sexo).
-async function loteDelMes(ctx, { rol, mes, potreroId, raizId, sexo = null }) {
+async function loteDelMes(ctx, { rol, mes, potreroId, raizId, sexo = null, categoriaId = null }) {
   const pls = await ctx.tx.procesoLote.findMany({
     where: { procesoId: ctx.proceso.id, rol, mes, hasta: null, lote: { activo: true, potreroId } },
     include: { lote: { include: { categoria: { select: { sexo: true } } } } },
     orderBy: { id: 'asc' },
   });
   // sexo 'SIN': el lote de crías sin sexo (Terneros/as).
-  const coincide = (pl) => (sexo === 'SIN' ? pl.lote.categoria.sexo == null : pl.lote.categoria.sexo === sexo);
+  // categoriaId: el de los terneros Wagyu de una transferencia de embriones.
+  const coincide = (pl) => (categoriaId ? pl.lote.categoriaId === categoriaId : sexo === 'SIN' ? pl.lote.categoria.sexo == null : pl.lote.categoria.sexo === sexo);
   return pls.find((pl) => (sexo ? coincide(pl) : pl.lote.id === raizId || pl.lote.raizId === raizId)) ?? null;
 }
 
@@ -1229,13 +1271,20 @@ async function loteDelMes(ctx, { rol, mes, potreroId, raizId, sexo = null }) {
 // base no la tiene (las categorías del seed solo se crean en una base
 // vacía), se crea la primera vez, después de "Terneras chicas".
 export const CATEGORIA_SIN_SEXO = 'Terneros/as';
-async function categoriaSinSexo(tx) {
-  const ya = await tx.categoria.findUnique({ where: { nombre: CATEGORIA_SIN_SEXO } });
+// Los terneros de una transferencia de embriones (26/11): son Wagyu aunque la
+// madre sea Angus, y van a su propio lote. Se crea igual, después de "Terneros/as".
+export const CATEGORIA_WAGYU = 'Terneros/as Wagyu';
+async function categoriaSinSexo(tx, nombre = CATEGORIA_SIN_SEXO, despuesDe = 'Terneras chicas') {
+  const ya = await tx.categoria.findUnique({ where: { nombre } });
   if (ya) return ya;
-  const vecina = await tx.categoria.findFirst({ where: { nombre: 'Terneras chicas' }, select: { orden: true } });
+  const vecina = await tx.categoria.findFirst({ where: { nombre: despuesDe }, select: { orden: true } });
   const ultima = await tx.categoria.aggregate({ _max: { orden: true } });
-  return tx.categoria.create({ data: { nombre: CATEGORIA_SIN_SEXO, sexo: null, orden: vecina ? vecina.orden + 1 : (ultima._max.orden ?? 0) + 10 } });
+  return tx.categoria.create({ data: { nombre, sexo: null, orden: vecina ? vecina.orden + 1 : (ultima._max.orden ?? 0) + 10 } });
 }
+const categoriaWagyu = async (tx) => {
+  await categoriaSinSexo(tx);
+  return categoriaSinSexo(tx, CATEGORIA_WAGYU, CATEGORIA_SIN_SEXO);
+};
 
 // "Terneros set-2027": el lote de las crías de un mes.
 const nombreCrias = (palabra, mes) => `${palabra} ${nombreMes(mes)}-${mes.slice(0, 4)}`;
@@ -1244,9 +1293,9 @@ const nombreCrias = (palabra, mes) => `${palabra} ${nombreMes(mes)}-${mes.slice(
 async function avisoTemprano(ctx) {
   const anclas = (await ctx.tx.eventoRegistro.findMany({ where: { procesoId: ctx.proceso.id, anulado: false }, select: anclaSelect })).map(aAncla);
   const { inicio } = fechasServicio(anclas);
-  if (!inicio || ctx.dia >= sumarDias(inicio, 260)) return;
-  const { gestacionDias } = await parametrosProceso(ctx.tx);
-  const probable = sumarDias(inicio, gestacionDias);
+  // La transferencia: el embrión ya tiene 7 días.
+  if (!inicio || ctx.dia >= sumarDias(inicio, esEmbriones(ctx.proceso.datos?.modalidad) ? 253 : 260)) return;
+  const probable = sumarDias(inicio, gestacionDe(await parametrosProceso(ctx.tx), ctx.proceso.datos?.modalidad));
   const faltan = Math.round((new Date(`${probable}T12:00:00Z`) - new Date(`${ctx.dia}T12:00:00Z`)) / 86_400_000);
   ctx.avisos.push(`La parición del ${fechaUY(ctx.dia)} es temprana: faltan ${faltan} días para la fecha probable (${fechaUY(probable)}). ¿Está bien la fecha?`);
 }
@@ -1273,6 +1322,7 @@ async function cargaParicion(ctx, body) {
   const causa = await tx.causaMovimiento.findUnique({ where: { codigo: 'PA-001' } });
   const mes = ctx.dia.slice(0, 7);
   const sufMes = nombreMes(mes);
+  const embriones = esEmbriones(ctx.proceso.datos?.modalidad);
   await avisoTemprano(ctx);
 
   for (const { lote, linea } of elegidos) {
@@ -1334,8 +1384,19 @@ async function cargaParicion(ctx, body) {
     }
 
     const crias = [];
+    // Una transferencia de embriones (26/11): todos los terneros, con o sin el
+    // sexo, al lote "Terneros/as Wagyu <mes>" (categoría Terneros/as Wagyu).
+    if (embriones) {
+      const n = (terneros ?? 0) + (machos ?? 0) + (hembras ?? 0);
+      if (n) {
+        const categoria = await categoriaWagyu(tx);
+        const ya = await loteDelMes(ctx, { rol: 'CRIAS', mes, potreroId: destinoId, categoriaId: categoria.id });
+        if (ya) crias.push({ cabezas: n, loteId: ya.loteId });
+        else crias.push({ cabezas: n, nuevoLote: { nombre: await nombreLibre(tx, lote.campoId, nombreCrias(CATEGORIA_WAGYU, mes)), categoriaId: categoria.id } });
+      }
+    }
     // Sin el sexo (24/11): todos al lote "Terneros/as <mes>" (categoría Terneros/as).
-    if (terneros) {
+    if (terneros && !embriones) {
       const ya = await loteDelMes(ctx, { rol: 'CRIAS', mes, potreroId: destinoId, sexo: 'SIN' });
       if (ya) crias.push({ cabezas: terneros, loteId: ya.loteId });
       else crias.push({ cabezas: terneros, nuevoLote: { nombre: await nombreLibre(tx, lote.campoId, nombreCrias(CATEGORIA_SIN_SEXO, mes)), categoriaId: (await categoriaSinSexo(tx)).id } });
@@ -1345,7 +1406,7 @@ async function cargaParicion(ctx, body) {
       ['MACHO', machos, 'CRIA_MACHO', 'terneros'],
       ['HEMBRA', hembras, 'CRIA_HEMBRA', 'terneras'],
     ]) {
-      if (!n) continue;
+      if (!n || embriones) continue;
       const ya = await loteDelMes(ctx, { rol: 'CRIAS', mes, potreroId: destinoId, sexo });
       if (ya) crias.push({ cabezas: n, loteId: ya.loteId });
       else crias.push({ cabezas: n, nuevoLote: { nombre: await nombreLibre(tx, lote.campoId, nombreCrias(palabra.replace(/^t/, 'T'), mes)), categoriaId: sugerida(paso).id } });
@@ -1947,9 +2008,11 @@ export async function ficha(id) {
     });
   }
 
-  // Los días de inseminación, solo en una IATF (IA: las de antes de los ajustes).
-  const esIatf = ['IATF', 'IA'].includes(p.datos?.modalidad);
-  const etapas = PLANTILLAS[p.tipo].etapas.filter((e) => !e.soloIatf || esIatf).map((e) => {
+  // Los días de inseminación, solo en una IATF (IA: las de antes de los
+  // ajustes). Una transferencia de embriones no tiene "sin transferir": las no
+  // aptas van al toro el mismo día.
+  const iatfPropia = ['IATF', 'IA'].includes(p.datos?.modalidad);
+  const etapas = PLANTILLAS[p.tipo].etapas.filter((e) => !e.soloIatf || iatfPropia).map((e) => {
     const deEtapa = p.registros.filter((r) => r.etapa === e.clave);
     const vigentes = deEtapa.filter((r) => !r.anulado);
     const grupos = new Map();
@@ -2011,7 +2074,7 @@ export async function ficha(id) {
   const avisos = [];
   // R5: lo viejo que no cumple (vacías de un entore marcadas para volver a servir).
   const reentoreDeEntore = vivos.filter((l) => l.rol === 'VACIAS' && l.destino === 'REENTORE');
-  if (!esIatf && reentoreDeEntore.length) {
+  if (!porTandas(p.datos?.modalidad) && reentoreDeEntore.length) {
     avisos.push(`${plural(reentoreDeEntore.reduce((s, l) => s + l.cabezas, 0), 'vacía quedó', 'vacías quedaron')} para volver a servir, pero son de un entore: van a engorde, no se vuelven a servir`);
   }
 
@@ -2033,7 +2096,7 @@ export async function ficha(id) {
     estados: await estadosProceso(),
     embudo: embudo(anclas, await movimientosEmbudo(prisma, p.lotes)),
     // Los meses en que se espera la parición (para repartir las preñadas en el diagnóstico).
-    meses: servicio.inicio ? mesesEsperados(servicio, parametros.gestacionDias) : [],
+    meses: servicio.inicio ? mesesEsperados(servicio, gestacionDe(parametros, p.datos?.modalidad)) : [],
     lotes,
     // Los toros del proceso (uno por uno): los que están y los que salieron.
     toros: p.toros.map((t) => ({
@@ -2102,12 +2165,13 @@ async function enlacesDeVacias(p) {
   const anteriores = new Map();
   for (const v of vienen) anteriores.set(v.procesoId, await prisma.proceso.findUnique({ where: { id: v.procesoId }, select: { nombre: true, datos: true } }));
 
-  const cab = (n) => plural(n, 'vacía', 'vacías');
+  // En una transferencia de embriones van vacías y no aptas.
+  const cab = (n) => (esEmbriones(p.datos?.modalidad) ? plural(n, 'vaca', 'vacas') : plural(n, 'vacía', 'vacías'));
   return {
     van: van.map((v) => ({ ...v, nombre: nombres.get(v.procesoId) ?? null, texto: `${cab(v.cabezas)} → entore "${nombres.get(v.procesoId)}" (desde el ${ddmm(v.desde)})` })),
     vienen: vienen.map((v) => {
       const a = anteriores.get(v.procesoId);
-      const de = esIatf(a?.datos?.modalidad) ? 'la IATF' : 'el entore';
+      const de = elServicio(a?.datos?.modalidad);
       return { ...v, nombre: a?.nombre ?? null, texto: `${plural(v.cabezas, 'viene', 'vienen')} de ${de} "${a?.nombre}"` };
     }),
   };
@@ -2152,6 +2216,11 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
     );
     const cronograma = cronogramaDe(p, anclas, roles, parametros, hoy);
     const reentore = esReentore(p);
+    // La ecografía por partes (reglas del campo): cuántas faltan ecografiar.
+    const aMedias = diagnosticoAMedias(
+      anclas,
+      roles.map((r) => ({ ...r, cabezas: cabezas.get(r.loteId) ?? 0 })),
+    );
     lista.push({
       id: p.id,
       nombre: p.nombre,
@@ -2162,6 +2231,7 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
       fechaInicio: fechaISO(p.fechaInicio),
       etapa: e,
       textoEtapa: TEXTO_ETAPA[e],
+      aMedias,
       modalidad: p.datos?.modalidad ?? null,
       // Dónde están hoy los animales del proceso (sin repetir).
       potreros: [...new Set(activos.map((pl) => pl.lote.potrero.nombre))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })),
@@ -2174,9 +2244,11 @@ export async function listar(campos, { estado = 'ABIERTO', campania, etapa, desd
               modalidad: p.datos?.modalidad,
               // Un entore con las vacías de una IATF (va con otro color).
               deIatf: reentore && esIatf(p.procesoAnterior?.datos?.modalidad),
+              modalidadAnterior: p.procesoAnterior?.datos?.modalidad ?? null,
               alToro: alToroEnIatf(anclas),
               fechaInicio: fechaISO(p.fechaInicio),
               items: cronograma.items,
+              aMedias: aMedias?.texto ?? null,
               lotes: activos.map((pl) => ({ loteId: pl.loteId, rol: pl.rol, destino: pl.destino, cabezas: cabezas.get(pl.loteId) ?? 0, potrero: pl.lote.potrero.nombre })),
             })
           : [],

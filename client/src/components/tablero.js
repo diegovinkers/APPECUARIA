@@ -1,13 +1,15 @@
-import { diasCorto } from './procesos';
+import { diasCorto, esEmbriones, textoTipo } from './procesos';
 
 // El tablero de Procesos (24/11, dibujo de Diego): las 4 secciones del ciclo
 // de la vaca. El servidor manda, en cada proceso abierto, sus `grupos` (uno
 // por estado, cada uno con su sección); acá se juntan por sección.
 // La IATF es la primera oportunidad y el toro la segunda: lo que viene de una
-// IATF y pasó al toro va en Entore con otro color (deIatf).
+// IATF y pasó al toro va en Entore con otro color (deIatf). La transferencia
+// de embriones (26/11) va como la IATF: en la sección 1, y lo que pasa al toro
+// (las no aptas y las vacías) con el color y "de embriones" (vieneDe; corto, para que entre en el celular).
 
 export const SECCIONES_TABLERO = [
-  { clave: 'iatf', nombre: 'Inseminación', sub: 'IATF', vacio: 'No hay vacas en inseminación. Se empieza con "+ Nuevo".' },
+  { clave: 'iatf', nombre: 'Inseminación · Embriones', sub: 'IATF y transferencia', vacio: 'No hay vacas en inseminación ni con embriones. Se empieza con "+ Nuevo".' },
   { clave: 'entore', nombre: 'Entore', sub: 'Con toros', vacio: 'No hay vacas con toros.' },
   { clave: 'prenadas', nombre: 'Preñadas', sub: 'Hasta el parto', vacio: 'No hay preñadas esperando el parto.' },
   { clave: 'cria', nombre: 'Con cría al pie', sub: 'Hasta el destete', vacio: 'No hay vacas con cría al pie.' },
@@ -17,12 +19,34 @@ export const SECCIONES_TABLERO = [
 export const TEXTO_GRUPO = {
   VIENTRES: 'En servicio',
   VACIAS_REENTORE: 'Vacías para volver a servir',
+  // Solo de antes de las reglas del campo (25/11): ahora la ecografía les da destino.
   VACIAS_A_DECIDIR: 'Vacías: falta decidir',
   PRENADAS: 'Preñadas',
   PARIDAS: 'Paridas',
 };
 
-// { iatf: [tarjetas], ..., totales: { iatf: cabezas, ... }, deIatf: { entore: cabezas, ... } }.
+// Qué es el grupo, en su fila: "En servicio · Inseminación"; si el
+// diagnóstico quedó a medias (reglas del campo), "Sin ecografiar · faltan 23".
+export function textoEstadoGrupo(g, modalidad) {
+  if (g.tipo === 'VIENTRES' && g.aMedias) return `Sin ecografiar · ${g.aMedias.replace(/^Diagnóstico a medias: /, '')}`;
+  // En una transferencia, las que van al toro son las no aptas y las vacías.
+  if (g.tipo === 'VACIAS_REENTORE' && esEmbriones(modalidad)) return 'Al toro: no aptas o vacías';
+  return `${TEXTO_GRUPO[g.tipo]}${g.tipo === 'VIENTRES' ? ` · ${textoTipo(modalidad)}` : ''}`;
+}
+
+// La etiqueta de lo que va con el color: de dónde viene.
+export const textoVieneDe = (g) => (g.vieneDe === 'TE' ? 'de embriones' : 'viene de IATF');
+
+// Debajo del total de la sección: "35 de IATF", "23 de embriones" o los dos.
+export function textoDeOrigen(origen = {}) {
+  const partes = [];
+  if (origen.IATF > 0) partes.push(`${origen.IATF.toLocaleString('es-UY')} de IATF`);
+  if (origen.TE > 0) partes.push(`${origen.TE.toLocaleString('es-UY')} de embriones`);
+  return partes.join(' · ');
+}
+
+// { iatf: [tarjetas], ..., totales: { iatf: cabezas, ... }, deIatf: { entore: cabezas, ... },
+//   deOrigen: { entore: { IATF: cabezas, TE: cabezas }, ... } }.
 // Cada tarjeta es un grupo con su proceso; primero lo que vence antes (lo que
 // no tiene fecha, al final).
 export function armarTablero(procesos = []) {
@@ -32,12 +56,15 @@ export function armarTablero(procesos = []) {
   }
   const totales = {};
   const deIatf = {};
+  const deOrigen = {};
   for (const { clave } of SECCIONES_TABLERO) {
     tablero[clave].sort((a, b) => (a.proxima?.fecha ?? '9999').localeCompare(b.proxima?.fecha ?? '9999') || a.proceso.nombre.localeCompare(b.proceso.nombre));
     totales[clave] = tablero[clave].reduce((s, g) => s + g.cabezas, 0);
     deIatf[clave] = tablero[clave].reduce((s, g) => s + (g.deIatf ? g.cabezas : 0), 0);
+    deOrigen[clave] = { IATF: 0, TE: 0 };
+    for (const g of tablero[clave]) if (g.deIatf) deOrigen[clave][g.vieneDe === 'TE' ? 'TE' : 'IATF'] += g.cabezas;
   }
-  return { ...tablero, totales, deIatf };
+  return { ...tablero, totales, deIatf, deOrigen };
 }
 
 const dia = (iso) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));

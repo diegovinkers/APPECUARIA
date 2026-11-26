@@ -8,7 +8,7 @@ import Camino from '../../components/Camino';
 import { ErrorList, inputClass } from '../../components/ui';
 import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import { indexarLotes } from '../../components/eventos';
-import { cuerpoProceso, separarIatf } from '../../components/procesos';
+import { cuerpoProceso, esEmbriones, normalizarModalidad, palabrasServicio, porTandas, separarIatf } from '../../components/procesos';
 import { ElegirEstancia } from './comun';
 import { ListaToros, torosLibres } from '../../components/TorosProceso';
 
@@ -19,10 +19,12 @@ const PASOS = ['Qué', 'A quién', 'Datos', 'Dónde', 'Revisar'];
 const PASOS_EN_CURSO = ['Qué', 'A quién', 'Datos', 'Revisar'];
 // Otra tanda de un proceso que ya está (fase 6): sin elegir el tipo.
 const PASOS_TANDA = ['A quién', 'Datos', 'Dónde', 'Revisar'];
-// Solo entore e IATF (ajustes del 20/11: la inseminación "común" es lo mismo para ellos).
+// Entore, IATF o transferencia de embriones (ajustes del 20/11: la
+// inseminación "común" es lo mismo que la IATF; embriones desde el 26/11).
 const MODALIDADES = [
   ['TOROS', 'Entore con toros', 'Se echan los toros con las hembras'],
   ['IATF', 'IATF', 'Inseminación a tiempo fijo. Si se hace en varios días, cada día se anota aparte.'],
+  ['TE', 'Transferencia de embriones', 'Embriones Wagyu en receptoras. Las no aptas van al toro.'],
 ];
 const ROLES = [
   ['PRENADAS', 'Preñadas (sin parir)'],
@@ -51,19 +53,21 @@ export function textoAyuda(lotes, entran, modalidad, paso) {
   const lote = `${lotes.length} ${lotes.length === 1 ? 'lote' : 'lotes'}`;
   if (paso === 'Qué' || paso === 'A quién') return `${lote} · ${formatNumero(lotes.reduce((s, l) => s + l.cabezas, 0))} cab`;
   const n = formatNumero(lotes.reduce((s, l) => s + entran(l), 0));
-  return `${lote} · ${modalidad === 'IATF' ? `${n} a inseminar` : `entran ${n}`}`;
+  return `${lote} · ${porTandas(modalidad) ? `${n} ${palabrasServicio(modalidad).aServir}` : `entran ${n}`}`;
 }
 
 // Debajo del reparto de un lote: de las que entran (o se inseminan), cuántas
 // se reparten y cuántas quedan en su potrero; aparte, las que no entran.
-export function textoQuedan({ lote, entran, repartidas, iatf }) {
-  const verbo = iatf ? 'se inseminan' : 'entran';
+//   modalidad: en una transferencia, "se transfieren" y "no aptas".
+export function textoQuedan({ lote, entran, repartidas, iatf, modalidad = iatf ? 'IATF' : 'TOROS' }) {
+  const w = palabrasServicio(modalidad);
+  const verbo = w.verbo;
   if (repartidas > entran) return `Repartís ${formatNumero(repartidas)}, pero ${verbo} ${formatNumero(entran)}.`;
   const quedan = `De las ${formatNumero(entran)} que ${verbo}, quedan en ${lote.potrero}: ${formatNumero(entran - repartidas)}.`;
   const afuera = lote.cabezas - entran;
   // R1: en una IATF, las inseminadas no pueden quedar con las sin inseminar.
-  if (iatf && afuera > 0 && entran - repartidas > 0) return `${quedan} No pueden quedar con las ${formatNumero(afuera)} sin inseminar: repartilas todas.`;
-  return afuera > 0 ? `${quedan} Las otras ${formatNumero(afuera)} (${iatf ? 'sin inseminar' : 'no entran'}) también quedan ahí.` : quedan;
+  if (iatf && afuera > 0 && entran - repartidas > 0) return `${quedan} No pueden quedar con las ${formatNumero(afuera)} ${w.sin}: repartilas todas.`;
+  return afuera > 0 ? `${quedan} Las otras ${formatNumero(afuera)} (${w.sin}) también quedan ahí.` : quedan;
 }
 
 export default function NuevoProcesoPage() {
@@ -91,6 +95,8 @@ export default function NuevoProcesoPage() {
   const [donde, setDonde] = useState({});
   const [datos, setDatos] = useState({ fecha: hoy(), toros: '', nombre: '', nota: '' });
   const [cabezas, setCabezas] = useState({});
+  // Transferencia de embriones: cuántos se usaron (vacío = uno por transferida) y de cuáles.
+  const [embriones, setEmbriones] = useState({ usados: '', detalle: '' });
   const [curso, setCurso] = useState({ etapa: 'PARIENDO', inicio: '', fin: '', servidas: '', prenadas: '', vacias: '' });
   const [roles, setRoles] = useState({});
   const [previa, setPrevia] = useState(null);
@@ -103,7 +109,7 @@ export default function NuevoProcesoPage() {
     getProceso(tandaDe)
       .then(({ data }) => {
         setProceso(data.proceso);
-        setModalidad(['IATF', 'IA'].includes(data.proceso.datos?.modalidad) ? 'IATF' : 'TOROS');
+        setModalidad(normalizarModalidad(data.proceso.datos?.modalidad));
       })
       .catch((error) => setErrors(getErrorMessages(error, 'No se pudo cargar el proceso')));
   }, [tandaDe]);
@@ -147,11 +153,13 @@ export default function NuevoProcesoPage() {
   const nombrePaso = pasos[paso];
   // IATF (R2): las inseminadas y las sin inseminar no quedan juntas. Con la
   // forma de los lotes de la ficha para separarIatf.
-  const iatfDe = (l) => separarIatf({ cabezas: l.cabezas, potrero: { id: l.potreroId } }, { cabezas: String(entran(l)), ...donde[l.loteId] });
+  const tandas = porTandas(modalidad);
+  const w = palabrasServicio(modalidad);
+  const iatfDe = (l) => separarIatf({ cabezas: l.cabezas, potrero: { id: l.potreroId } }, { cabezas: String(entran(l)), ...donde[l.loteId] }, modalidad);
   const lugares = () => {
     const destinos = {};
     const sinInseminarA = {};
-    if (modalidad === 'IATF' && !repartir) {
+    if (tandas && !repartir) {
       for (const l of lotes) {
         const { api } = iatfDe(l);
         if (api.potreroId) destinos[l.loteId] = api.potreroId;
@@ -168,6 +176,7 @@ export default function NuevoProcesoPage() {
       cabezas,
       ...datos,
       toroIds: elegidosToros,
+      embriones,
       ...lugares(),
       ...(repartir && { reparto }),
       ...(conCurso && { enCurso: curso, roles }),
@@ -176,7 +185,7 @@ export default function NuevoProcesoPage() {
   const cuerpo = () => {
     const c = cuerpoCrear();
     if (!tandaDe) return c;
-    return { fecha: c.fecha, ...(c.nota && { nota: c.nota }), lineas: c.lineas, ...(c.asignarToros && { toros: c.asignarToros }) };
+    return { fecha: c.fecha, ...(c.nota && { nota: c.nota }), lineas: c.lineas, ...(c.asignarToros && { toros: c.asignarToros }), ...(c.embriones && { embriones: c.embriones }) };
   };
   const poner = (set) => (campo) => (e) => set((d) => ({ ...d, [campo]: e.target.value }));
   const filasDe = (loteId) => reparto[loteId] ?? [{ potreroId: '', cabezas: '', toros: '' }];
@@ -220,12 +229,13 @@ export default function NuevoProcesoPage() {
     );
   }
 
-  // R5: las vacías para volver a servir (de una IATF) entran a un entore con toros.
-  const vaciasAIatf = modalidad === 'IATF' && lotes.some((l) => paraServir.has(l.loteId));
+  // R5: las vacías para volver a servir (de una IATF o una transferencia, y las
+  // no aptas) entran a un entore con toros.
+  const vaciasAIatf = tandas && lotes.some((l) => paraServir.has(l.loteId));
   // R2: en una IATF de una parte, falta elegir a dónde va un grupo.
   const repartidasDe = (l) => filasDe(l.loteId).reduce((s, f) => s + (Number.parseInt(f.cabezas, 10) || 0), 0);
   const faltaLugar =
-    modalidad === 'IATF' &&
+    tandas &&
     (repartir ? lotes.some((l) => entran(l) < l.cabezas && repartidasDe(l) < entran(l)) : lotes.some((l) => iatfDe(l).falta));
   const opcion = (activa) => `flex min-h-11 w-full flex-col rounded-lg border px-4 py-3 text-left ${activa ? 'border-campo-500 bg-campo-50' : 'border-suelo-300 bg-superficie hover:border-campo-400'}`;
   return (
@@ -275,7 +285,7 @@ export default function NuevoProcesoPage() {
         <section aria-label="A quién" className="space-y-2">
           {vaciasAIatf && (
             <p className="rounded-md bg-amber-500/15 px-3 py-2 text-sm text-amber-900" role="status">
-              Las vacías para volver a servir entran a un entore con toros (una sola vez): volvé al primer paso y elegí Entore con toros.
+              Las vacías (y las no aptas) para volver a servir entran a un entore con toros (una sola vez): volvé al primer paso y elegí Entore con toros.
             </p>
           )}
           {!potreros && <p className="text-suelo-600">Cargando…</p>}
@@ -313,7 +323,7 @@ export default function NuevoProcesoPage() {
       {nombrePaso === 'Datos' && !conCurso && (
         <section aria-label="Datos" className="space-y-4">
           <label className={etiqueta}>
-            {modalidad === 'IATF' ? 'Fecha de la inseminación' : 'Fecha de inicio'}
+            {w.fecha}
             <input type="date" value={datos.fecha} max={hoy()} onChange={poner(setDatos)('fecha')} className={`${inputChico} mt-1`} />
             <span className="mt-1 block text-xs text-suelo-500">Con esta fecha se calcula cuándo toca el diagnóstico y la parición.</span>
           </label>
@@ -338,22 +348,43 @@ export default function NuevoProcesoPage() {
             ))}
           {lotes.map((l) => (
             <label key={l.loteId} className={etiqueta}>
-              {modalidad === 'IATF' ? '¿Cuántas se van a inseminar?' : '¿Cuántas entran al servicio?'} ({l.lote}: en {l.potrero} hay {formatNumero(l.cabezas)})
+              {w.pregunta} ({l.lote}: en {l.potrero} hay {formatNumero(l.cabezas)})
               <input inputMode="numeric" value={cabezas[l.loteId] ?? ''} onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`} />
-              <span className="mt-1 block text-xs text-suelo-500">
-                {modalidad === 'IATF'
-                  ? 'Dejalo vacío si se insemina todo el lote. Las que no, quedan aparte como "sin inseminar", para otro día (en otro potrero que las inseminadas).'
-                  : 'Dejalo vacío si entran todas.'}
-              </span>
+              <span className="mt-1 block text-xs text-suelo-500">{w.ayuda}</span>
             </label>
           ))}
+          {esEmbriones(modalidad) && (
+            <div className="space-y-4 rounded-lg border border-suelo-200 bg-suelo-50 p-3" data-testid="embriones">
+              <label className={etiqueta}>
+                ¿Cuántos embriones se usaron?
+                <input
+                  inputMode="numeric"
+                  value={embriones.usados}
+                  placeholder={formatNumero(lotes.reduce((s, l) => s + entran(l), 0))}
+                  onChange={(e) => setEmbriones((x) => ({ ...x, usados: e.target.value }))}
+                  className={`${inputChico} mt-1`}
+                />
+                <span className="mt-1 block text-xs text-suelo-500">Dejalo vacío si se usó uno por vaca transferida. No pueden ser menos que las transferidas.</span>
+              </label>
+              <label className={etiqueta}>
+                ¿De qué embriones? (opcional)
+                <input
+                  value={embriones.detalle}
+                  maxLength={120}
+                  placeholder="Por ejemplo: Wagyu, toro X, partida 3"
+                  onChange={(e) => setEmbriones((x) => ({ ...x, detalle: e.target.value }))}
+                  className={`${inputChico} mt-1`}
+                />
+              </label>
+            </div>
+          )}
           {tandaDe ? (
             <label className={etiqueta}>
               Nota (opcional)
               <input value={datos.nota} onChange={poner(setDatos)('nota')} maxLength={255} className={`${inputChico} mt-1`} />
             </label>
           ) : (
-            <Nombre datos={datos} onCambiar={poner(setDatos)} />
+            <Nombre datos={datos} onCambiar={poner(setDatos)} modalidad={modalidad} />
           )}
         </section>
       )}
@@ -404,7 +435,7 @@ export default function NuevoProcesoPage() {
               </select>
             </label>
           ))}
-          <Nombre datos={datos} onCambiar={poner(setDatos)} />
+          <Nombre datos={datos} onCambiar={poner(setDatos)} modalidad={modalidad} />
         </section>
       )}
 
@@ -421,7 +452,7 @@ export default function NuevoProcesoPage() {
             </button>
           </div>
           {!repartir &&
-            modalidad === 'IATF' &&
+            tandas &&
             lotes.map((l) => {
               const s = iatfDe(l);
               const d = donde[l.loteId] ?? {};
@@ -431,13 +462,13 @@ export default function NuevoProcesoPage() {
               return (
                 <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3" data-donde={l.loteId}>
                   <legend className="px-1 text-sm font-semibold">
-                    {l.lote}: en {l.potrero} hay {formatNumero(l.cabezas)} · se inseminan {formatNumero(s.n)}
+                    {l.lote}: en {l.potrero} hay {formatNumero(l.cabezas)} · {w.verbo} {formatNumero(s.n)}
                   </legend>
                   {s.parte && (
                     <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label={`${l.lote}: qué grupo se va`}>
                       {[
-                        ['INSEMINADAS', `Las ${formatNumero(s.n)} inseminadas a…`],
-                        ['SIN', `Las ${formatNumero(s.sinInseminar)} sin inseminar a…`],
+                        ['INSEMINADAS', `Las ${formatNumero(s.n)} ${w.hechas} a…`],
+                        ['SIN', `Las ${formatNumero(s.sinInseminar)} ${w.sin} a…`],
                       ].map(([valor, t]) => (
                         <button key={valor} type="button" onClick={() => poner({ seVan: valor })} aria-pressed={seVan === valor} className={opcion(seVan === valor)}>
                           <span className="font-semibold">{t}</span>
@@ -447,7 +478,7 @@ export default function NuevoProcesoPage() {
                     </div>
                   )}
                   <label className="block text-xs text-suelo-600">
-                    {s.parte ? (seVan === 'SIN' ? 'Las sin inseminar van a' : 'Las inseminadas van a') : 'Dónde quedan'}
+                    {s.parte ? `Las ${seVan === 'SIN' ? w.sin : w.hechas} van a` : 'Dónde quedan'}
                     <select aria-label={`${l.lote}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner({ potreroId: e.target.value })} className={`${inputChico} mt-1 w-full`}>
                       <option value="">{s.parte ? 'Elegí el potrero…' : `Se quedan en ${l.potrero}`}</option>
                       {otros.map((p) => (
@@ -457,7 +488,12 @@ export default function NuevoProcesoPage() {
                       ))}
                     </select>
                   </label>
-                  {s.parte && <p className="text-xs text-suelo-500">Las inseminadas y las sin inseminar no pueden quedar en el mismo potrero: en el campo no se distinguen.</p>}
+                  {s.parte && (
+                    <p className="text-xs text-suelo-500">
+                      Las {w.hechas} y las {w.sin} no pueden quedar en el mismo potrero: en el campo no se distinguen.
+                      {esEmbriones(modalidad) && ' Las no aptas van al toro: después empezás el entore con ellas.'}
+                    </p>
+                  )}
                 </fieldset>
               );
             })}
@@ -469,7 +505,7 @@ export default function NuevoProcesoPage() {
               return (
                 <fieldset key={l.loteId} className="space-y-2 rounded-lg border border-suelo-200 bg-superficie p-3" data-reparto={l.loteId}>
                   <legend className="px-1 text-sm font-semibold">
-                    {l.lote} ({l.potrero}) · {modalidad === 'IATF' ? 'se inseminan' : 'entran'} {formatNumero(entran(l))}
+                    {l.lote} ({l.potrero}) · {w.verbo} {formatNumero(entran(l))}
                   </legend>
                   {filas.map((f, i) => (
                     <div key={i} className={`grid ${modalidad === 'TOROS' ? 'grid-cols-[1fr_5rem_4.5rem_auto]' : 'grid-cols-[1fr_5rem_auto]'} items-end gap-2`}>
@@ -503,7 +539,7 @@ export default function NuevoProcesoPage() {
                     + Agregar potrero
                   </button>
                   <p className={`text-xs ${repartidas > entran(l) ? 'font-medium text-red-700' : 'text-suelo-500'}`} data-testid="quedan">
-                    {textoQuedan({ lote: l, entran: entran(l), repartidas, iatf: modalidad === 'IATF' })}
+                    {textoQuedan({ lote: l, entran: entran(l), repartidas, iatf: tandas, modalidad })}
                   </p>
                 </fieldset>
               );
@@ -529,11 +565,11 @@ export default function NuevoProcesoPage() {
   );
 }
 
-function Nombre({ datos, onCambiar }) {
+function Nombre({ datos, onCambiar, modalidad }) {
   return (
     <>
       <label className={etiqueta}>
-        Nombre (opcional; si no, "Servicio 2026-27 · …")
+        Nombre (opcional; si no, "{esEmbriones(modalidad) ? 'Embriones' : 'Servicio'} 2026-27 · …")
         <input value={datos.nombre} onChange={onCambiar('nombre')} maxLength={120} className={`${inputChico} mt-1`} />
       </label>
       <label className={etiqueta}>

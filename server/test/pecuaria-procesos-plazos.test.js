@@ -60,7 +60,7 @@ describe('las fechas del ejemplo (cuentas puras)', () => {
 describe('configuración de los procesos', () => {
   it('el seed crea los plazos y los estados, y no pisa lo editado', async () => {
     await seedPecuaria(prisma, () => {});
-    expect(await prisma.etapaPlantilla.count()).toBe(5);
+    expect(await prisma.etapaPlantilla.count()).toBe(6);
     expect(await prisma.estadoReproductivo.count()).toBe(7);
     await prisma.etapaPlantilla.update({ where: { tipoProceso_clave: { tipoProceso: 'REPRODUCTIVO', clave: 'DIAGNOSTICO' } }, data: { plazo: 40 } });
     await seedPecuaria(prisma, () => {});
@@ -74,6 +74,7 @@ describe('configuración de los procesos', () => {
       ['FIN_SERVICIO', 90, 'DIAS', 7],
       ['DIAGNOSTICO', 30, 'DIAS', 7],
       ['PARICION', 283, 'DIAS', 7],
+      ['PARICION_TE', 276, 'DIAS', 7],
       ['NUEVO_ENTORE', 70, 'DIAS', 7],
       ['DESTETE', 6, 'MESES', 7],
     ]);

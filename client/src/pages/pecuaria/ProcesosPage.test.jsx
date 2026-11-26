@@ -112,7 +112,7 @@ describe('la página Procesos', () => {
     await montar();
     const titulos = [...contenedor.querySelectorAll('[data-testid="tablero"] h2 button')];
     expect(titulos.map((b) => b.textContent.replace(/\s+/g, ' '))).toEqual([
-      '1Inseminación! DIAGNOSTICO: atrasada 2 días80cab · 1 grupo',
+      '1Inseminación · Embriones! DIAGNOSTICO: atrasada 2 días80cab · 1 grupo',
       '2EntoreFIN_SERVICIO: faltan 10 días75cab · 2 grupos35 de IATF',
       '3PreñadasPARICION: faltan 10 días165cab · 1 grupo',
       '4Con cría al pieSin vacas0cab',
@@ -131,7 +131,7 @@ describe('la página Procesos', () => {
     expect(contenedor.querySelector('[data-testid="aviso-iatf"]').className).toMatch(/text-red-700/);
     abrir('iatf');
     expect(contenedor.querySelector('[data-testid="aviso-iatf"]')).toBeNull();
-    expect(seccion('iatf').querySelector('h2').textContent).toMatch(/IATF80/);
+    expect(seccion('iatf').querySelector('h2').textContent).toMatch(/IATF y transferencia80/);
   });
 
   it('cada sección mide lo que su contenido (no un pedazo fijo del alto); se baja el tablero entero (25/11)', async () => {

@@ -12,6 +12,7 @@ export const GRUPO_EVENTO = {
   TRATAMIENTO: 'Sanidad',
   ECOGRAFIA: 'Reproducción',
   INSEMINACION: 'Reproducción',
+  TRANSFERENCIA_EMBRIONES: 'Reproducción',
   ENTORE: 'Reproducción',
   ABORTO: 'Reproducción',
   FIN_SERVICIO: 'Reproducción',
@@ -39,6 +40,7 @@ const CORTO = {
   TRATAMIENTO: 'Otro tratamiento',
   IDENTIFICACION: 'Caravaneo',
   ENTORE: 'Entore',
+  TRANSFERENCIA_EMBRIONES: 'Embriones',
   FIN_SERVICIO: 'Fin del servicio',
 };
 

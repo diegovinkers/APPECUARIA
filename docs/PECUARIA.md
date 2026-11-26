@@ -160,6 +160,28 @@ Con filas (tabla · filas): AREAMANEJO 154 · AREAMANEJOXTALHOES 2 · AREAMANXCA
 - La fecha real manda (se recalcula lo que sigue); la app propone y el usuario confirma; si la realidad se sale del plan, avisa pero no bloquea. El proceso queda abierto hasta que cada vaca tiene destino. Estados de una sugerencia: pendiente, próxima, hoy, atrasada, hecha, descartada.
 - Jefe, dueño y encargado pueden hacer lo mismo. El encargado carga desde el celular.
 
+### Reglas del campo (25/11/2026, revisadas con Diego con dibujos)
+
+Encargo: `docs/superpowers/prompts/2026-11-25-procesos-reglas-del-campo.md`. Reemplazan lo que diga distinto en las decisiones de arriba (el "decidir después", el repaso con toro en la IATF, las vacías que "se dejan").
+
+```
+IATF ──► Ecografía ──► Preñadas: siguen el ciclo (parición → cría al pie → destete)
+                  └──► Vacías ──► Engorde (salen del proceso)
+                             └──► Entore con toros (1 sola vez) ──► Ecografía ──► Preñadas: siguen el ciclo
+                                                                             └──► Vacías: engorde
+Un rodeo que empieza con entore entra directo en "Entore con toros".
+```
+
+1. **Al separar, una de las partes cambia de potrero** (en el campo no se distinguen): inseminadas y sin inseminar, preñadas y vacías, ecografiadas y sin ecografiar, terneros y vacas en el destete. El servidor lo controla y la pantalla no deja seguir. **Excepción:** las paridas con su cría y las preñadas conviven hasta el destete (también unas vacías que todavía tienen su ternero al pie en otro proceso).
+2. **IATF de una parte:** la app dice "En P8 hay 103"; con 80, no se ofrece quedarse: "Las 80 inseminadas a…" o "Las 23 sin inseminar a…". Con todas, se quedan o se mueven. Lo mismo en otro día de inseminación.
+3. **Terminar la inseminación:** las sin inseminar salen del proceso, o se dejan para otro día (no se anota nada). Ya no hay "repaso con toro": si meten un toro antes de la ecografía, se hace por fuera de la app.
+4. **Ecografía:** se decide y se separa en el momento ("¿Quiénes se van?": las vacías, las preñadas o las dos). Las vacías de una IATF van a entore con toros o a engorde; las de un entore, solo a engorde (salen del proceso con la categoría de invernar sugerida). Preñadas de varios meses: "¿Las separás por mes?" (sí: un lote por mes, cada uno a su potrero). Por partes: las sin ecografiar se quedan y el proceso dice "Diagnóstico a medias: faltan N" hasta terminar. La revisión mueve las que cambian al lote de su grupo nuevo.
+5. **Nunca dos entores seguidos.** Las vacías que se vuelven a servir vienen de una IATF y entran a un entore con toros (nuevo, con "+ Nuevo proceso", o en curso, con una tanda). Los dos procesos lo muestran ("25 vacías → entore X", "25 vienen de la IATF Y").
+6. **Abortos y falladas a engorde**, a otro potrero si quedan otras del proceso.
+7. **Destete:** los terneros a un potrero y las vacas se quedan o se mueven, con su categoría; no al mismo potrero.
+8. **Avisos de mezcla** en la vista previa (no bloquean): dos estados del mismo proceso en un potrero, y categorías que no se suelen juntar según los grupos de manejo de `server/src/pecuaria/mezcla.js` (cría al pie, vientres, engorde de hembras, recría, destetados, engorde de machos; falta que Diego confirme la tabla).
+9. **Lo de antes se sigue mostrando:** vacías sin destino (con "Decidir": solo entore, si es de una IATF, o engorde), el repaso con toro de una IATF, y la venta, invernada o reentore viejos.
+
 ### Supuestos (valores iniciales, editables en Configuración)
 
 | Plazo | Valor |

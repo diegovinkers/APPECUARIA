@@ -16,6 +16,7 @@ import {
   faltaEcografia,
   nombreMes,
   opcionesEcografia,
+  porTandas,
   quienesSeVan,
   separarIatf,
   textoBotonEtapa,
@@ -145,7 +146,7 @@ export default function ProcesoEtapaPage() {
   const lotes = posibles.filter((l) => elegidosIds.includes(l.loteId));
   const nombrePaso = cfg?.pasos[paso];
   // Las vacías de una IATF pueden ir al entore (una vez); las de un entore, solo a engorde (R5).
-  const esIatf = ['IATF', 'IA'].includes(ficha?.proceso.datos?.modalidad);
+  const esIatf = porTandas(ficha?.proceso.datos?.modalidad);
   // ¿Hay en el potrero del lote otros lotes del proceso? (las falladas no se pueden quedar con ellos).
   const conOtrosDelProceso = (l) => (ficha?.lotes ?? []).some((x) => x.activo && x.loteId !== l.loteId && x.potrero?.id === l.potrero?.id && x.rol !== 'LIBRES');
 

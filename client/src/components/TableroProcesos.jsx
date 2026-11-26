@@ -6,8 +6,8 @@ import usePuede from '../hooks/usePuede';
 import { ErrorList } from './ui';
 import Icono from './Icono';
 import { formatFecha, formatNumero } from './pecuaria';
-import { diasCorto, estiloSugerencia, nombreProceso, textoTipo } from './procesos';
-import { SECCIONES_TABLERO, TEXTO_GRUPO, accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos } from './tablero';
+import { diasCorto, estiloSugerencia, nombreProceso } from './procesos';
+import { SECCIONES_TABLERO, accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos, textoDeOrigen, textoEstadoGrupo, textoVieneDe } from './tablero';
 import { TituloOrdenable, celda } from './tabla';
 
 const hoyIso = () => new Date().toLocaleDateString('sv-SE');
@@ -89,7 +89,7 @@ export default function TableroProcesos({ tablero, errors, todas }) {
                     </span>
                     {tablero.deIatf[s.clave] > 0 && (
                       <span className="block text-xs font-medium text-trigo-600" data-testid={`de-iatf-${s.clave}`}>
-                        {formatNumero(tablero.deIatf[s.clave])} de IATF
+                        {textoDeOrigen(tablero.deOrigen?.[s.clave]) || `${formatNumero(tablero.deIatf[s.clave])} de IATF`}
                       </span>
                     )}
                   </span>
@@ -119,7 +119,8 @@ export default function TableroProcesos({ tablero, errors, todas }) {
 //   Celular: Proceso (debajo, qué grupo y dónde) | Cab. | Lo que sigue (los
 //            días y la fecha debajo) | el botón.
 //   Compu:   suma Estado, Potreros y Fecha en sus columnas.
-// Lo que viene de una IATF y pasó al toro va en color trigo, con "IATF".
+// Lo que viene de una IATF (o de una transferencia) y pasó al toro va en color
+// trigo, con "viene de IATF" o "viene de embriones".
 function TablaGrupos({ grupos, todas }) {
   const puedo = usePuede();
   const [orden, setOrden] = useState({ col: 'proxima', dir: 'asc' });
@@ -170,7 +171,7 @@ function FilaGrupo({ g, todas, hoy, conAccion }) {
   const accion = conAccion ? accionDeGrupo(p.id, g) : null;
   // El botón resalta cuando ya toca (hoy, atrasada) o cuando no hay fecha (vacías).
   const urgente = !prox || prox.estado === 'ATRASADA' || prox.estado === 'HOY';
-  const estado = `${TEXTO_GRUPO[g.tipo]}${g.tipo === 'VIENTRES' ? ` · ${textoTipo(p.modalidad)}` : ''}`;
+  const estado = textoEstadoGrupo(g, p.modalidad);
   const potreros = g.potreros.join(', ');
   return (
     <tr
@@ -185,12 +186,12 @@ function FilaGrupo({ g, todas, hoy, conAccion }) {
         </Link>
         {/* En el celular, el estado y los potreros van debajo del nombre. */}
         <p className="truncate text-xs text-suelo-600 md:hidden">
-          {g.deIatf && <span className="mr-1 rounded bg-trigo-500 px-1 text-[10px] font-semibold text-trigo-900">viene de IATF</span>}
+          {g.deIatf && <span className="mr-1 rounded bg-trigo-500 px-1 text-[10px] font-semibold text-trigo-900">{textoVieneDe(g)}</span>}
           {estado}
           {potreros ? ` · ${potreros}` : ''}
         </p>
         {g.deIatf && (
-          <span className="mt-0.5 hidden rounded bg-trigo-500 px-1.5 text-[11px] font-semibold text-trigo-900 md:inline-block">viene de IATF</span>
+          <span className="mt-0.5 hidden rounded bg-trigo-500 px-1.5 text-[11px] font-semibold text-trigo-900 md:inline-block">{textoVieneDe(g)}</span>
         )}
       </td>
       <td className={`${celda} hidden text-suelo-700 md:table-cell`}>{estado}</td>

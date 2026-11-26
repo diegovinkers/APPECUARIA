@@ -6,7 +6,8 @@
 // Un "ancla" es el evento de una etapa (evento_registro con etapa):
 //   { etapa, loteId, fecha, cabezas, datos, anulado }
 // Los datos de cada etapa (procesos.datos.js):
-//   INICIO        { modalidad, toros?, reparto?, inicial? } cabezas = servidas
+//   INICIO        { modalidad, toros?, reparto?, inicial?, embriones?, noAptas? } cabezas = servidas
+//                 (en una transferencia: embriones { usados, detalle? } y las no aptas, que van al toro)
 //   INSEMINACION  { }                                    cabezas = inseminadas ese día (IATF)
 //   FIN_INSEMINACION { destino: REPASO | SALEN }         cabezas = las que quedaban
 //   DIAGNOSTICO   { metodo, prenadas: { [mes | 'sin']: n }, vacias, inicial? }
@@ -16,6 +17,7 @@
 //   FIN_PARICION  { falladas }
 //   DESTETE       { destetados, pesoPromedioKg? }
 import { normalizarTexto } from './normalizar.js';
+import { porTandas } from './procesos.modalidad.js';
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -91,7 +93,8 @@ export const TEXTO_ETAPA = {
   TERMINADO: 'Terminado',
 };
 
-const IATF = new Set(['IATF', 'IA']);
+// La IATF y la transferencia de embriones (porTandas): sin fin del servicio.
+const IATF = { has: porTandas };
 
 // Los lotes servidos que todavía no se ecografiaron, cuando el diagnóstico ya
 // empezó (reglas del campo, 25/11: la ecografía va por partes). En un entore,
@@ -188,6 +191,10 @@ export function embudo(anclas, movimientos = []) {
     diagnosticadas,
     prenadas,
     vacias,
+    // La transferencia de embriones (26/11): los embriones usados y las no aptas
+    // (null si el proceso no tiene transferencias).
+    embriones: deServicio(a).some((x) => x.datos?.embriones) ? suma(deServicio(a), (x) => num(x.datos?.embriones?.usados)) : null,
+    noAptas: suma(deServicio(a), (x) => num(x.datos?.noAptas)),
     abortos: suma(de(a, 'ABORTO'), (x) => num(x.cabezas)),
     paridas,
     ternerosVivos,

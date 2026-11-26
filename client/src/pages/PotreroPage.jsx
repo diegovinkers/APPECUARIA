@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   cambiarUso,
   editarPotrero,
@@ -8,6 +8,7 @@ import {
   getPotrero,
   getUsosSuelo,
   guardarStock,
+  anularPasto,
   registrarMovimiento,
   renombrarLote,
 } from '../api/pecuaria';
@@ -17,6 +18,9 @@ import { EnProceso, Hectareas, UsoBadge, aprox, familiasJuntas, formatFecha, for
 import usePuede from '../hooks/usePuede';
 import { EventoItem } from '../components/movimientos';
 import HistorialPotrero from '../components/HistorialPotrero';
+import { PastoMarca } from '../components/PastoSelector';
+import { hace, textoDescanso, textoMomento } from '../components/pasto';
+import { rutaPasto } from '../navegacion/menu';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 // Acepta "250" o "250,5" (como se escribe acá).
@@ -32,6 +36,7 @@ export default function PotreroPage() {
   const puedo = usePuede();
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [potrero, setPotrero] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [modo, setModo] = useState(null); // 'stock' | 'uso' | 'hectareas'
@@ -88,6 +93,8 @@ export default function PotreroPage() {
   const esCorral = potrero.tipo === 'CORRAL';
   // Las acciones que se usan poco van en el menú "⋯" (24/11).
   const acciones = [
+    // Pasto (26/11): la recorrida, con este potrero primero.
+    puedo('pecuaria:CREAR') && potrero.llevaPasto && ['pasto', 'Anotar pasto'],
     puedo('pecuaria:CREAR') && ['stock', 'Editar stock'],
     puedo('pecuaria:CREAR') && !esCorral && ['uso', 'Cambiar uso de suelo'],
     puedo('pecuaria:EDITAR') && esCorral && ['comedero', potrero.metrosComedero == null ? 'Cargar metros de comedero' : 'Corregir metros de comedero'],
@@ -102,7 +109,7 @@ export default function PotreroPage() {
         <Link to="/pecuaria/potreros" className="text-sm text-campo-600 hover:underline">
           ← Potreros
         </Link>
-        <MenuAcciones acciones={acciones} onElegir={setModo} />
+        <MenuAcciones acciones={acciones} onElegir={(m) => (m === 'pasto' ? navigate(rutaPasto({ potrero: potrero.id })) : setModo(m))} />
       </div>
       <h1 className="mt-1 flex flex-wrap items-baseline gap-x-2 text-2xl font-bold">
         {potrero.nombre}
@@ -125,6 +132,22 @@ export default function PotreroPage() {
           <span className="text-xs text-suelo-500">{potrero.subdivisiones.map((s) => s.codigo).join(' · ')}</span>
         )}
       </div>
+      {potrero.llevaPasto && (potrero.pasto || potrero.descanso) && (
+        // El último pasto anotado y cuánto hace que descansa (o que tiene ganado).
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-suelo-600" data-testid="pasto-potrero">
+          {potrero.pasto && (
+            <>
+              <span>Pasto</span>
+              <PastoMarca valor={potrero.pasto.altura} />
+              <span className="text-xs text-suelo-500">
+                {hace(potrero.pasto.fecha, hoy())} ({textoMomento(potrero.pasto.momento)})
+              </span>
+            </>
+          )}
+          {potrero.pasto && potrero.descanso && <span aria-hidden="true">·</span>}
+          {potrero.descanso && <span className={potrero.descanso.conGanado ? '' : 'font-medium text-campo-700'}>{textoDescanso(potrero.descanso)}</span>}
+        </p>
+      )}
       <EnProceso procesos={potrero.procesos} />
 
       <div className="mt-3">
@@ -214,7 +237,17 @@ export default function PotreroPage() {
           ))}
       </section>
 
-      {historial && <Historial historial={historial} kilosEstimados={stock?.kilosEstimados} />}
+      {historial && (
+        <Historial
+          historial={historial}
+          kilosEstimados={stock?.kilosEstimados}
+          puedeAnular={puedo('pecuaria:ANULAR')}
+          onAnularPasto={(l) => {
+            if (!window.confirm(`¿Anular el pasto ${l.altura.toLowerCase()} del ${formatFecha(l.fecha)}?`)) return;
+            guardar(() => anularPasto(l.id).then(() => null), 'Lectura de pasto anulada.');
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -558,7 +591,7 @@ function CorregirComedero({ potrero, onGuardar, onCancelar }) {
 
 // Lo que fue pasando: la tabla de movimientos (lo principal) y, plegados, los
 // eventos y los usos de suelo anteriores.
-function Historial({ historial, kilosEstimados }) {
+function Historial({ historial, kilosEstimados, puedeAnular, onAnularPasto }) {
   return (
     <section className="mt-5">
       <h2 className="mb-1.5 text-sm font-semibold text-suelo-700">Movimientos</h2>
@@ -570,6 +603,31 @@ function Historial({ historial, kilosEstimados }) {
           <ul className="mt-2 space-y-2" data-testid="eventos-potrero">
             {historial.eventos.map((e) => (
               <EventoItem key={e.id} e={e} conPotrero />
+            ))}
+          </ul>
+        </details>
+      )}
+      {historial.pasto?.length > 0 && (
+        <details className="mt-2 rounded-lg border border-suelo-200 px-3 py-2">
+          <summary className="cursor-pointer text-sm font-semibold text-suelo-700">Pasto ({historial.pasto.filter((l) => !l.anulada).length})</summary>
+          <ul className="mt-2 divide-y divide-suelo-200 text-sm" data-testid="pasto-lecturas">
+            {historial.pasto.map((l) => (
+              <li key={l.id} className={`flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 ${l.anulada ? 'opacity-50' : ''}`}>
+                <span className="tabular-nums text-suelo-600">{formatFecha(l.fecha)}</span>
+                <PastoMarca valor={l.altura} />
+                <span className="text-xs text-suelo-500">
+                  {textoMomento(l.momento)}
+                  {l.usuario ? ` · ${l.usuario}` : ''}
+                  {l.nota ? ` · ${l.nota}` : ''}
+                </span>
+                {l.anulada && <span className="text-xs">(anulada)</span>}
+                {/* Las de un movimiento se anulan revirtiendo el movimiento. */}
+                {puedeAnular && !l.anulada && l.momento === 'RECORRIDA' && (
+                  <button type="button" onClick={() => onAnularPasto(l)} className="ml-auto text-xs text-suelo-500 hover:text-red-700">
+                    Anular
+                  </button>
+                )}
+              </li>
             ))}
           </ul>
         </details>

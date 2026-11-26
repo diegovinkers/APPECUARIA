@@ -105,3 +105,9 @@ export const cerrarProceso = (id, datos = {}) => api.post(`/pecuaria/procesos/${
 export const anularProceso = (id) => api.post(`/pecuaria/procesos/${id}/anular`);
 export const getSueltos = (id) => api.get(`/pecuaria/procesos/${id}/sueltos`);
 export const asociarSueltos = (id, registroIds) => api.post(`/pecuaria/procesos/${id}/asociar`, { registroIds });
+
+// Pasto de los potreros (docs/superpowers/plans/2026-11-26-pasto.md): una
+// recorrida ({ fecha?, lecturas: [{ potreroId, altura }], nota? }) y anular
+// una lectura. El que se anota al mover va con el movimiento (pastoOrigen, pastoDestino).
+export const registrarRecorridaPasto = (datos) => api.post('/pecuaria/pasto', datos);
+export const anularPasto = (id) => api.post(`/pecuaria/pasto/${id}/anular`);

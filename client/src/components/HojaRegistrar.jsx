@@ -4,7 +4,7 @@ import { useEstancia } from '../context/EstanciaContext';
 import usePotreros from '../hooks/usePotreros';
 import { getTiposMovimiento } from '../api/pecuaria';
 import { getErrorMessages } from '../api/axios';
-import { rutaEvento } from '../navegacion/menu';
+import { rutaEvento, rutaPasto } from '../navegacion/menu';
 import { ErrorList } from './ui';
 import { formatNumero, queHayYUso } from './pecuaria';
 import { ListaEventos } from './HojaEventos';
@@ -72,7 +72,8 @@ const TONO = {
 };
 
 // Los eventos del "+" (24/11): los tipos del catálogo se piden la primera vez
-// que se abre la pestaña Eventos.
+// que se abre la pestaña Eventos. Arriba, fijo, "Pasto de los potreros" (26/11):
+// no es un tipo del catálogo (no se le hace nada a los animales).
 function EventosDelMas({ contexto, onElegir }) {
   const [tipos, setTipos] = useState(null);
   const [errors, setErrors] = useState([]);
@@ -83,6 +84,19 @@ function EventosDelMas({ contexto, onElegir }) {
   }, []);
   return (
     <>
+      <button
+        type="button"
+        onClick={() => onElegir(rutaPasto(contexto))}
+        className="mb-3 flex min-h-12 w-full shrink-0 items-center gap-3 rounded-lg border border-suelo-300 px-3 py-2 text-left hover:border-campo-500 hover:bg-campo-50"
+      >
+        <span className="text-campo-600">
+          <Icono nombre="pasto" className="h-6 w-6" />
+        </span>
+        <span>
+          <span className="block font-medium">Pasto de los potreros</span>
+          <span className="block text-xs text-suelo-500">Bajo, medio o alto, sin mover ganado</span>
+        </span>
+      </button>
       <ErrorList errors={errors} />
       {!tipos && !errors.length && <p className="py-4 text-sm text-suelo-600">Cargando…</p>}
       {tipos && <ListaEventos tipos={tipos} onElegir={(t) => onElegir(rutaEvento(t.id, contexto))} />}

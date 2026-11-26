@@ -6,6 +6,8 @@ import { calcularPotrero, kilosLinea, problemaArea } from './calculos.js';
 import { aFecha, fechaISO, hoyISO } from './importaciones.service.js';
 import { crearLote, crearVersion, nombreOcupado } from './lotes.js';
 import { listarEventos, textosDeVersiones } from './eventos.service.js';
+import { pastoDeMovimientos, pastoDePotrero } from './pasto.service.js';
+import { llevaPasto } from './pasto.js';
 
 export const fechaUY = (iso) => iso.split('-').reverse().join('/');
 
@@ -103,7 +105,7 @@ export async function detallePotrero(id) {
   const { usos, versionesStock, hectareas, areaUtilizable: area, metrosComedero, ...p } = await buscarPotrero(id);
   const [uso] = usos;
   const [version] = versionesStock;
-  const kg = await parametrosCarga();
+  const [kg, pasto] = await Promise.all([parametrosCarga(), pastoDePotrero(p.id)]);
   const ha = hectareas == null ? null : Number(hectareas);
   const areaUtilizable = area == null ? null : Number(area);
   let stock = null;
@@ -129,6 +131,11 @@ export async function detallePotrero(id) {
       : null,
     stock,
     kgPorUg: kg.kgPorUg,
+    // El último pasto y los días con ganado o de descanso. Los corrales y los
+    // feedlots no llevan pasto.
+    llevaPasto: llevaPasto(p),
+    pasto: pasto.pasto,
+    descanso: pasto.descanso,
   };
 }
 
@@ -287,11 +294,20 @@ export async function historialPotrero(id) {
     textosDeVersiones(potrero.id),
     listarEventos(undefined, { potreroId: potrero.id }),
   ]);
-  const kg = await parametrosCarga();
+  const [kg, pastoMov, pasto] = await Promise.all([
+    parametrosCarga(),
+    pastoDeMovimientos(
+      potrero.id,
+      movimientos.map((m) => m.id),
+    ),
+    pastoDePotrero(potrero.id),
+  ]);
   const ids = [...new Set(movimientos.flatMap((m) => [m.categoriaOrigenId, m.categoriaDestinoId]).filter(Boolean))];
   const nombres = new Map((await prisma.categoria.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })).map((c) => [c.id, c]));
   // Una versión puede venir de varios movimientos (un múltiple, una entrada de varias líneas).
   const porVersion = new Map();
+  // El pasto anotado con los movimientos de cada versión: { salida?, entrada? }.
+  const pastoVersion = new Map();
   // En la ficha no se muestran las reversiones ni lo que se revirtió (pedido
   // de Diego, 25/11): la reversión deja el potrero como estaba, así que las
   // dos versiones se van juntas. En Historial (la lista completa) sigue todo.
@@ -302,6 +318,7 @@ export async function historialPotrero(id) {
     m.categoriaDestino = nombres.get(m.categoriaDestinoId);
     const vid = m.potreroOrigenId === potrero.id ? m.versionOrigenId : m.versionDestinoId;
     porVersion.set(vid, [...(porVersion.get(vid) ?? []), describirMovimiento(m, potrero)]);
+    if (pastoMov.has(m.id)) pastoVersion.set(vid, { ...pastoVersion.get(vid), ...pastoMov.get(m.id) });
     const oculto = m.modo === 'REVERSION' || revertidos.has(m.id);
     ocultas.set(vid, (ocultas.get(vid) ?? true) && oculto);
   }
@@ -331,6 +348,7 @@ export async function historialPotrero(id) {
       lineas,
       cabezas: lineas.reduce((s, l) => s + l.cabezas, 0),
       carga: cargaDeVersion(potrero, lineas, kg),
+      pasto: pastoVersion.get(v.id) ?? null,
     };
   });
   return {
@@ -343,6 +361,8 @@ export async function historialPotrero(id) {
     })),
     // Lo que se les hizo a los lotes del potrero (pesadas, vacunas...).
     eventos,
+    // Las lecturas de pasto (de la más nueva a la más vieja, con las anuladas).
+    pasto: pasto.lecturas,
   };
 }
 

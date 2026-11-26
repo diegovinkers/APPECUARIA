@@ -30,9 +30,13 @@ export async function postActualizar(req, res) {
   res.json(await precios.actualizarPrecios(req, { disparadoPor: 'BOTON' }));
 }
 
+// Primero lo que hay y después, si corresponde, la actualización en segundo
+// plano: la respuesta es siempre lo que había al abrir (si se leyera después,
+// una corrida rápida podía terminar antes y mezclar las dos cosas).
 export async function getUltimos(req, res) {
+  const hay = await precios.ultimos();
   const actualizando = await precios.actualizarAlAbrir(req);
-  res.json({ ...(await precios.ultimos()), actualizando });
+  res.json({ ...hay, actualizando });
 }
 
 export async function getHistorial(req, res) {

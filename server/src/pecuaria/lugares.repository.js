@@ -4,6 +4,8 @@ import { Prisma } from '../generated/prisma/client.ts';
 import { badRequest, conflict, parseId } from '../errors.js';
 import { calcularPotrero, problemaArea } from './calculos.js';
 import { parametrosCarga } from './stock.service.js';
+import { pastoYDescanso } from './pasto.service.js';
+import { llevaPasto } from './pasto.js';
 
 const isPrismaError = (error, code) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === code;
 
@@ -152,6 +154,8 @@ async function listarPotreros(where) {
     orderBy: [{ campo: { orden: 'asc' } }, { campo: { sigla: 'asc' } }, { orden: 'asc' }, { nombre: 'asc' }],
   });
   const kgPorUg = await parametrosCarga();
+  // El último pasto y los días con ganado o de descanso (pasto.service.js).
+  const pastos = await pastoYDescanso(rows.map((r) => r.id));
   return rows.map(({ usos, versionesStock, ...row }) => {
     const [uso] = usos;
     const [version] = versionesStock;
@@ -175,6 +179,8 @@ async function listarPotreros(where) {
       ...potrero,
       usoActual: uso ? { ...uso.usoSuelo, desde: uso.desde.toISOString().slice(0, 10) } : null,
       stock: version ? { fecha: version.fecha.toISOString().slice(0, 10), ...calcularPotrero({ ...potrero, lineas }, kgPorUg), lotes } : null,
+      llevaPasto: llevaPasto(row),
+      ...pastos.get(row.id),
     };
   });
 }

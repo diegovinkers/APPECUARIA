@@ -4,6 +4,7 @@ import { getCategorias, getPotrero, getPotreros, registrarMovimiento, vistaPrevi
 import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { UsoBadge, cabezasPorCategoria, formatNumero } from '../components/pecuaria';
+import { PastoSelector } from '../components/PastoSelector';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -42,6 +43,9 @@ export default function MoverPage() {
   const [categoriaEntero, setCategoriaEntero] = useState('');
   const [fecha, setFecha] = useState(hoy());
   const [nota, setNota] = useState('');
+  // Pasto (opcional, 26/11): cómo quedó el potrero que dejan y cómo está al que llegan.
+  const [pastoOrigen, setPastoOrigen] = useState('');
+  const [pastoDestino, setPastoDestino] = useState('');
   const [previa, setPrevia] = useState(null);
   const [problema, setProblema] = useState(null);
   const [ocupado, setOcupado] = useState(false);
@@ -83,6 +87,9 @@ export default function MoverPage() {
 
   const lotesDestino = useMemo(() => (destino?.stock?.lineas ?? []).filter((l) => l.loteId !== loteId), [destino, loteId]);
   const mismoPotrero = destino && origen && destino.id === origen.id;
+  // El pasto se pide al cambiar de potrero, y no en los corrales ni en los feedlots.
+  const pideOrigen = Boolean(destino && !mismoPotrero && modo !== 'CATEGORIA' && origen?.llevaPasto);
+  const pideDestino = Boolean(destino && !mismoPotrero && modo !== 'CATEGORIA' && destino?.llevaPasto);
 
   // Qué se propone primero (docs/LOGISTICA_MOVIMIENTOS.md §2): si en el
   // destino hay una parte del mismo lote, sumarse a ella; si no hay lotes y es
@@ -127,6 +134,8 @@ export default function MoverPage() {
       modo,
       nota,
       ...(destete && { destete: true, ...(madresId && { loteMadresId: Number(madresId) }) }),
+      ...(pideOrigen && pastoOrigen && { pastoOrigen }),
+      ...(pideDestino && pastoDestino && { pastoDestino }),
     };
     if (destete && !madresId) return null;
     if (modo === 'MISMO') return { ...base, modo: 'NUEVO', mismoLote: true };
@@ -134,7 +143,7 @@ export default function MoverPage() {
     if (modo === 'NUEVO') return nuevaCategoriaId ? { ...base, nuevoLote: { nombre: nuevoNombre, categoriaId: Number(nuevaCategoriaId) } } : null;
     if (modo === 'CATEGORIA') return categoriaEntero ? { ...base, categoriaId: Number(categoriaEntero) } : null;
     return { ...base, ...(categoriaEntero && { categoriaId: Number(categoriaEntero) }) };
-  }, [lote, destinoId, modo, n, fecha, loteId, peso, nota, loteDestinoId, nuevoNombre, nuevaCategoriaId, categoriaEntero, destete, madresId]);
+  }, [lote, destinoId, modo, n, fecha, loteId, peso, nota, loteDestinoId, nuevoNombre, nuevaCategoriaId, categoriaEntero, destete, madresId, pideOrigen, pideDestino, pastoOrigen, pastoDestino]);
 
   // Vista previa: se pide de nuevo cada vez que cambia el formulario.
   useEffect(() => {
@@ -369,6 +378,30 @@ export default function MoverPage() {
         )}
       </section>
 
+      {(pideOrigen || pideDestino) && (
+        <section className="mt-4 space-y-3 rounded-lg border border-suelo-200 p-4" aria-label="Pasto">
+          <h2 className="font-semibold">
+            3. Pasto <span className="text-sm font-normal text-suelo-500">(opcional)</span>
+          </h2>
+          {pideOrigen && (
+            <div>
+              <p className="mb-1 text-sm text-suelo-600">
+                Cómo queda <strong className="text-suelo-800">{origen.nombre}</strong>, al salir
+              </p>
+              <PastoSelector valor={pastoOrigen} onCambiar={setPastoOrigen} etiqueta={`Pasto en ${origen.nombre} al salir`} />
+            </div>
+          )}
+          {pideDestino && (
+            <div>
+              <p className="mb-1 text-sm text-suelo-600">
+                Cómo está <strong className="text-suelo-800">{destino.nombre}</strong>, al entrar
+              </p>
+              <PastoSelector valor={pastoDestino} onCambiar={setPastoDestino} etiqueta={`Pasto en ${destino.nombre} al entrar`} />
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="mt-4 grid gap-3 rounded-lg border border-suelo-200 p-4 sm:grid-cols-2">
         <label className={etiqueta}>
           Fecha
@@ -386,6 +419,11 @@ export default function MoverPage() {
           <Notice>{a}</Notice>
         </div>
       ))}
+      {previa?.pasto && (
+        <p className="mt-3 text-sm text-suelo-700" data-testid="pasto-previa">
+          Pasto: {[previa.pasto.salida && `${previa.pasto.salida} al salir`, previa.pasto.entrada && `${previa.pasto.entrada} al entrar`].filter(Boolean).join(' · ')}
+        </p>
+      )}
       {previa && <Impacto previa={previa} />}
 
       <button type="button" disabled={!previa || ocupado} onClick={confirmar} className={`${buttonClass} mt-6`}>

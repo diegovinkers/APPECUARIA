@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VALORES_ALTURA } from './pasto.js';
 
 // Texto opcional: "", "   ", null o ausente se guardan como null.
 const textoOpcional = (max, mensaje) =>
@@ -347,6 +348,9 @@ export const loteSchema = z
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), 'No hay nada para cambiar');
 
+// Una sola escala para todos los potreros (pasto.js).
+const alturaPasto = z.enum(VALORES_ALTURA, { error: 'El pasto tiene que ser Bajo, Medio o Alto' });
+
 export const movimientoSchema = z.object({
   fecha: fechaDato.optional(),
   loteOrigenId: idPositivo('Elegí el lote de origen'),
@@ -377,6 +381,25 @@ export const movimientoSchema = z.object({
   // potrero de las madres; queda anotado el lote de las madres.
   destete: z.boolean({ error: 'destete tiene que ser true o false' }).optional(),
   loteMadresId: idPositivo('El lote de las madres no es válido').optional(),
+  // Pasto (opcional): cómo quedó el potrero que dejan y cómo está al que llegan.
+  pastoOrigen: alturaPasto.nullish(),
+  pastoDestino: alturaPasto.nullish(),
+  nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
+});
+
+// Pasto de los potreros: una recorrida, sin mover ganado (docs/superpowers/plans/2026-11-26-pasto.md).
+export const recorridaPastoSchema = z.object({
+  fecha: fechaDato.optional(),
+  lecturas: z
+    .array(
+      z.object({
+        potreroId: idPositivo('Elegí el potrero'),
+        altura: alturaPasto,
+      }),
+      { error: 'Las lecturas tienen que ser una lista' },
+    )
+    .min(1, 'Marcá el pasto de al menos un potrero')
+    .max(300, 'Son demasiados potreros de una vez'),
   nota: textoOpcional(255, 'La nota no puede superar los 255 caracteres').optional(),
 });
 

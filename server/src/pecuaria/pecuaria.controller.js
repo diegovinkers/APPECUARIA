@@ -15,6 +15,7 @@ import * as eventos from './eventos.service.js';
 import * as procesos from './procesos.service.js';
 import * as procesosConfig from './procesos.configuracion.js';
 import * as toros from './toros.service.js';
+import * as pasto from './pasto.service.js';
 
 // Las claves que vinieron en el body: son las que se comparan para auditar.
 const clavesEnviadas = (body) => Object.keys(body).filter((k) => body[k] !== undefined);
@@ -558,4 +559,22 @@ export async function postSugerencia(req, res) {
     detalle: { proceso: nombre, ...item, descartada: req.body.descartada },
   });
   res.json(await procesos.ficha(req.params.id));
+}
+
+// --- Pasto de los potreros (docs/superpowers/plans/2026-11-26-pasto.md) ---
+
+export async function postRecorridaPasto(req, res) {
+  const { auditoria, ...resultado } = await pasto.registrarRecorrida(req.body, req.user.id);
+  await registrar(req, { accion: ACCION.PASTO_REGISTRADO, entidad: 'lectura_pasto', entidadId: auditoria.grupoId, detalle: auditoria });
+  res.status(201).json(resultado);
+}
+
+export async function postAnularPasto(req, res) {
+  const { auditoria, ...resultado } = await pasto.anularLectura(req.params.id, req.user.id);
+  await registrar(req, { accion: ACCION.PASTO_ANULADO, entidad: 'lectura_pasto', entidadId: auditoria.id, detalle: auditoria });
+  res.json(resultado);
+}
+
+export async function getPastoPotrero(req, res) {
+  res.json(await pasto.pastoDePotreroPorId(req.params.id));
 }

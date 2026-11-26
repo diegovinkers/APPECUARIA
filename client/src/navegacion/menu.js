@@ -144,6 +144,9 @@ export const EVENTOS = { clave: 'eventos', texto: 'Eventos', icono: 'eventos', r
 
 // La pantalla de un evento (el camino de 4 pasos). contexto: { potrero, lote }
 // (de dónde se abrió, para que arranque ya elegido).
+// La recorrida de pasto (26/11): desde la ficha de un potrero, con ese potrero primero.
+export const rutaPasto = ({ potrero } = {}) => `/pecuaria/pasto/nuevo${potrero ? `?potrero=${potrero}` : ''}`;
+
 export function rutaEvento(tipoId, { potrero, lote } = {}) {
   const params = new URLSearchParams({ tipo: String(tipoId) });
   if (potrero) params.set('potrero', String(potrero));

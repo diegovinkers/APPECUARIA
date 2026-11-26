@@ -13,6 +13,7 @@ import { campoDeEvento } from './movimientos.service.js';
 import { campoDeGrupo, campoDeRegistro } from './eventos.service.js';
 import { campoDeProceso } from './procesos.service.js';
 import { campoDeToro } from './toros.service.js';
+import { campoDeLectura } from './pasto.service.js';
 
 const NO_ENCONTRADO = 'No encontrado';
 
@@ -48,6 +49,7 @@ const campoDe = {
   movimiento: async (id) => (await prisma.movimiento.findUnique({ where: { id }, select: { campoId: true } }))?.campoId,
   proceso: (id) => campoDeProceso(id),
   toro: (id) => campoDeToro(id),
+  lecturaPasto: async (id) => (await campoDeLectura(id)) ?? undefined,
 };
 
 // Una id que no es un número o no existe sigue de largo: el controlador ya
@@ -188,5 +190,13 @@ export async function alcanceImportacion(req, res, next) {
 // Middleware: solo quien ve todas las estancias (crear una estancia nueva).
 export function soloTodas(req, res, next) {
   exigirTodas(req.user);
+  next();
+}
+
+// Pasto: una recorrida, cada potrero.
+export async function alcanceRecorridaPasto(req, res, next) {
+  if (!veTodas(req.user)) {
+    for (const l of req.body.lecturas ?? []) await controlar(req.user, 'potrero', l.potreroId);
+  }
   next();
 }

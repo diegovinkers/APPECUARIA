@@ -64,6 +64,9 @@ import {
   postToro,
   patchToro,
   postSugerencia,
+  postRecorridaPasto,
+  postAnularPasto,
+  getPastoPotrero,
 } from './pecuaria.controller.js';
 import {
   confirmarImportacionSchema,
@@ -98,6 +101,7 @@ import {
   toroSchema,
   editarToroSchema,
   sugerenciaSchema,
+  recorridaPastoSchema,
 } from './pecuaria.schema.js';
 import { authRequired } from '../auth/auth.middleware.js';
 import { requirePermission } from '../auth/permisos.js';
@@ -116,6 +120,7 @@ import {
   alcanceMovimiento,
   alcanceSubirPlanilla,
   soloTodas,
+  alcanceRecorridaPasto,
 } from './alcance.js';
 import {
   conToken,
@@ -192,6 +197,11 @@ router.patch('/potreros/:id', configurar, alcance('potrero'), validateBody(edita
 router.get('/potreros/:id/historial', ver, alcance('potrero'), getHistorial);
 router.put('/potreros/:id/stock', registrar, alcance('potrero'), validateBody(stockSchema), putStock);
 router.put('/potreros/:id/uso', registrar, alcance('potrero'), validateBody(usoSchema), putUso);
+// Pasto (docs/superpowers/plans/2026-11-26-pasto.md): una recorrida sin mover
+// ganado; el que se anota al mover va con el movimiento. Anular pide revertir.
+router.get('/potreros/:id/pasto', ver, alcance('potrero'), getPastoPotrero);
+router.post('/pasto', registrar, validateBody(recorridaPastoSchema), alcanceRecorridaPasto, postRecorridaPasto);
+router.post('/pasto/:id/anular', revertir, alcance('lecturaPasto'), postAnularPasto);
 
 router.get('/lotes/:id', ver, alcance('lote'), getLote);
 router.patch('/lotes/:id', registrar, alcance('lote'), validateBody(loteSchema), patchLote);

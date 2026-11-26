@@ -65,6 +65,8 @@ model Usuario {
   eventosRegistro   EventoRegistro[]   @relation("EventoRegistroUsuario")
   eventosAnulados   EventoRegistro[]   @relation("EventoRegistroAnulador")
   procesos          Proceso[]
+  lecturasPasto     LecturaPasto[]     @relation("LecturaPastoUsuario")
+  pastoAnulado      LecturaPasto[]     @relation("LecturaPastoAnulador")
 
   preciosCorregidos      PrecioMercado[]     @relation("PrecioCorregidoPor")
   importacionesPrecio    ImportacionPrecio[] @relation("ImportacionPrecioUsuario")
@@ -319,6 +321,7 @@ model Campo {
   registros      EventoRegistro[]
   procesos       Proceso[]
   toros          Toro[]
+  lecturasPasto  LecturaPasto[]
 
   @@map("campo")
 }
@@ -355,6 +358,7 @@ model Potrero {
   sesionesBaston     SesionBaston[]
   registros          EventoRegistro[]
   asignacionesToros  ProcesoToro[]
+  lecturasPasto      LecturaPasto[]
 
   @@unique([campoId, nombre])
   @@map("potrero")
@@ -664,6 +668,7 @@ model Movimiento {
   evento         EventoMovimiento? @relation(fields: [eventoId], references: [id], onDelete: Restrict)
   proceso        Proceso?          @relation(fields: [procesoId], references: [id], onDelete: Restrict)
   registro       EventoRegistro?   @relation("MovimientoRegistro", fields: [registroId], references: [id], onDelete: Restrict)
+  lecturasPasto  LecturaPasto[]
 
   @@index([campoId, fecha])
   @@index([eventoId])
@@ -1141,4 +1146,53 @@ model ImportacionPrecio {
 
   @@index([fuente, inicio])
   @@map("importacion_precio")
+}
+
+// --- Pasto de los potreros (docs/superpowers/plans/2026-11-26-pasto.md) ---
+
+/// La altura del pasto, con una sola escala para todos los potreros:
+/// BAJO (menos de 10 cm), MEDIO (de 10 a 20 cm) y ALTO (más de 20 cm).
+enum AlturaPasto {
+  BAJO
+  MEDIO
+  ALTO
+}
+
+/// Cuándo se anotó: al llegar animales (ENTRADA), al salir (SALIDA) o en una
+/// recorrida sin mover ganado (RECORRIDA).
+enum MomentoPasto {
+  ENTRADA
+  SALIDA
+  RECORRIDA
+}
+
+/// Una lectura del pasto de un potrero. Las que se anotan al mover cuelgan
+/// del movimiento (y se anulan si se revierte); las de una recorrida
+/// comparten `grupoId`. Nada se borra: se anula.
+model LecturaPasto {
+  id           Int          @id @default(autoincrement())
+  potreroId    Int          @map("potrero_id")
+  campoId      Int          @map("campo_id")
+  fecha        DateTime     @db.Date
+  altura       AlturaPasto
+  momento      MomentoPasto
+  movimientoId Int?         @map("movimiento_id")
+  grupoId      String?      @map("grupo_id") @db.VarChar(36)
+  nota         String?      @db.VarChar(255)
+  usuarioId    Int?         @map("usuario_id")
+  creadoEn     DateTime     @default(now()) @map("creado_en") @db.Timestamptz(3)
+  anulada      Boolean      @default(false)
+  anuladaEn    DateTime?    @map("anulada_en") @db.Timestamptz(3)
+  anuladaPorId Int?         @map("anulada_por_id")
+
+  potrero    Potrero     @relation(fields: [potreroId], references: [id], onDelete: Restrict)
+  campo      Campo       @relation(fields: [campoId], references: [id], onDelete: Restrict)
+  movimiento Movimiento? @relation(fields: [movimientoId], references: [id], onDelete: Restrict)
+  usuario    Usuario?    @relation("LecturaPastoUsuario", fields: [usuarioId], references: [id], onDelete: Restrict)
+  anuladaPor Usuario?    @relation("LecturaPastoAnulador", fields: [anuladaPorId], references: [id], onDelete: Restrict)
+
+  @@index([potreroId, fecha])
+  @@index([movimientoId])
+  @@index([grupoId])
+  @@map("lectura_pasto")
 }

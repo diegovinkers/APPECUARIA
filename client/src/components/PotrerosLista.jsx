@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { UsoBadge, aprox, cabezasPorCategoria, formatNumero, nombreConSigla } from './pecuaria';
+import { UsoBadge, aprox, cabezasPorCategoria, formatDiaMes, formatNumero, nombreConSigla } from './pecuaria';
+import { PastoMarca } from './PastoSelector';
+import { diasCortos, ordenDescanso, ordenPasto } from './pasto';
 import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros, { DestinoBotonFiltros } from './PanelFiltros';
@@ -21,6 +23,15 @@ const ANIMALES = [
   ['con', 'Con animales'],
   ['vacios', 'Vacíos'],
 ];
+// El último pasto anotado (26/11).
+const PASTOS = [
+  ['', 'Todos'],
+  ['BAJO', 'Bajo'],
+  ['MEDIO', 'Medio'],
+  ['ALTO', 'Alto'],
+  ['sin', 'Sin dato'],
+];
+const hoyISO = () => new Date().toLocaleDateString('sv-SE');
 
 // Columnas de la tabla: [clave, título, derecha, valor para ordenar, solo en la compu].
 // Las de números se ordenan primero de mayor a menor. En el celular la tabla
@@ -32,6 +43,11 @@ const COLUMNAS = [
   ['hectareas', 'ha', true, (p) => (p.hectareasAConfirmar ? null : p.hectareas), false],
   ['cabezas', 'Cabezas', true, (p) => p.stock?.cabezas ?? 0, false],
   ['categorias', 'Categorías', false, (p) => (p.stock?.cabezas ? cabezasPorCategoria(p.stock.lotes) : null), true],
+  // Pasto (26/11): el último anotado y los días de descanso (o con ganado). En
+  // el celular, el pasto va como una marca en el renglón del uso y el descanso
+  // en la celda de cabezas de un potrero vacío.
+  ['pasto', 'Pasto', false, (p) => ordenPasto(p.pasto), true],
+  ['descanso', 'Descanso', true, (p) => ordenDescanso(p.descanso), true],
   ['peso', 'Peso prom.', true, (p) => pesoPromedio(p), false],
   ['kgHa', 'kg/ha', true, (p) => (p.stock?.kilosCompletos && p.stock?.cabezas ? (p.stock.kgPvHa ?? null) : null), false],
   // cab/ha va al final, con la barra de carga (reemplazó a UG/ha: pedido de Diego, 24/11).
@@ -54,7 +70,7 @@ const ANCHO_CELULAR = {
   kgHa: 'w-12 md:w-auto',
   cabHa: 'w-[3.25rem] md:w-auto',
 };
-const NUMERICAS = new Set(['hectareas', 'cabezas', 'peso', 'kgHa', 'cabHa']);
+const NUMERICAS = new Set(['hectareas', 'cabezas', 'peso', 'kgHa', 'cabHa', 'descanso']);
 // Las direcciones viejas (?orden=carga, ?orden=ugHa) siguen andando.
 const ALIAS_ORDEN = { nombre: 'potrero', carga: 'cabHa', ugHa: 'cabHa' };
 
@@ -111,6 +127,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
     uso: params.get('uso') ?? '',
     animales: params.get('animales') ?? '',
     categoria: params.get('categoria') ?? '',
+    pasto: params.get('pasto') ?? '',
     incompletos: params.get('incompletos') === '1',
     orden: { col, dir: params.get('dir') ?? (NUMERICAS.has(col) ? 'desc' : 'asc') },
   };
@@ -133,7 +150,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
   // Al cambiar de grupo, el uso elegido sigue solo si es de ese grupo.
   const usoDelGrupo = (grupo) =>
     f.uso && (!grupo || potreros.some((p) => p.usoActual?.nombre === f.uso && grupoDe(p) === grupo)) ? f.uso : '';
-  const activos = [f.q, f.grupo, f.uso, f.animales, f.categoria, f.incompletos].filter(Boolean).length;
+  const activos = [f.q, f.grupo, f.uso, f.animales, f.categoria, f.pasto, f.incompletos].filter(Boolean).length;
   const hayFiltros = activos > 0;
   // El buscador está a la vista (arriba de la tabla): el número del botón
   // Filtros y "Limpiar filtros" son solo los del panel (la búsqueda queda).
@@ -165,11 +182,13 @@ export default function PotrerosLista({ potreros, todas = false }) {
       if (f.animales === 'con' && cabezas === 0) return false;
       if (f.animales === 'vacios' && cabezas > 0) return false;
       if (f.categoria && !lotes.some((l) => String(l.categoriaId) === f.categoria)) return false;
+      if (f.pasto === 'sin' && p.pasto) return false;
+      if (f.pasto && f.pasto !== 'sin' && p.pasto?.altura !== f.pasto) return false;
       if (f.incompletos && !incompleto(p)) return false;
       return true;
     });
     return ordenarPotreros(lista, f.orden);
-  }, [potreros, todas, f.q, f.grupo, f.uso, f.animales, f.categoria, f.incompletos, f.orden.col, f.orden.dir]);
+  }, [potreros, todas, f.q, f.grupo, f.uso, f.animales, f.categoria, f.pasto, f.incompletos, f.orden.col, f.orden.dir]);
 
   // Lo que suma lo filtrado. Con una categoría elegida, cuenta solo esa.
   const resumen = useMemo(() => {
@@ -213,6 +232,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
           <Select etiqueta="Uso" valor={f.uso} onChange={(v) => poner({ uso: v })} opciones={[['', 'Todos'], ...usos]} />
           <Select etiqueta="Categoría" valor={f.categoria} onChange={(v) => poner({ categoria: v })} opciones={[['', 'Todas'], ...categorias]} />
           <Select etiqueta="Animales" valor={f.animales} onChange={(v) => poner({ animales: v })} opciones={ANIMALES} />
+          <Select etiqueta="Pasto (el último anotado)" valor={f.pasto} onChange={(v) => poner({ pasto: v })} opciones={PASTOS} />
         </div>
         <label className="flex items-center gap-2 text-sm text-suelo-700">
           <input type="checkbox" checked={f.incompletos} onChange={(e) => poner({ incompletos: e.target.checked ? '1' : '' })} />
@@ -272,6 +292,8 @@ export default function PotrerosLista({ potreros, todas = false }) {
                   <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.hectareas)}</td>
                   <td className={`${pie} z-10 text-right tabular-nums`}>{formatNumero(resumen.cabezas)}</td>
                   <td className={`${pie} ${SOLO_COMPU} z-10 font-normal text-suelo-600`}>{nombreCategoria ?? 'cabezas'}</td>
+                  <td className={`${pie} ${SOLO_COMPU} z-10`} />
+                  <td className={`${pie} ${SOLO_COMPU} z-10`} />
                   <td className={`${pie} z-10 text-right tabular-nums`}>{resumen.peso == null ? '—' : formatNumero(resumen.peso, 0)}</td>
                   <td className={`${pie} z-10`} />
                   <td className={`${pie} z-10 text-right tabular-nums`}>{resumen.cabHa == null ? '—' : formatNumero(resumen.cabHa, 2)}</td>
@@ -373,8 +395,9 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, onAbrir }) {
         </div>
         {/* Debajo, en renglones propios: el uso y lo que hay (pedido de Diego, 19/11). */}
         <div className="mt-0.5 text-xs font-normal leading-4 text-suelo-600 md:hidden" data-testid="linea-celular">
-          <div className="flex min-w-0">
+          <div className="flex min-w-0 items-center gap-1">
             <UsoBadge uso={usoDe(p)} chico />
+            {p.pasto && <PastoMarca valor={p.pasto.altura} corta />}
           </div>
           <span className="mt-0.5 block truncate">{vacio ? (p.usoActual?.grupo === 'OTRO' ? '' : 'vacío') : categoriasCortas(p.stock.lotes)}</span>
         </div>
@@ -402,12 +425,48 @@ function PotreroFila({ potrero: p, todas, par, cargaMaxima, onAbrir }) {
         )}
       </td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right font-semibold tabular-nums`}>
-        {vacio ? '—' : formatNumero(cabezas)}
+        {!vacio ? (
+          formatNumero(cabezas)
+        ) : p.llevaPasto !== false && p.descanso && !p.descanso.conGanado ? (
+          // Vacío: en el celular, cuánto hace que descansa (en la compu va en su columna).
+          <>
+            <span className="hidden md:inline">—</span>
+            <span className="block text-xs font-normal leading-4 text-campo-700 md:hidden" title="Días de descanso" data-testid="descanso-celular">
+              desc.
+              <br />
+              {diasCortos(p.descanso)}
+            </span>
+          </>
+        ) : (
+          '—'
+        )}
       </td>
-      <td className={`${celda} ${fondo} ${SOLO_COMPU} min-w-[12rem]`}>
-        <div className="max-w-[18rem] truncate" title={vacio ? undefined : cabezasPorCategoria(p.stock.lotes)}>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} min-w-[10rem]`}>
+        <div className="max-w-[16rem] truncate" title={vacio ? undefined : cabezasPorCategoria(p.stock.lotes)}>
           {vacio ? <span className="text-suelo-400">vacío</span> : cabezasPorCategoria(p.stock.lotes)}
         </div>
+      </td>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap`} data-testid="celda-pasto">
+        {p.pasto ? (
+          // La fecha, al pasar el mouse; a la vista solo en pantallas anchas (si no, la tabla no entra).
+          <span className="flex items-center gap-1.5" title={`Anotado el ${formatDiaMes(p.pasto.fecha, hoyISO())}`}>
+            <PastoMarca valor={p.pasto.altura} title={`Pasto ${p.pasto.altura.toLowerCase()}, anotado el ${formatDiaMes(p.pasto.fecha, hoyISO())}`} />
+            <span className="hidden text-xs text-suelo-500 2xl:inline">{formatDiaMes(p.pasto.fecha, hoyISO())}</span>
+          </span>
+        ) : (
+          <span className="text-suelo-400">—</span>
+        )}
+      </td>
+      <td className={`${celda} ${fondo} ${SOLO_COMPU} whitespace-nowrap text-right text-xs`} data-testid="celda-descanso">
+        {/* Corto, para que la tabla entre sin scroll de costado: vacío, los días
+            de descanso en verde; con ganado, "en uso" y los días. */}
+        {!p.descanso || p.llevaPasto === false ? (
+          <span className="text-suelo-400">—</span>
+        ) : p.descanso.conGanado ? (
+          <span className="text-suelo-500" title="Días con ganado">en uso {diasCortos(p.descanso)}</span>
+        ) : (
+          <span className="font-medium text-campo-700" title="Días de descanso">{diasCortos(p.descanso)}</span>
+        )}
       </td>
       <td className={`${celda} ${fondo} whitespace-nowrap text-right tabular-nums`}>
         {pesoPromedio(p) == null ? '—' : aprox(p.stock.kilosEstimados, formatNumero(pesoPromedio(p), 0))}

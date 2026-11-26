@@ -21,6 +21,7 @@ import RegistroPage from './pages/pecuaria/RegistroPage';
 import MoverEntreCamposPage from './pages/pecuaria/MoverEntreCamposPage';
 import MovimientoMultiplePage from './pages/pecuaria/MovimientoMultiplePage';
 import EventoPage from './pages/pecuaria/EventoPage';
+import PastoPage from './pages/pecuaria/PastoPage';
 import ProcesoPage from './pages/pecuaria/ProcesoPage';
 import ProcesosPage from './pages/pecuaria/ProcesosPage';
 import ProcesoEtapaPage from './pages/pecuaria/ProcesoEtapaPage';
@@ -71,6 +72,7 @@ export default function App() {
                   <Route path="/pecuaria/movimiento-multiple" element={<MovimientoMultiplePage />} />
                   {/* Eventos (pesada, vacuna...): el camino de 4 pasos. */}
                   <Route path="/pecuaria/eventos/nuevo" element={<EventoPage />} />
+                  <Route path="/pecuaria/pasto/nuevo" element={<PastoPage />} />
                   <Route path="/pecuaria/procesos/nuevo" element={<NuevoProcesoPage />} />
                   <Route path="/pecuaria/procesos/:id/etapa/:etapa" element={<ProcesoEtapaPage />} />
                   {/* Otra tanda que entra al servicio (fase 6): la misma pantalla de empezar. */}

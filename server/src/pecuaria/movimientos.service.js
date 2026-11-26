@@ -22,6 +22,7 @@ import { tipoDeModo, tipoPorClave } from './tipos.repository.js';
 import { listarEventos } from './eventos.service.js';
 import { listPotrerosTodas } from './lugares.repository.js';
 import { avisosDeMezcla } from './mezcla.js';
+import { anularPastoDeMovimientos, guardarPastoMovimiento, pastoDelMovimiento, textoPastoMovimiento } from './pasto.service.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const potreroSelect = { id: true, nombre: true, campoId: true, tipo: true, hectareas: true, hectareasAConfirmar: true, areaUtilizable: true };
@@ -270,6 +271,8 @@ export async function vistaPrevia(body) {
     origen: lado(plan.origen, plan.fotoOrigen, plan.lineasOrigen),
     destino: plan.mismoPotrero ? null : lado(plan.destino, plan.fotoDestino, plan.lineasDestino),
     avisos: [...(await avisosDeProceso(prisma, plan, body)), ...(await avisosDeMezclaMover(prisma, plan))],
+    // Pasto (opcional): { salida?: 'Bajo en P1', entrada?: 'Alto en P2' } o null.
+    pasto: textoPastoMovimiento(await pastoDelMovimiento(prisma, plan, body)) ?? null,
   };
 }
 
@@ -279,6 +282,7 @@ export async function aplicar(tx, body, usuarioId, { entreCampos = false, evento
   const plan = await planificar(tx, body, { entreCampos });
   const { lote, origen, destino, dia } = plan;
   const fecha = aFecha(dia);
+  plan.pasto = await pastoDelMovimiento(tx, plan, body);
 
   if (plan.modo === 'NUEVO') {
     const nuevo = await crearLote(tx, {
@@ -347,6 +351,7 @@ export async function aplicar(tx, body, usuarioId, { entreCampos = false, evento
       usuarioId,
     },
   });
+  await guardarPastoMovimiento(tx, plan.pasto, plan.movimiento, usuarioId);
   return plan;
 }
 
@@ -379,6 +384,7 @@ const auditoriaPaso = (plan) => ({
   categoriaOrigen: plan.categoriaOrigen.nombre,
   categoriaDestino: plan.categoriaDestino.nombre,
   ...(plan.madres && { tipo: 'Destete', loteMadres: plan.madres.nombre }),
+  ...(plan.pasto && { pasto: textoPastoMovimiento(plan.pasto) }),
   ...(plan.nota && { nota: plan.nota }),
 });
 
@@ -826,6 +832,9 @@ async function deshacer(tx, m, usuarioId, eventoId = null) {
   let vDestino = null;
   if (mismo) vDestino = vOrigen;
   else if (conDestino) vDestino = await crearVersion(tx, { ...comun, potreroId: m.potreroDestinoId, lineas: copiar(antesDestino) });
+
+  // El pasto que se anotó con el movimiento queda anulado.
+  await anularPastoDeMovimientos(tx, [m.id], usuarioId);
 
   const tipo = await tipoDeModo(tx, 'REVERSION');
   return tx.movimiento.create({

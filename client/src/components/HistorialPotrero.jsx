@@ -6,6 +6,7 @@
 import { Fragment, useState } from 'react';
 import { aprox, formatDiaMes, formatFecha, formatNumero } from './pecuaria';
 import { celda } from './tabla';
+import { altura } from './pasto';
 
 export const FILAS_INICIALES = 15;
 const SOLO_COMPU = 'hidden md:table-cell';
@@ -138,6 +139,13 @@ function Detalle({ v }) {
         <p className="mt-1 text-suelo-700">
           {v.lineas.length ? v.lineas.map((l) => `${l.lote}: ${formatNumero(l.cabezas)} ${l.categoria}`).join(' · ') : 'Quedó vacío'}
         </p>
+        {v.pasto && (
+          // El pasto anotado con el movimiento (26/11).
+          <p className="mt-1 text-suelo-700" data-testid="pasto-historial">
+            Pasto{' '}
+            {[v.pasto.salida && `al salir: ${altura(v.pasto.salida)?.nombre}`, v.pasto.entrada && `al entrar: ${altura(v.pasto.entrada)?.nombre}`].filter(Boolean).join(' · ')}
+          </p>
+        )}
         {v.nota && <p className="mt-1 text-suelo-600">Nota: {v.nota}</p>}
         <p className="mt-1 text-xs text-suelo-500">
           {formatFecha(v.fecha)}

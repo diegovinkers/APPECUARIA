@@ -98,7 +98,8 @@ describe('la tabla de potreros', () => {
   it('una fila por potrero con cabezas de qué, y los totales abajo', () => {
     montar([potrero(1, '1', 10, 5), potrero(2, '2', 50, 10), potrero(3, '3', 0, 4)]);
     const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '—', '—', '5']);
+    // Pasto y Descanso (26/11) sin dato: —.
+    expect(filas[1]).toEqual(['2', 'Campo natural', '10', '50', '50 Vacas', '—', '—', '—', '—', '5']);
     expect(filas[2][4]).toBe('vacío');
     expect(textoCompu(contenedor.querySelector('tfoot'))).toMatch(/Total.*3 potreros.*19.*60.*cabezas.*3,16/);
   });
@@ -117,7 +118,7 @@ describe('la tabla de potreros', () => {
     p.stock = { ...p.stock, kilos: 19000, kilosCompletos: true, kilosEstimados: true, kgPvHa: 380, ugHa: 1 };
     montar([p]);
     const [fila] = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    expect(fila.slice(5)).toEqual(['≈190', '≈380', '2']);
+    expect(fila.slice(7)).toEqual(['≈190', '≈380', '2']);
     expect(contenedor.querySelector('thead').textContent).not.toMatch(/UG/);
   });
 
@@ -129,12 +130,12 @@ describe('la tabla de potreros', () => {
     };
     montar([conPeso(1, 100, 300, 20), conPeso(2, 50, 400, 10), conPeso(3, 40, 0, 10, false)]);
     const filas = [...contenedor.querySelectorAll('tbody tr')].map((tr) => [...tr.querySelectorAll('td')].map(textoCompu));
-    // Columnas: potrero, uso, ha, cabezas, categorías, peso, kg/ha, cab/ha.
-    expect([filas[0][5], filas[0][6]]).toEqual(['300', '1.500']);
-    expect([filas[1][5], filas[1][6]]).toEqual(['400', '2.000']);
-    expect([filas[2][5], filas[2][6]]).toEqual(['—', '—']);
+    // Columnas: potrero, uso, ha, cabezas, categorías, pasto, descanso, peso, kg/ha, cab/ha.
+    expect([filas[0][7], filas[0][8]]).toEqual(['300', '1.500']);
+    expect([filas[1][7], filas[1][8]]).toEqual(['400', '2.000']);
+    expect([filas[2][7], filas[2][8]]).toEqual(['—', '—']);
     // Total: (100×300 + 50×400) / 150 = 333.
-    expect([...contenedor.querySelectorAll('tfoot td')].map(textoCompu)[5]).toBe('333');
+    expect([...contenedor.querySelectorAll('tfoot td')].map(textoCompu)[7]).toBe('333');
   });
 
   it('el título ordena y queda en la dirección', () => {
@@ -168,7 +169,7 @@ describe('la tabla de potreros', () => {
     for (const tr of contenedor.querySelectorAll('tbody tr')) expect(tr.className).toContain('h-[4.5rem]');
     expect(contenedor.querySelector('[data-testid="linea-celular"] span.truncate')).not.toBeNull();
     const escondidas = [...contenedor.querySelectorAll('thead th')].filter((th) => th.className.includes('hidden md:table-cell'));
-    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'Categorías']);
+    expect(escondidas.map((th) => th.textContent.replace(/[▲▼↕]/g, '').trim())).toEqual(['Uso', 'Categorías', 'Pasto', 'Descanso']);
   });
 
   it('la barra de carga (cab/ha) se llena según el potrero más cargado; no pide peso', () => {
@@ -239,5 +240,58 @@ describe('la tabla de potreros', () => {
     // Al cambiar un filtro, el ?pagina= viejo se va de la dirección.
     act(() => [...contenedor.querySelectorAll('[role="group"] button')].find((b) => b.textContent === 'CN').click());
     expect(donde()).toBe('?grupo=CN');
+  });
+
+  // Pasto (26/11): el último anotado y los días de descanso.
+  const conPasto = () => [
+    potrero(1, '1', 10, 5, { pasto: { altura: 'BAJO', fecha: '2026-11-20', momento: 'SALIDA' }, descanso: { conGanado: true, dias: 4, masDe: false } }),
+    potrero(2, '2', 0, 10, { pasto: { altura: 'ALTO', fecha: '2026-11-24', momento: 'RECORRIDA' }, descanso: { conGanado: false, dias: 12, masDe: false } }),
+    potrero(3, '3', 0, 4, { pasto: null, descanso: { conGanado: false, dias: 13, masDe: true } }),
+    potrero(4, '4', 20, 8, { pasto: { altura: 'MEDIO', fecha: '2026-11-25', momento: 'ENTRADA' }, descanso: null }),
+  ];
+
+  it('pasto: en la compu, columnas Pasto y Descanso; en el celular, la letra en el renglón del uso y el descanso en Cab.', () => {
+    montar(conPasto());
+    const fila = (n) => [...contenedor.querySelectorAll('tbody tr')][n];
+    const celdas = (n) => [...fila(n).querySelectorAll('td')].map(textoCompu);
+    expect(celdas(0)[5]).toMatch(/^Bajo/);
+    expect(fila(0).querySelector('[data-testid="celda-pasto"] [data-testid="marca-pasto"]').title).toMatch(/Pasto bajo, anotado el 20\/11/);
+    expect(celdas(0)[6]).toBe('en uso 4 d');
+    expect(celdas(1)[6]).toBe('12 d');
+    expect(celdas(2)[5]).toBe('—');
+    expect(celdas(2)[6]).toBe('+13 d');
+    // Celular: la letra al lado del uso; un potrero vacío dice cuánto descansa en Cab.
+    expect(fila(0).querySelector('[data-testid="linea-celular"] [data-testid="marca-pasto"]').textContent).toBe('B');
+    expect(fila(1).querySelector('[data-testid="descanso-celular"]').textContent).toBe('desc.12 d');
+    expect(fila(0).querySelector('[data-testid="descanso-celular"]')).toBeNull();
+    expect(contenedor.querySelector('thead').textContent).toMatch(/Pasto.*Descanso/);
+  });
+
+  it('pasto: un corral no muestra descanso (no lleva pasto)', () => {
+    montar([potrero(1, 'Corral 1', 0, null, { tipo: 'CORRAL', llevaPasto: false, hectareasAConfirmar: true, pasto: null, descanso: { conGanado: false, dias: 13, masDe: true } })]);
+    const fila = contenedor.querySelector('tbody tr');
+    expect(fila.querySelector('[data-testid="descanso-celular"]')).toBeNull();
+    expect(textoCompu(fila.querySelector('[data-testid="celda-descanso"]'))).toBe('—');
+  });
+
+  it('pasto: ordenar por pasto (Bajo primero) y por descanso (los que descansan hace más, primero)', () => {
+    montar(conPasto());
+    act(() => titulo('Pasto').click());
+    expect(primeraColumna()).toEqual(['1', '4', '2', '3']);
+    expect(donde()).toBe('?orden=pasto');
+    act(() => titulo('Descanso').click());
+    expect(primeraColumna()).toEqual(['3', '2', '1', '4']);
+    expect(donde()).toBe('?orden=descanso');
+  });
+
+  it('pasto: el filtro por el último anotado, y "Sin dato"', () => {
+    montar(conPasto(), '/pecuaria/potreros?pasto=ALTO');
+    expect(primeraColumna()).toEqual(['2']);
+    act(() => root.unmount());
+    root = createRoot(contenedor);
+    montar(conPasto(), '/pecuaria/potreros?pasto=sin');
+    expect(primeraColumna()).toEqual(['3']);
+    const select = [...contenedor.querySelectorAll('label')].find((l) => l.textContent.startsWith('Pasto')).querySelector('select');
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Todos', 'Bajo', 'Medio', 'Alto', 'Sin dato']);
   });
 });

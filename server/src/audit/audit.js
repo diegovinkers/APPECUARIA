@@ -90,6 +90,13 @@ export const ACCION = {
   // Toros (uno por uno). entidad = toro. detalle: { identificacion, campoId, ... } / { antes, despues }
   TORO_CREADO: 'TORO_CREADO',
   TORO_EDITADO: 'TORO_EDITADO',
+  // Pasto de los potreros (docs/superpowers/plans/2026-11-26-pasto.md). Una
+  // recorrida: entidad = lectura_pasto, entidad_id = el grupo.
+  // detalle: { grupoId, fecha, campoId, lecturas: [{ potrero, altura }], nota? }
+  // (el pasto anotado al mover va en el detalle del movimiento).
+  PASTO_REGISTRADO: 'PASTO_REGISTRADO',
+  // entidad_id = la lectura. detalle: { id, potrero, fecha, altura, momento, grupoId }
+  PASTO_ANULADO: 'PASTO_ANULADO',
   // Precios de mercado (docs/PRECIOS_INAC.md). Una corrida de la importación:
   // entidad = importacion_precio. detalle: { estado, origen, semana, semanasNuevas, disparadoPor, errores }
   PRECIOS_IMPORTADOS: 'PRECIOS_IMPORTADOS',

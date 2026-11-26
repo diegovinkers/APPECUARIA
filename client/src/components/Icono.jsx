@@ -38,6 +38,8 @@ const TRAZOS = {
   destete: 'M10 3h4M12 3v2M9 7h6l1 3v9a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-9zM8 13h8',
   vacuna: 'M17 3l4 4M19 5l-4.5 4.5M11.5 6.5l6 6M16.5 11.5 10 18H6v-4l6.5-6.5M7.5 12.5 9 14M10.5 9.5 12 11M3 21l3-3',
   check: 'M5 12l5 5L20 7',
+  // Pasto de los potreros (26/11): unas matas de pasto sobre el suelo.
+  pasto: 'M3 20h18M6 20c0-4-1-7-3-9M8 20c0-5 1-9 4-12M12 20c0-6 1-10 0-14M16 20c0-4 1-7 4-9M14 20c1-5 3-8 6-10',
   // Procesos (23/11): un ciclo.
   procesos: 'M20 12a8 8 0 0 1-13.7 5.7M4 12a8 8 0 0 1 13.7-5.7M18 3v3.5h-3.5M6 21v-3.5h3.5',
   // Tema claro / oscuro (24/11), en la barra de arriba del celular.

@@ -101,7 +101,7 @@ describe('sin front compilado (desarrollo)', () => {
   });
 });
 
-describe('CLIENT_URL en Render', () => {
+describe('CLIENT_URL según el hosting (Render, Railway)', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.resetModules();
@@ -123,9 +123,41 @@ describe('CLIENT_URL en Render', () => {
     expect(CLIENT_ORIGINS).toEqual(['https://app.ejemplo.test']);
   });
 
-  it('fuera de Render y sin CLIENT_URL, el front de desarrollo', async () => {
+  it('en Railway, vacía, usa el dominio público con https://', async () => {
     vi.stubEnv('CLIENT_URL', '');
     vi.stubEnv('RENDER_EXTERNAL_URL', '');
+    vi.stubEnv('RAILWAY_PUBLIC_DOMAIN', 'sapsa-app.up.railway.app');
+    vi.resetModules();
+    const { CLIENT_ORIGINS } = await import('../src/config.js');
+    expect(CLIENT_ORIGINS).toEqual(['https://sapsa-app.up.railway.app']);
+  });
+
+  it('en Railway, si está cargada, manda CLIENT_URL', async () => {
+    vi.stubEnv('CLIENT_URL', 'https://app.ejemplo.test');
+    vi.stubEnv('RAILWAY_PUBLIC_DOMAIN', 'sapsa-app.up.railway.app');
+    vi.resetModules();
+    const { CLIENT_ORIGINS } = await import('../src/config.js');
+    expect(CLIENT_ORIGINS).toEqual(['https://app.ejemplo.test']);
+  });
+
+  it('IP_HEADER: vacía es null; con un nombre válido, en minúsculas; con otra cosa, no arranca', async () => {
+    vi.stubEnv('IP_HEADER', '');
+    vi.resetModules();
+    expect((await import('../src/config.js')).IP_HEADER).toBeNull();
+
+    vi.stubEnv('IP_HEADER', ' X-Real-IP ');
+    vi.resetModules();
+    expect((await import('../src/config.js')).IP_HEADER).toBe('x-real-ip');
+
+    vi.stubEnv('IP_HEADER', 'X Real: IP');
+    vi.resetModules();
+    await expect(import('../src/config.js')).rejects.toThrow(/IP_HEADER/);
+  });
+
+  it('fuera de un hosting y sin CLIENT_URL, el front de desarrollo', async () => {
+    vi.stubEnv('CLIENT_URL', '');
+    vi.stubEnv('RENDER_EXTERNAL_URL', '');
+    vi.stubEnv('RAILWAY_PUBLIC_DOMAIN', '');
     vi.resetModules();
     const { CLIENT_ORIGINS } = await import('../src/config.js');
     expect(CLIENT_ORIGINS).toEqual(['http://localhost:5173']);

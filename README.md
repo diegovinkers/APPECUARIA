@@ -78,7 +78,26 @@ El front llama siempre a `/api` (relativo). En desarrollo, Vite le pasa esas
 requests a la API en `http://localhost:4000` (`client/vite.config.js`; otra
 dirección con `API_DEV_URL`). En producción, la misma API sirve el front
 compilado (`client/dist`, o la carpeta de `FRONT_DIR`): una sola dirección,
-como exige la cookie `SameSite=Strict`. Ver `render.yaml`.
+como exige la cookie `SameSite=Strict`. Ver `Dockerfile` (Railway) y
+`render.yaml` (Render).
+
+### Publicar en Railway
+
+Railway arma la imagen con el `Dockerfile` de la raíz (un solo servicio: la
+API sirve el front). Al arrancar corre `npm run start:prod`: migraciones, seed
+(idempotente) y la API. Variables del servicio:
+
+| Variable | Valor |
+| -------- | ----- |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (la base de Railway, por la red interna) |
+| `NODE_ENV` | `production` |
+| `TRUST_PROXY` | `1` |
+| `IP_HEADER` | `X-Real-IP` (Railway manda ahí la IP real) |
+| `SUPERADMIN_USUARIO`, `SUPERADMIN_NOMBRE`, `SUPERADMIN_PASSWORD`, `SUPERADMIN_EMAIL` | los del superadmin (el seed los pide; si ya existe, no cambia su contraseña) |
+| `CLIENT_URL` | vacía: usa `RAILWAY_PUBLIC_DOMAIN`. Solo con un dominio propio |
+
+En el panel: Healthcheck Path `/health`. Railway pone `PORT` solo. Los
+secretos se cargan en el panel, nunca en el repo.
 
 Tests del front: `npm test` en `client/` (Vitest).
 
@@ -125,7 +144,8 @@ Cómo funciona:
 - **El front y la API en la misma dirección**: la API sirve el front compilado
   y queda bajo `/api`. Dos subdominios de `onrender.com` cuentan como sitios
   distintos, y `SameSite=Strict` impediría que el navegador mande la cookie.
-- **`CLIENT_URL`**: vacía, en Render se usa `RENDER_EXTERNAL_URL`. Hay que
+- **`CLIENT_URL`**: vacía, en Render se usa `RENDER_EXTERNAL_URL` y en Railway
+  `https://` + `RAILWAY_PUBLIC_DOMAIN`. Hay que
   cargarla si se agrega un dominio propio.
 - **Si hay un proxy delante** (IIS, nginx), poné `TRUST_PROXY=1`. Si no, la API
   ve a todos con la IP del proxy: el límite por IP se vuelve uno solo para

@@ -1,0 +1,22 @@
+# Lo que NO entra en la imagen de Docker.
+
+# Secretos: nunca.
+**/.env
+**/.env.*
+
+# Datos reales del campo y documentación: no hacen falta para correr la app.
+docs/
+video capturas/
+
+# Se rearman adentro de la imagen.
+**/node_modules
+client/dist
+server/src/generated
+
+# Herramientas y tests.
+.git
+.claude
+.superpowers
+server/test
+client/src/**/*.test.js
+client/src/**/*.test.jsx

@@ -3,7 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { CLIENT_ORIGINS, FRONT_DIR, IS_PRODUCTION, TRUST_PROXY } from './config.js';
+import { CLIENT_ORIGINS, FRONT_DIR, IP_HEADER, IS_PRODUCTION, TRUST_PROXY } from './config.js';
+import { ipReal } from './middlewares/ip-real.js';
 import { servirFront } from './front.js';
 import { HttpError } from './errors.js';
 import { checkOrigin } from './middlewares/origin.js';
@@ -16,6 +17,8 @@ const app = express();
 
 // Detrás de un proxy, para que req.ip sea la IP real (límite por IP, auditoría).
 if (TRUST_PROXY !== false) app.set('trust proxy', TRUST_PROXY);
+// Si el proxy manda la IP en otro encabezado (ver IP_HEADER en config.js).
+if (IP_HEADER) app.use(ipReal(IP_HEADER));
 
 // Encabezados de seguridad (y sin X-Powered-By). same-site: el front puede
 // leer las respuestas si está en el mismo sitio que la API.
@@ -23,7 +26,7 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'same-site' } }));
 // credentials: true deja que el navegador mande la cookie de sesión desde el front.
 app.use(cors({ origin: CLIENT_ORIGINS, credentials: true }));
 app.use(checkOrigin(CLIENT_ORIGINS));
-// En producción, sin colores (en el panel de Render se ven como basura).
+// En producción, sin colores (en el panel del hosting se ven como basura).
 if (process.env.NODE_ENV !== 'test') app.use(morgan(IS_PRODUCTION ? 'short' : 'dev'));
 app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());

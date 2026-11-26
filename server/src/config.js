@@ -8,6 +8,17 @@ import { z } from 'zod';
 // dónde se arranque la API.
 const SERVER_DIR = path.resolve(import.meta.dirname, '..');
 
+// La dirección pública que pone el hosting, si estamos en uno:
+// Render da la URL entera (RENDER_EXTERNAL_URL); Railway, solo el dominio
+// (RAILWAY_PUBLIC_DOMAIN, sin https://).
+function direccionDelHosting() {
+  const render = process.env.RENDER_EXTERNAL_URL?.trim();
+  if (render) return render;
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railway) return /^https?:\/\//.test(railway) ? railway : `https://${railway}`;
+  return '';
+}
+
 // Número entero con valor por defecto. "" o ausente = valor por defecto.
 const entero = (porDefecto, min, max) =>
   z.preprocess(
@@ -23,13 +34,13 @@ const schema = z.object({
   NODE_ENV: z.string().optional(),
   PORT: entero(4000, 1, 65535),
   // Origen (o varios, separados por coma) desde donde se usa la app.
-  // Vacío o ausente = la dirección que pone Render (RENDER_EXTERNAL_URL) o,
-  // si no estamos en Render, http://localhost:5173.
+  // Vacío o ausente = la dirección que pone el hosting (ver direccionDelHosting)
+  // o, en la PC, http://localhost:5173.
   CLIENT_URL: z
     .string()
     .optional()
     .transform((value) =>
-      (value?.trim() ? value : process.env.RENDER_EXTERNAL_URL?.trim() || 'http://localhost:5173')
+      (value?.trim() ? value : direccionDelHosting() || 'http://localhost:5173')
         .split(',')
         .map((url) => url.trim().replace(/\/$/, ''))
         .filter(Boolean),
@@ -41,6 +52,14 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => (!value || value === 'false' ? false : /^\d+$/.test(value) ? Number(value) : value)),
+  // Encabezado del que leer la IP real, si el proxy la manda ahí y no en
+  // X-Forwarded-For (Railway documenta X-Real-IP). Solo detrás de un proxy que
+  // lo pise siempre: si no, cualquiera inventa su IP. Vacío = req.ip de Express.
+  IP_HEADER: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim().toLowerCase() || null)
+    .refine((value) => value == null || /^[a-z0-9-]+$/.test(value), 'tiene que ser un nombre de encabezado, por ejemplo X-Real-IP'),
   // Carpeta del front compilado (npm run build en client/). Si no tiene un
   // index.html, la API no sirve el front (como en desarrollo, con Vite).
   FRONT_DIR: z
@@ -79,6 +98,7 @@ export const IS_PRODUCTION = env.NODE_ENV === 'production';
 export const PORT = env.PORT;
 export const CLIENT_ORIGINS = env.CLIENT_URL;
 export const TRUST_PROXY = env.TRUST_PROXY;
+export const IP_HEADER = env.IP_HEADER;
 export const FRONT_DIR = env.FRONT_DIR;
 
 const MINUTO = 60 * 1000;

@@ -21,6 +21,8 @@ export default defineConfig({
       // Un front compilado de mentira, para probar que la API lo sirve.
       FRONT_DIR: 'test/fixtures/front',
       RENDER_EXTERNAL_URL: '',
+      RAILWAY_PUBLIC_DOMAIN: '',
+      IP_HEADER: '',
       // Precios de INAC: un token de prueba (la ruta de GitHub Actions) y sin
       // clave de Anthropic (los tests simulan a Claude).
       PRECIOS_TOKEN: 'token-de-prueba-de-precios-0123456789abcdef',

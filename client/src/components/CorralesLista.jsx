@@ -6,6 +6,7 @@ import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros from './PanelFiltros';
 import { BarraBuscar, Chip, Select, categoriasCortas } from './PotrerosLista';
 import { textoSalida } from './FeedlotAnalisis';
+import { coincide, prepararBusqueda } from './busqueda';
 
 // La tabla de Corrales (feedlot, fase 1, 25/11; docs/FEEDLOT.md §4). En un
 // feedlot las hectáreas no dicen nada: se mira cuánto hace que entraron, cuánto
@@ -40,7 +41,6 @@ const celdaFila = celda.replace('align-top', 'align-middle');
 const ALTO_FILA = 'h-[4.5rem] md:h-10';
 const segunda = 'block text-xs font-normal leading-4 text-suelo-500';
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
-const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const fl = (p) => p.feedlot ?? null;
 // Hoy, en la hora del celular: la salida de otro año lleva el año ("23/02/27").
@@ -160,12 +160,12 @@ export default function CorralesLista({ potreros, todas = false }) {
   }, [potreros]);
 
   const visibles = useMemo(() => {
-    const q = sinTildes(f.q.trim());
+    const q = prepararBusqueda(f.q);
     const lista = potreros.filter((p) => {
       const lotes = p.stock?.lotes ?? [];
       const cabezas = p.stock?.cabezas ?? 0;
       const d = fl(p);
-      if (q && !sinTildes(nombreConSigla(p, todas)).includes(q) && !lotes.some((l) => sinTildes(l.lote).includes(q))) return false;
+      if (q && !coincide(nombreConSigla(p, todas), q) && !lotes.some((l) => coincide(l.lote, q))) return false;
       if (f.etapa && d?.etapa !== f.etapa) return false;
       if (f.salida === 'atrasados' && !d?.atrasado) return false;
       if (f.salida === '30' && !(d && !d.atrasado && d.diasParaSalida != null && d.diasParaSalida <= 30)) return false;

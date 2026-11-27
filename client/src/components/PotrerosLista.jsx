@@ -7,9 +7,9 @@ import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros, { DestinoBotonFiltros } from './PanelFiltros';
 import Icono from './Icono';
+import { coincide, prepararBusqueda } from './busqueda';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
-const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const GRUPOS = [
   ['', 'Todos'],
@@ -172,11 +172,11 @@ export default function PotrerosLista({ potreros, todas = false }) {
   }, [potreros, f.grupo]);
 
   const visibles = useMemo(() => {
-    const q = sinTildes(f.q.trim());
+    const q = prepararBusqueda(f.q);
     const lista = potreros.filter((p) => {
       const lotes = p.stock?.lotes ?? [];
       const cabezas = p.stock?.cabezas ?? 0;
-      if (q && !sinTildes(nombreConSigla(p, todas)).includes(q) && !lotes.some((l) => sinTildes(l.lote).includes(q))) return false;
+      if (q && !coincide(nombreConSigla(p, todas), q) && !lotes.some((l) => coincide(l.lote, q))) return false;
       if (f.grupo && grupoDe(p) !== f.grupo) return false;
       if (f.uso && p.usoActual?.nombre !== f.uso) return false;
       if (f.animales === 'con' && cabezas === 0) return false;

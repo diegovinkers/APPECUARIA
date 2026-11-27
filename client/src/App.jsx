@@ -17,6 +17,7 @@ import ProfilePage from './pages/ProfilePage';
 import RegistrarPage from './pages/RegistrarPage';
 import RolesPage from './pages/RolesPage';
 import UsersPage from './pages/UsersPage';
+import AsistentePage from './pages/AsistentePage';
 import RegistroPage from './pages/pecuaria/RegistroPage';
 import MoverEntreCamposPage from './pages/pecuaria/MoverEntreCamposPage';
 import MovimientoMultiplePage from './pages/pecuaria/MovimientoMultiplePage';
@@ -64,6 +65,8 @@ export default function App() {
                   <Route path="/pecuaria/potreros/:id" element={<PotreroPage />} />
                   <Route path="/pecuaria/lotes/:id" element={<LotePage />} />
                   <Route path="/pecuaria/procesos/:id" element={<ProcesoPage />} />
+                  {/* El asistente (27/11): fase 1, solo consulta. */}
+                  <Route path="/asistente" element={<AsistentePage />} />
                 </Route>
                 <Route element={<ProtectedRoute permiso="pecuaria:CREAR" />}>
                   <Route path="/pecuaria/mover" element={<MoverPage />} />

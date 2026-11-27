@@ -3,6 +3,7 @@ import app from './app.js';
 import { prisma } from './db.js';
 import { PORT } from './config.js';
 import { purgeExpiredSessions } from './auth/session.js';
+import { purgarAsistente } from './asistente/asistente.service.js';
 
 // Prisma se conecta recién en la primera consulta; esto hace que un error de
 // conexión se vea al arrancar y no en el primer login.
@@ -27,6 +28,18 @@ async function limpiarSesiones() {
 }
 await limpiarSesiones();
 setInterval(limpiarSesiones, 60 * 60 * 1000).unref();
+
+// El asistente guarda las conversaciones 90 días (docs/superpowers/specs/2026-11-27-asistente-design.md).
+async function limpiarAsistente() {
+  try {
+    const { conversaciones, textos } = await purgarAsistente();
+    if (conversaciones + textos > 0) console.log(`>>> Asistente: ${conversaciones} conversaciones y ${textos} textos de más de 90 días borrados`);
+  } catch (error) {
+    console.error('No se pudo limpiar el asistente:', error.message);
+  }
+}
+await limpiarAsistente();
+setInterval(limpiarAsistente, 60 * 60 * 1000).unref();
 
 app
   .listen(PORT, () => console.log(`>>> API en http://localhost:${PORT}`))

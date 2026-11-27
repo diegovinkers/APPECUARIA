@@ -12,6 +12,7 @@ import authRoutes from './auth/auth.routes.js';
 import usersRoutes from './users/users.routes.js';
 import rolesRoutes from './roles/roles.routes.js';
 import pecuariaRoutes from './pecuaria/pecuaria.routes.js';
+import asistenteRoutes from './asistente/asistente.routes.js';
 
 const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/roles', rolesRoutes);
 app.use('/api/pecuaria', pecuariaRoutes);
+app.use('/api/asistente', asistenteRoutes);
 
 // El front compilado, en la misma dirección (ver front.js). En desarrollo no
 // hay client/dist y el front lo sirve Vite.

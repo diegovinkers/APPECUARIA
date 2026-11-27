@@ -348,7 +348,7 @@ export default function ProcesoEtapaPage() {
         <section aria-label="Toros" className="space-y-5">
           <label className={etiqueta}>
             Fecha
-            <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
+            <input type="date" required value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
           </label>
           <ListaToros
             titulo="Sacar del proceso"
@@ -379,7 +379,7 @@ export default function ProcesoEtapaPage() {
         <section aria-label="Datos" className="space-y-4">
           <label className={etiqueta}>
             Fecha
-            <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
+            <input type="date" required value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
           </label>
 
           {etapa === 'FIN_SERVICIO' && torosDentro.length > 0 && (
@@ -550,7 +550,7 @@ export default function ProcesoEtapaPage() {
                   <p className="text-sm font-medium">Los terneros</p>
                   <label className="block text-xs text-suelo-600">
                     Se van a
-                    <select aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner('potreroId', e.target.value)} className={`${inputChico} mt-1`}>
+                    <select required aria-label={`${l.nombre}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner('potreroId', e.target.value)} className={`${inputChico} mt-1`}>
                       <option value="">Elegí el potrero…</option>
                       {otrosPotreros(l).map((p) => (
                         <option key={p.id} value={p.id}>
@@ -696,7 +696,7 @@ export default function ProcesoEtapaPage() {
             lotes.map((l) => (
               <label key={l.loteId} className={etiqueta}>
                 {l.nombre}: ¿a dónde van las {formatNumero(l.cabezas)} que no parieron?
-                <select aria-label={`${l.nombre}: a qué potrero van a engorde`} value={aOtroPotrero[l.loteId] ?? ''} onChange={(e) => setAOtroPotrero((x) => ({ ...x, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`}>
+                <select required={conOtrosDelProceso(l)} aria-label={`${l.nombre}: a qué potrero van a engorde`} value={aOtroPotrero[l.loteId] ?? ''} onChange={(e) => setAOtroPotrero((x) => ({ ...x, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`}>
                   <option value="">{conOtrosDelProceso(l) ? 'Elegí el potrero…' : `Se quedan en ${l.potrero?.nombre}`}</option>
                   {otrosPotreros(l).map((p) => (
                     <option key={p.id} value={p.id}>
@@ -723,6 +723,7 @@ export default function ProcesoEtapaPage() {
                   <input
                     inputMode="numeric"
                     aria-label={`${l.nombre}: cuántas murieron`}
+                    required
                     value={cabezas[l.loteId] ?? ''}
                     onChange={(e) => setCabezas((c) => ({ ...c, [l.loteId]: e.target.value }))}
                     className={`${inputChico} mt-1`}
@@ -731,7 +732,7 @@ export default function ProcesoEtapaPage() {
               ))}
               <label className={etiqueta}>
                 Causa
-                <select aria-label="Causa de la muerte" value={causaId} onChange={(e) => setCausaId(e.target.value)} className={`${inputChico} mt-1`}>
+                <select required aria-label="Causa de la muerte" value={causaId} onChange={(e) => setCausaId(e.target.value)} className={`${inputChico} mt-1`}>
                   <option value="">Elegí la causa…</option>
                   {causas.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -757,7 +758,7 @@ export default function ProcesoEtapaPage() {
               return (
                 <label key={l.loteId} className={etiqueta}>
                   ¿A dónde van las que abortaron? ({l.nombre})
-                  <select aria-label={`${l.nombre}: a qué potrero van a engorde`} value={aOtroPotrero[l.loteId] ?? ''} onChange={(e) => setAOtroPotrero((x) => ({ ...x, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`}>
+                  <select required={parte} aria-label={`${l.nombre}: a qué potrero van a engorde`} value={aOtroPotrero[l.loteId] ?? ''} onChange={(e) => setAOtroPotrero((x) => ({ ...x, [l.loteId]: e.target.value }))} className={`${inputChico} mt-1`}>
                     <option value="">{parte ? 'Elegí el potrero…' : `Se quedan en ${l.potrero?.nombre}`}</option>
                     {otrosPotreros(l).map((p) => (
                       <option key={p.id} value={p.id}>
@@ -781,7 +782,7 @@ export default function ProcesoEtapaPage() {
           {etapa === 'DECISION' && (
             <label className={etiqueta}>
               Fecha
-              <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
+              <input type="date" required value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputChico} mt-1`} />
             </label>
           )}
           {etapa === 'DIAGNOSTICO' &&

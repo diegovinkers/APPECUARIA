@@ -47,7 +47,7 @@ export default function HistorialPotrero({ versiones, hoy = new Date().toLocaleD
   return (
     <>
       <div className="overflow-hidden rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-historial">
-        <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm md:table-auto">
+        <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[15px] md:table-auto">
           <thead className="text-xs text-suelo-600">
             <tr>
               <th scope="col" className={titulo}>

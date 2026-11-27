@@ -281,7 +281,7 @@ export default function RegistrarPage() {
             <>
               <label className={etiqueta}>
                 Lote
-                <select value={loteId} onChange={(e) => setLoteId(e.target.value)} className={`${inputClass} mt-1`}>
+                <select required value={loteId} onChange={(e) => setLoteId(e.target.value)} className={`${inputClass} mt-1`}>
                   <option value="">Elegí el lote…</option>
                   {lotes.map((l) => (
                     <option key={l.loteId} value={l.loteId}>
@@ -297,6 +297,7 @@ export default function RegistrarPage() {
                     <div className="mt-1 flex gap-2">
                       <input
                         inputMode="numeric"
+                        required
                         value={cabezas}
                         onChange={(e) => setCabezas(e.target.value.replace(/\D/g, ''))}
                         className={inputClass}
@@ -376,7 +377,7 @@ export default function RegistrarPage() {
           {tipo.pideCausa && (
             <label className={etiqueta}>
               Causa
-              <select value={causaId} onChange={(e) => setCausaId(e.target.value)} className={`${inputClass} mt-1`}>
+              <select required value={causaId} onChange={(e) => setCausaId(e.target.value)} className={`${inputClass} mt-1`}>
                 <option value="">Elegí la causa…</option>
                 {causasDelTipo.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -390,7 +391,7 @@ export default function RegistrarPage() {
           {(tipo.pideGuia || guia) && (
             <label className={etiqueta}>
               Número de guía
-              <input value={guia} onChange={(e) => setGuia(e.target.value)} maxLength={30} className={`${inputClass} mt-1`} aria-label="Número de guía" />
+              <input required={!!tipo.pideGuia} value={guia} onChange={(e) => setGuia(e.target.value)} maxLength={30} className={`${inputClass} mt-1`} aria-label="Número de guía" />
             </label>
           )}
           {esTraslado && (
@@ -410,7 +411,7 @@ export default function RegistrarPage() {
           )}
           <label className={etiqueta}>
             Fecha
-            <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
+            <input type="date" required value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
           </label>
           <label className={`${etiqueta} sm:col-span-2`}>
             Comentario (opcional)
@@ -444,6 +445,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
             onCambiar('categoriaId', e.target.value);
             onCambiar('destino', 'nuevo');
           }}
+          required
           className={inputClass}
           aria-label="Categoría"
         >
@@ -456,6 +458,7 @@ function LineaEntrada({ linea: l, categorias, lotes, potrero, onCambiar, onQuita
         </select>
         <input
           inputMode="numeric"
+          required
           value={l.cabezas}
           onChange={(e) => onCambiar('cabezas', e.target.value.replace(/\D/g, ''))}
           placeholder="Cabezas"

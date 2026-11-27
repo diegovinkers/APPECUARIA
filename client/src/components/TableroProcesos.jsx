@@ -190,7 +190,7 @@ function FilaGrupo({ g, todas, hoy, conAccion }) {
           {potreros ? ` · ${potreros}` : ''}
         </p>
         {g.deIatf && (
-          <span className="mt-0.5 hidden rounded bg-trigo-500 px-1.5 text-[11px] font-semibold text-trigo-900 md:inline-block">{textoVieneDe(g)}</span>
+          <span className="mt-0.5 hidden rounded bg-trigo-500 px-1.5 text-xs font-semibold text-trigo-900 md:inline-block">{textoVieneDe(g)}</span>
         )}
       </td>
       <td className={`${celda} hidden text-suelo-700 md:table-cell`}>{estado}</td>

@@ -21,7 +21,7 @@ export function PastoSelector({ valor, onCambiar, etiqueta, compacto = false }) 
             }`}
           >
             <span className="block text-sm font-semibold">{a.nombre}</span>
-            {!compacto && <span className="block text-[11px] leading-tight text-suelo-500">{a.ayuda}</span>}
+            {!compacto && <span className="block text-xs leading-tight text-suelo-500">{a.ayuda}</span>}
           </button>
         );
       })}

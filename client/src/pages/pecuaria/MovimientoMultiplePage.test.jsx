@@ -90,6 +90,15 @@ describe('Movimiento múltiple', () => {
     );
   });
 
+  it('los campos obligatorios van marcados (required: el estilo está en index.css)', async () => {
+    await montar();
+    for (const etiqueta of ['Potrero de origen del movimiento 1', 'Lote del movimiento 1', 'Potrero de destino del movimiento 1']) {
+      expect(contenedor.querySelector(`select[aria-label="${etiqueta}"]`).required).toBe(true);
+    }
+    expect(contenedor.querySelector('input[aria-label="Cabezas del movimiento 1"]').required).toBe(true);
+    expect(contenedor.querySelector('input[aria-label="Peso del movimiento 1"]').required).toBe(false);
+  });
+
   it('"Agregar otro movimiento" está siempre', async () => {
     await montar();
     expect(boton('Agregar otro movimiento')).toBeTruthy();

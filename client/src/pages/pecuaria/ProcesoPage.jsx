@@ -365,8 +365,8 @@ export default function ProcesoPage() {
                           · {m.texto}
                         </span>
                       ))}
-                      {c.inicial && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] text-sky-800 no-underline">dato inicial</span>}
-                      {c.anulada && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[11px] text-red-700">anulado</span>}
+                      {c.inicial && <span className="mr-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-xs text-sky-800 no-underline">dato inicial</span>}
+                      {c.anulada && <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">anulado</span>}
                       {conAnular && c.puedeAnular && !c.anulada && (
                         <button type="button" onClick={() => anular(c, e)} className="min-h-8 text-xs text-red-700 hover:underline">
                           Anular
@@ -400,7 +400,7 @@ function ProximoEvento({ proceso, item, registra, onDescartar }) {
     <section aria-label="Próximo evento" data-estado={item.estado} className={`mt-4 rounded-xl border-2 p-4 ${estilo.tarjeta}`}>
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-suelo-600">
         Próximo evento
-        <span className={`rounded-full px-2 py-0.5 text-[11px] normal-case tracking-normal ${estilo.punto}`}>{estilo.etiqueta}</span>
+        <span className={`rounded-full px-2 py-0.5 text-xs normal-case tracking-normal ${estilo.punto}`}>{estilo.etiqueta}</span>
       </p>
       <p className="mt-1 text-xl font-bold leading-tight">{item.nombre}</p>
       <p className={`mt-0.5 ${item.estado === 'ATRASADA' ? 'font-semibold text-red-700' : 'text-suelo-700'}`}>{item.texto}</p>

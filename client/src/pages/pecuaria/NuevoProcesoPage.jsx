@@ -304,9 +304,9 @@ export default function NuevoProcesoPage() {
                     <span className="block truncate font-medium">{l.lote}</span>
                     <span className="block text-xs text-suelo-500">
                       {l.potrero} · {l.categoria}
-                      {paraServir.has(l.loteId) && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-800">para volver a servir</span>}
+                      {paraServir.has(l.loteId) && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-xs text-amber-800">para volver a servir</span>}
                       {conCria.has(l.loteId) && (
-                        <span className="ml-1 rounded bg-campo-500/15 px-1.5 py-0.5 text-[11px] text-campo-800" title={`Sigue en "${conCria.get(l.loteId)}" hasta el destete`}>
+                        <span className="ml-1 rounded bg-campo-500/15 px-1.5 py-0.5 text-xs text-campo-800" title={`Sigue en "${conCria.get(l.loteId)}" hasta el destete`}>
                           con cría al pie
                         </span>
                       )}
@@ -324,7 +324,7 @@ export default function NuevoProcesoPage() {
         <section aria-label="Datos" className="space-y-4">
           <label className={etiqueta}>
             {w.fecha}
-            <input type="date" value={datos.fecha} max={hoy()} onChange={poner(setDatos)('fecha')} className={`${inputChico} mt-1`} />
+            <input type="date" required value={datos.fecha} max={hoy()} onChange={poner(setDatos)('fecha')} className={`${inputChico} mt-1`} />
             <span className="mt-1 block text-xs text-suelo-500">Con esta fecha se calcula cuándo toca el diagnóstico y la parición.</span>
           </label>
           {modalidad === 'TOROS' &&
@@ -404,7 +404,7 @@ export default function NuevoProcesoPage() {
           <div className="grid grid-cols-2 gap-3">
             <label className={etiqueta}>
               Inicio del servicio
-              <input type="date" value={curso.inicio} max={hoy()} onChange={poner(setCurso)('inicio')} className={`${inputChico} mt-1`} />
+              <input type="date" required value={curso.inicio} max={hoy()} onChange={poner(setCurso)('inicio')} className={`${inputChico} mt-1`} />
             </label>
             <label className={etiqueta}>
               Fin del servicio
@@ -479,7 +479,7 @@ export default function NuevoProcesoPage() {
                   )}
                   <label className="block text-xs text-suelo-600">
                     {s.parte ? `Las ${seVan === 'SIN' ? w.sin : w.hechas} van a` : 'Dónde quedan'}
-                    <select aria-label={`${l.lote}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner({ potreroId: e.target.value })} className={`${inputChico} mt-1 w-full`}>
+                    <select required={!!s.parte} aria-label={`${l.lote}: a qué potrero`} value={d.potreroId ?? ''} onChange={(e) => poner({ potreroId: e.target.value })} className={`${inputChico} mt-1 w-full`}>
                       <option value="">{s.parte ? 'Elegí el potrero…' : `Se quedan en ${l.potrero}`}</option>
                       {otros.map((p) => (
                         <option key={p.id} value={p.id}>

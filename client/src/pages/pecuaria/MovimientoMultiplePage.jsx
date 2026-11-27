@@ -243,7 +243,7 @@ export default function MovimientoMultiplePage() {
           <section className="grid gap-3 rounded-lg border border-suelo-200 bg-superficie p-4 sm:grid-cols-2">
             <label className={etiqueta}>
               Fecha
-              <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} aria-label="Fecha" />
+              <input type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} aria-label="Fecha" />
             </label>
             <label className={etiqueta}>
               Motivo (opcional)
@@ -301,6 +301,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
           Desde el potrero
           <select
             value={p.potreroOrigenId}
+            required
             onChange={(e) => onCambiar({ potreroOrigenId: e.target.value, loteOrigenId: '', modo: '', loteDestinoId: '', enCadena: false })}
             className={`${inputClass} mt-1`}
             aria-label={`Potrero de origen del movimiento ${n}`}
@@ -321,6 +322,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
               const l = opciones.find((x) => String(x.loteId) === e.target.value);
               onCambiar({ loteOrigenId: e.target.value, cabezas: l ? String(l.cabezas) : '', modo: '', loteDestinoId: '', destinoPotreroId: '' });
             }}
+            required
             disabled={!p.potreroOrigenId}
             className={`${inputClass} mt-1`}
             aria-label={`Lote del movimiento ${n}`}
@@ -337,6 +339,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
           Cabezas
           <input
             inputMode="numeric"
+            required
             value={p.cabezas}
             onChange={(e) => onCambiar({ cabezas: e.target.value.replace(/\D/g, '') })}
             className={`${inputClass} mt-1`}
@@ -351,6 +354,7 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
           Al potrero
           <select
             value={p.destinoPotreroId}
+            required
             onChange={(e) => elegirDestino(e.target.value)}
             disabled={!lote}
             className={`${inputClass} mt-1`}

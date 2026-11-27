@@ -16,7 +16,7 @@ export default function Camino({ titulo, pasos = PASOS_EVENTO, actual, onIr, onS
           const contenido = (
             <>
               <span
-                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                   i === actual ? 'bg-boton text-white' : hecho ? 'bg-campo-100 text-campo-700' : 'bg-suelo-200 text-suelo-500'
                 }`}
               >

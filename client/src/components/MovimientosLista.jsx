@@ -464,7 +464,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
       ) : (
         // Se achica para que entre en la pantalla; lo que no entra, scrollea adentro.
         <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-movimientos">
-          <table className="w-full border-separate border-spacing-0 text-left text-sm md:min-w-[56rem]">
+          <table className="w-full border-separate border-spacing-0 text-left text-[15px] md:min-w-[56rem]">
             <thead className="text-xs text-suelo-600">
               <tr>
                 {titulos.map(([col, titulo, vista], i) => (
@@ -556,7 +556,7 @@ function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
     ),
     tipo: (
       <>
-        {fila.eventos && <span className="mr-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
+        {fila.eventos && <span className="mr-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-xs font-medium text-sky-800">evento</span>}
         <span className={`font-medium ${fila.eventos && fila.revertido ? 'line-through' : ''}`}>{fila.tipo}</span>
         {fila.revertido && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">{fila.eventos ? 'anulado' : 'revertido'}</span>}
         {debajo && debajo !== '—' && <span className="block truncate text-xs text-suelo-600">{debajo}</span>}
@@ -686,7 +686,7 @@ export function Detalle({ fila, campoId, conRevertir, onRevertir, onAnular, onCe
           <div className="min-w-0 flex-1">
             <p className="text-xs text-suelo-500">
               {formatFecha(fila.fecha)}
-              {fila.eventos && <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
+              {fila.eventos && <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-xs font-medium text-sky-800">evento</span>}
             </p>
             <h2 className={`text-lg font-bold leading-tight ${fila.revertido ? 'text-suelo-400 line-through' : ''}`}>{fila.tipo}</h2>
             {fila.revertido && <p className="mt-0.5 text-sm font-semibold text-red-700">{fila.eventos ? 'Anulado' : 'Revertido'}</p>}
@@ -731,7 +731,7 @@ export function Detalle({ fila, campoId, conRevertir, onRevertir, onAnular, onCe
               <ol className="mt-1 divide-y divide-suelo-200 rounded-lg border border-suelo-200">
                 {fila.pasos.map((p, n) => (
                   <li key={p.id} className="flex items-start gap-2 px-2.5 py-2" data-testid="paso">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-campo-100 text-[11px] font-bold text-campo-800">{n + 1}</span>
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-campo-100 text-xs font-bold text-campo-800">{n + 1}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">
                         {tipoDe(p)} · {categoriaDe(p)}

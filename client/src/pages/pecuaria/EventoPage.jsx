@@ -576,7 +576,7 @@ export function PasoDatos({ tipo, formulario, elegidos, datosLote, onDato, comun
     <section aria-label="Datos" className="space-y-4">
       <label className={etiqueta}>
         Fecha
-        <input type="date" value={fecha} max={hoy()} onChange={(e) => onFecha(e.target.value)} className={`${inputChico} mt-1`} />
+        <input type="date" required value={fecha} max={hoy()} onChange={(e) => onFecha(e.target.value)} className={`${inputChico} mt-1`} />
       </label>
 
       {formulario === 'producto' && (
@@ -634,14 +634,14 @@ function DatosLote({ formulario, lote: l, datos, onDato }) {
       <div className="mt-2 grid grid-cols-2 gap-2">
         {formulario === 'pesada' && (
           <>
-            {campo('pesoPromedioKg', 'Peso promedio (kg)', { inputMode: 'decimal', placeholder: l.pesoPromedioKg ? formatNumero(l.pesoPromedioKg) : 'kg' })}
+            {campo('pesoPromedioKg', 'Peso promedio (kg)', { inputMode: 'decimal', required: true, placeholder: l.pesoPromedioKg ? formatNumero(l.pesoPromedioKg) : 'kg' })}
             {campo('pesadas', `Cuántas se pesaron (de ${formatNumero(l.cabezas)})`, { inputMode: 'numeric' })}
           </>
         )}
         {formulario === 'recuento' && (
           <>
-            {campo('contadas', `Contadas (la app dice ${formatNumero(l.cabezas)})`, { inputMode: 'numeric' })}
-            {hayDiferencia(l, datos) && campo('motivo', 'Motivo de la diferencia', { maxLength: 120, placeholder: 'Obligatorio' })}
+            {campo('contadas', `Contadas (la app dice ${formatNumero(l.cabezas)})`, { inputMode: 'numeric', required: true })}
+            {hayDiferencia(l, datos) && campo('motivo', 'Motivo de la diferencia', { maxLength: 120, required: true, placeholder: 'Obligatorio' })}
           </>
         )}
         {formulario === 'ecografia' && (
@@ -650,7 +650,7 @@ function DatosLote({ formulario, lote: l, datos, onDato }) {
             {campo('vacias', `Vacías (de ${formatNumero(l.cabezas)})`, { inputMode: 'numeric' })}
           </>
         )}
-        {formulario === 'cabezas' && campo('cabezas', `Cabezas (de ${formatNumero(l.cabezas)})`, { inputMode: 'numeric' })}
+        {formulario === 'cabezas' && campo('cabezas', `Cabezas (de ${formatNumero(l.cabezas)})`, { inputMode: 'numeric', required: true })}
       </div>
     </li>
   );

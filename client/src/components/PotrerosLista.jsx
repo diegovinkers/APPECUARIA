@@ -246,7 +246,7 @@ export default function PotrerosLista({ potreros, todas = false }) {
         // La caja ocupa el alto libre; la tabla scrollea adentro (títulos y Total fijos).
         <div className="flex min-h-0 flex-1 flex-col" data-testid="caja-potreros">
           <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-potreros">
-            <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm md:min-w-[44rem] md:table-auto">
+            <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[15px] md:min-w-[44rem] md:table-auto">
               <thead className="text-xs text-suelo-600">
                 <tr>
                   {COLUMNAS.map(([c, titulo, derecha, , soloCompu], i) => (

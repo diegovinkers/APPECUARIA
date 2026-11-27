@@ -38,7 +38,7 @@ const ANIMALES = [
 const SOLO_COMPU = 'hidden md:table-cell';
 const celdaFila = celda.replace('align-top', 'align-middle');
 const ALTO_FILA = 'h-[4.5rem] md:h-10';
-const segunda = 'block text-[11px] font-normal leading-4 text-suelo-500';
+const segunda = 'block text-xs font-normal leading-4 text-suelo-500';
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const sinTildes = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -217,7 +217,7 @@ export default function CorralesLista({ potreros, todas = false }) {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="caja-potreros">
           <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-corrales">
-            <table className="w-full table-fixed border-separate border-spacing-0 text-left text-sm md:min-w-[52rem] md:table-auto">
+            <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[15px] md:min-w-[52rem] md:table-auto">
               <thead className="text-xs text-suelo-600">
                 <tr>
                   {COLUMNAS.map((x, i) => (

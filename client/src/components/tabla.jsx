@@ -130,4 +130,5 @@ export function TituloOrdenable({ col, titulo, orden, onOrdenar, derecha, fija, 
 }
 
 // Clase de una celda: líneas como en Excel.
-export const celda = 'border-b border-r border-suelo-200 px-1.5 py-1.5 align-top last:border-r-0 md:px-2';
+// Números más grandes (27/11): en el celular, un poco menos de margen a los costados para que entren.
+export const celda = 'border-b border-r border-suelo-200 px-1 py-1.5 align-top last:border-r-0 md:px-2';

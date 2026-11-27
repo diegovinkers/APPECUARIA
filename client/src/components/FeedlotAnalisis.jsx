@@ -17,7 +17,7 @@ import { Seccion } from './ResumenCampo';
 // ve la ganancia diaria real (GMD real) entre la entrada (o la pesada anterior) y esa.
 
 const SOLO_COMPU = 'hidden md:table-cell';
-const segundaBase = 'block text-[11px] font-normal leading-4';
+const segundaBase = 'block text-xs font-normal leading-4';
 const segunda = `${segundaBase} text-suelo-500`;
 const AMBAR = 'text-amber-800';
 // Atrasado: la salida probable ya pasó.

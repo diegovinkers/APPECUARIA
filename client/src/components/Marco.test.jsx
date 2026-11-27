@@ -249,6 +249,8 @@ describe('Marco: barras y panel', () => {
     const logo = contenedor.querySelector('header img[alt="SAPSA"]');
     expect(logo.getAttribute('src')).toBe('/logo-sapsa.png');
     expect(logo.closest('a').getAttribute('href')).toBe('/pecuaria/resumen');
+    // Debajo del logo, "Pecuaria" en letra chica (26/11).
+    expect(logo.closest('a').textContent).toContain('Pecuaria');
   });
 
   it('sin sesión no hay menú, solo la barra simple', () => {

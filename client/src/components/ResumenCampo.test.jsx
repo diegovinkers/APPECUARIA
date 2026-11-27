@@ -3,7 +3,8 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { TablaResumen } from './ResumenCampo.jsx';
+import { Cabecera, CargaPorGrupo, TablaResumen, ayudaTabla } from './ResumenCampo.jsx';
+import { PlataProvider } from './Plata.jsx';
 import PotrerosLista from './PotrerosLista.jsx';
 import { ConPanel } from '../test-utils.jsx';
 
@@ -46,7 +47,7 @@ describe('Resumen → Potreros', () => {
     expect(l).toContainEqual(['180', '/pecuaria/potreros?grupo=CN']);
     // Un cero no es link.
     expect(l.some(([, href]) => href === '/pecuaria/potreros?categoria=9&grupo=VERDEO')).toBe(false);
-    expect(contenedor.textContent).toContain('CN: campo natural');
+    expect(ayudaTabla(RESUMEN)).toContain('CN: campo natural');
   });
 });
 
@@ -73,31 +74,56 @@ describe('filtros de Potreros', () => {
 });
 
 describe('valor del ganado', () => {
-  const montar = (resumen) =>
-    act(() =>
-      root.render(
-        <MemoryRouter>
-          <TablaResumen resumen={resumen} />
-        </MemoryRouter>,
-      ),
+  const montar = (resumen, { conOjo = false } = {}) => {
+    const contenido = (
+      <>
+        <Cabecera cabezas="230" detalle="3 potreros" valor={resumen.valor} />
+        <CargaPorGrupo porGrupo={resumen.porGrupo} />
+        <TablaResumen resumen={resumen} />
+      </>
     );
+    act(() => root.render(<MemoryRouter>{conOjo ? <PlataProvider>{contenido}</PlataProvider> : contenido}</MemoryRouter>));
+  };
   const cuadro = () => contenedor.querySelector('[data-testid="valor-ganado"]');
+  const CON_VALOR = {
+    ...RESUMEN,
+    valor: { usd: 93500, completo: false },
+    filas: [{ ...RESUMEN.filas[0], valorUsd: 60000, valorCompleto: true }, RESUMEN.filas[1]],
+    porGrupo: [{ ...RESUMEN.porGrupo[0], kilosEstimados: true, valorUsd: 93500 }],
+  };
 
   it('muestra el valor, avisa si está incompleto; la carga en cab/ha, sin UG/ha', () => {
-    montar({
-      ...RESUMEN,
-      valor: { usd: 93500, completo: false },
-      porGrupo: [{ ...RESUMEN.porGrupo[0], kilosEstimados: true, valorUsd: 93500 }],
-    });
+    montar(CON_VALOR);
     expect(cuadro().textContent).toMatch(/USD 93\.500/);
     expect(cuadro().textContent).toMatch(/Incompleto/);
     expect(contenedor.textContent).toMatch(/1,8 cab\/ha/);
     expect(contenedor.textContent).not.toMatch(/UG/);
   });
 
-  it('sin precios cargados, manda a Configuración', () => {
-    montar({ ...RESUMEN, valor: { usd: 0, completo: false } });
+  it('sin precios cargados, manda a Configuración (y no hay ojito)', () => {
+    montar({ ...RESUMEN, valor: { usd: 0, completo: false } }, { conOjo: true });
     expect(cuadro().querySelector('a').getAttribute('href')).toBe('/pecuaria/configuracion');
+    expect(contenedor.querySelector('button[aria-label="Mostrar los valores"]')).toBeNull();
+  });
+
+  it('en el Resumen la plata arranca tapada y el ojito la muestra y la vuelve a tapar', () => {
+    montar(CON_VALOR, { conOjo: true });
+    const texto = () => contenedor.textContent;
+    expect(texto()).not.toMatch(/93\.500/);
+    expect(texto()).not.toMatch(/60 mil/);
+    expect(contenedor.querySelectorAll('[data-plata="oculta"]').length).toBeGreaterThanOrEqual(3);
+    // Las cabezas se ven igual.
+    expect(texto()).toContain('230');
+
+    const ojo = contenedor.querySelector('button[aria-label="Mostrar los valores"]');
+    expect(ojo.getAttribute('aria-pressed')).toBe('false');
+    act(() => ojo.click());
+    expect(texto()).toMatch(/USD 93\.500/);
+    expect(texto()).toMatch(/60 mil/);
+    expect(contenedor.querySelector('[data-plata="oculta"]')).toBeNull();
+
+    act(() => contenedor.querySelector('button[aria-label="Ocultar los valores"]').click());
+    expect(texto()).not.toMatch(/93\.500/);
   });
 });
 

@@ -27,6 +27,17 @@ export function Logo({ className = 'h-7 w-auto' }) {
   return <img src="/logo-sapsa.png" alt="SAPSA" className={`shrink-0 ${className}`} />;
 }
 
+// La marca de la barra de arriba (26/11, pedido de Diego): el logo de SAPSA
+// un poco más chico y, debajo, "Pecuaria" en letra chica.
+export function Marca() {
+  return (
+    <span className="flex shrink-0 flex-col items-start leading-none">
+      <Logo className="h-[18px] w-auto lg:h-5" />
+      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/75">Pecuaria</span>
+    </span>
+  );
+}
+
 // Dos grupos (feedlots, 19/11): Estancias y Feedlots, cada uno con su
 // "Todas / Todos" (si tiene más de un campo) y sus campos. Si el usuario no
 // tiene feedlots, la lista es la de siempre, sin grupos.
@@ -194,7 +205,7 @@ export function ContenidoPanel({ menu, achicado = false, onCerrar, onSalir }) {
 function BarraSimple({ onSalir }) {
   return (
     <header className="flex items-center gap-2 bg-barra px-4 py-3 text-white">
-      <Logo />
+      <Marca />
       <span className="flex-1" />
       {onSalir && (
         <button type="button" onClick={onSalir} className="rounded-md px-3 py-1.5 text-sm hover:bg-white/15">
@@ -317,7 +328,7 @@ function MarcoInterno() {
           más bajo y menos espacio entre cosas (24/11). */}
       <header className={`relative z-30 flex shrink-0 items-center gap-1.5 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4 ${barras ? '' : 'acostado:hidden'}`}>
         <Link to="/pecuaria/resumen" className="flex shrink-0 items-center" aria-label="SAPSA, ir al inicio">
-          <Logo className="h-6 w-auto lg:h-7" />
+          <Marca />
         </Link>
         <SelectorEstancia />
         <nav aria-label="Principal" className="ml-3 hidden items-center gap-1 lg:flex">

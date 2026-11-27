@@ -62,8 +62,43 @@ export default function MovimientoMultiplePage() {
   const lotesDe = (potreroId) => ordenados.find((p) => String(p.id) === String(potreroId))?.stock?.lotes ?? [];
   const nombreDe = (potreroId) => ordenados.find((p) => String(p.id) === String(potreroId))?.nombre ?? '';
 
-  const cambiar = (id, cambios) => setPasos((ps) => ps.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
+  // Si cambia el destino (o lo que pasa en el destino) de un paso, el que sigue
+  // "en cadena" y todavía no tiene lote se vuelve a armar desde ese destino.
+  const cambiar = (id, cambios) =>
+    setPasos((ps) => {
+      const i = ps.findIndex((p) => p.id === id);
+      const nuevos = ps.map((p) => (p.id === id ? { ...p, ...cambios } : p));
+      const sig = nuevos[i + 1];
+      const tocaDestino = 'destinoPotreroId' in cambios || 'modo' in cambios || 'loteDestinoId' in cambios;
+      if (tocaDestino && sig?.enCadena && !sig.loteOrigenId) {
+        const destino = nuevos[i].destinoPotreroId;
+        nuevos[i + 1] = { ...pasoVacio(sig.id), enCadena: true, ...(destino && desdeElDestino(destino, nuevos.slice(0, i + 1))) };
+      }
+      return nuevos;
+    });
   const agregar = (desde) => setPasos((ps) => [...ps, pasoVacio(siguiente.current++, desde)]);
+
+  // Movimiento en cadena (26/11, pedido de Diego): A → B, y el paso que se
+  // agrega arranca desde B (B → C, después C → D...). Si en B queda un solo
+  // lote para mover, también lo elige. Si en B no había nada antes de empezar
+  // (solo lo que llega), el paso nuevo arranca vacío.
+  function desdeElDestino(destinoPotreroId, anteriores) {
+    const recibieron = new Set(anteriores.filter((p) => p.modo === 'SUMAR' && p.loteDestinoId).map((p) => Number(p.loteDestinoId)));
+    const habia = lotesDe(destinoPotreroId);
+    if (!habia.length) return {};
+    const libres = habia.filter((l) => !recibieron.has(l.loteId));
+    const unico = libres.length === 1 ? libres[0] : null;
+    return {
+      potreroOrigenId: String(destinoPotreroId),
+      loteOrigenId: unico ? String(unico.loteId) : '',
+      cabezas: unico ? String(unico.cabezas) : '',
+      enCadena: true,
+    };
+  }
+  function agregarEnCadena() {
+    const ultimo = pasos.at(-1);
+    agregar(ultimo?.destinoPotreroId ? desdeElDestino(ultimo.destinoPotreroId, pasos) : {});
+  }
   const quitar = (id) => setPasos((ps) => ps.filter((p) => p.id !== id));
 
   // Para cada paso: su lote de origen, los lotes que puede usar como origen (los
@@ -201,7 +236,7 @@ export default function MovimientoMultiplePage() {
             ))}
           </ol>
 
-          <button type="button" onClick={() => agregar()} className="w-full rounded-md border-2 border-dashed border-campo-300 px-4 py-3 text-sm font-medium text-campo-700 hover:bg-campo-50">
+          <button type="button" onClick={agregarEnCadena} className="w-full rounded-md border-2 border-dashed border-campo-300 px-4 py-3 text-sm font-medium text-campo-700 hover:bg-campo-50">
             + Agregar otro movimiento
           </button>
 
@@ -253,12 +288,20 @@ function Paso({ n, paso: p, info, potreros, categorias, nombreDe, puedeQuitar, o
           </button>
         )}
       </div>
+      {p.enCadena && p.potreroOrigenId && (
+        <p className="-mt-1 text-xs text-suelo-500" data-testid="en-cadena">
+          ↳ Sigue desde {nombreDe(p.potreroOrigenId)}, donde llegó el movimiento anterior.{' '}
+          {opciones.length
+            ? 'Lo podés cambiar.'
+            : `Lo que había ahí recibe los animales del movimiento anterior: para moverlo, en ese elegí "Formar un lote nuevo".`}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2">
         <label className={etiqueta}>
           Desde el potrero
           <select
             value={p.potreroOrigenId}
-            onChange={(e) => onCambiar({ potreroOrigenId: e.target.value, loteOrigenId: '', modo: '', loteDestinoId: '' })}
+            onChange={(e) => onCambiar({ potreroOrigenId: e.target.value, loteOrigenId: '', modo: '', loteDestinoId: '', enCadena: false })}
             className={`${inputClass} mt-1`}
             aria-label={`Potrero de origen del movimiento ${n}`}
           >

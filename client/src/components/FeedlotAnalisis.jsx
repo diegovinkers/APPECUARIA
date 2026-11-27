@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Dato, aprox, formatDiaMes, formatFecha, formatNumero, formatUsd, formatUsdCorto, textoFaltan, textoPrecio } from './pecuaria';
 import { celda } from './tabla';
+import { Plata } from './Plata';
+import { Seccion } from './ResumenCampo';
 
 // La vista del feedlot en el Resumen (pedido de Diego, 19/11): una tabla por
 // corral con los días de encierre, el peso estimado de hoy, la salida
@@ -38,7 +40,7 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
         <Dato valor={formatNumero(totales.cabezas)} etiqueta="cabezas" />
         <Dato valor={formatNumero(totales.corrales)} etiqueta={totales.corrales === 1 ? 'corral' : 'corrales'} />
         <Dato valor={totales.diasPromedio == null ? '—' : formatNumero(totales.diasPromedio)} etiqueta="días promedio" />
-        <Dato valor={totales.valorUsd > 0 ? formatUsdCorto(totales.valorUsd) : '—'} etiqueta={totales.valorCompleto ? 'USD de valor' : 'USD (incompleto)'} />
+        <Dato valor={totales.valorUsd > 0 ? <Plata>{formatUsdCorto(totales.valorUsd)}</Plata> : '—'} etiqueta={totales.valorCompleto ? 'USD de valor' : 'USD (incompleto)'} />
         <Dato valor={formatNumero(totales.atrasados)} etiqueta={totales.atrasados === 1 ? 'atrasado' : 'atrasados'} />
         <Dato valor={formatNumero(totales.proximos)} etiqueta="salen en 30 días" />
       </div>
@@ -52,7 +54,12 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
                   <span className="block font-medium">{f.nombre}</span>
                   <span className="block text-xs text-suelo-500">
                     {f.corrales} {f.corrales === 1 ? 'corral' : 'corrales'}
-                    {f.valorUsd > 0 && ` · ${formatUsd(f.valorUsd)}`}
+                    {f.valorUsd > 0 && (
+                      <>
+                        {' · '}
+                        <Plata>{formatUsd(f.valorUsd)}</Plata>
+                      </>
+                    )}
                   </span>
                 </span>
                 <span className="text-right">
@@ -65,6 +72,7 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
         </ul>
       )}
 
+      <h2 className="!mt-8 text-xs font-semibold uppercase tracking-wider text-suelo-500">Por corral</h2>
       {filas.length === 0 ? (
         <p className="text-suelo-600">Todavía no hay animales en los corrales.</p>
       ) : (
@@ -134,8 +142,7 @@ export default function FeedlotAnalisis({ analisis, todas = false, onElegir }) {
 // real contra el estimado a esa fecha, el precio y el valor real. "—" si falta.
 function UltimasVentas({ ventas, todas, hoy }) {
   return (
-    <section data-testid="ultimas-ventas">
-      <h2 className="mb-2 font-semibold">Últimas ventas</h2>
+    <Seccion titulo="Últimas ventas" testid="ultimas-ventas">
       {ventas.length === 0 ? (
         <p className="text-sm text-suelo-600">No hubo ventas desde los corrales en los últimos 90 días.</p>
       ) : (
@@ -189,7 +196,7 @@ function UltimasVentas({ ventas, todas, hoy }) {
                   <td className={`${celda} ${SOLO_COMPU} text-right`}>{textoDiferencia(v.diferenciaKg)}</td>
                   <td className={`${celda} ${SOLO_COMPU} text-right`}>{textoPrecio(v.precioVentaUsd, v.precioVentaPor)}</td>
                   <td className={`${celda} text-right`}>
-                    {v.valorVentaUsd == null ? '—' : formatUsdCorto(v.valorVentaUsd)}
+                    {v.valorVentaUsd == null ? '—' : <Plata>{formatUsdCorto(v.valorVentaUsd)}</Plata>}
                     {v.precioVentaUsd != null && <span className={`${segunda} md:hidden`}>{textoPrecio(v.precioVentaUsd, v.precioVentaPor)}</span>}
                   </td>
                 </tr>
@@ -199,7 +206,7 @@ function UltimasVentas({ ventas, todas, hoy }) {
         </div>
       )}
       <p className="mt-2 text-xs text-suelo-500">Ventas de los últimos 90 días, sin las revertidas. El precio se carga al registrar la salida.</p>
-    </section>
+    </Seccion>
   );
 }
 
@@ -243,8 +250,10 @@ function FilaCorral({ f, todas, hoy }) {
       <td className={`${celda} ${SOLO_COMPU} text-right`}>{f.gmdRealKg == null ? '—' : `${formatNumero(f.gmdRealKg, 2)} kg`}</td>
       <td className={`${celda} ${SOLO_COMPU} text-right`}>{f.cmComederoPorCabeza == null ? '—' : formatNumero(f.cmComederoPorCabeza)}</td>
       <td className={`${celda} ${SOLO_COMPU} text-right`}>
-        {valor}
-        {f.valorUsd > 0 && !f.valorCompleto && <span className={AMBAR}>*</span>}
+        <Plata>
+          {valor}
+          {f.valorUsd > 0 && !f.valorCompleto && <span className={AMBAR}>*</span>}
+        </Plata>
       </td>
     </tr>
   );

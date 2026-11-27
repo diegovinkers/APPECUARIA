@@ -3,6 +3,7 @@ import { useEstancia } from '../../context/EstanciaContext';
 import { ErrorList } from '../../components/ui';
 import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 import { nombreGrupo } from '../../navegacion/grupos';
+import { EsqueletoLista } from '../../components/Esqueleto';
 
 // Encabezado de Resumen, Potreros y Movimientos, en un solo renglón (pedido de
 // Diego, 19/11): el título, la estancia chica al lado y, en el celular, el
@@ -46,7 +47,7 @@ export function BarraAbajo({ children, acostado = false, ...resto }) {
 export function SinEstancia() {
   const { campos, errors } = useEstancia();
   if (errors.length) return <ErrorList errors={errors} />;
-  if (!campos) return <p className="text-suelo-600">Cargando…</p>;
+  if (!campos) return <EsqueletoLista filas={4} testId="esqueleto-estancias" />;
   return (
     <div className="rounded-lg border border-dashed border-suelo-300 bg-superficie p-8 text-center text-suelo-600">
       Todavía no hay datos.{' '}

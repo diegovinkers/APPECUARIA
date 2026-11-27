@@ -27,6 +27,7 @@ import {
   recientesDe,
   seleccionInicial,
 } from '../../components/eventos';
+import { EsqueletoFicha, EsqueletoLista } from '../../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
@@ -249,7 +250,7 @@ export default function EventoPage() {
       <div className="mt-2">
         <ErrorList errors={[...errors, ...errorsPotreros]} />
       </div>
-      {!tipos && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {!tipos && !errors.length && <EsqueletoFicha bloques={2} testId="esqueleto-ficha" />}
 
       {paso === 0 && tipos && (
         <section aria-label="Qué">
@@ -300,7 +301,7 @@ export default function EventoPage() {
         </section>
       )}
 
-      {cargandoProcesos && <p className="text-suelo-600">Cargando…</p>}
+      {cargandoProcesos && <EsqueletoLista filas={3} testId="esqueleto-procesos-elegir" />}
       {paso === 1 && esDestete(tipo) && !preguntaProceso && !cargandoProcesos && (
         <PasoDestete
           estancia={estancia}
@@ -381,7 +382,7 @@ export function PasoDestete({ estancia, sinCampo, onElegirEstancia, potreros, po
       </section>
     );
   }
-  if (!potreros) return <p className="text-suelo-600">Cargando…</p>;
+  if (!potreros) return <EsqueletoLista testId="esqueleto-potreros-elegir" />;
   const lista = potrerosParaDestete(potreros);
   const potrero = lista.find((p) => p.id === potreroId);
   if (!potrero) {
@@ -453,7 +454,7 @@ export function PasoAQuien({ tipo, estancia, campo, sinCampo, onElegirEstancia, 
       </section>
     );
   }
-  if (!potreros) return <p className="text-suelo-600">Cargando…</p>;
+  if (!potreros) return <EsqueletoLista testId="esqueleto-potreros-elegir" />;
 
   const recientesVisibles = recientes
     .map((r) =>

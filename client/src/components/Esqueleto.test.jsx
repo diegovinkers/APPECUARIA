@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EsqueletoBloques } from './Esqueleto';
+import { EsqueletoBloques, EsqueletoFicha, EsqueletoLista } from './Esqueleto';
 import { EsqueletoPotreros } from './PotrerosLista';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -38,5 +38,23 @@ describe('esqueletos mientras carga (27/11)', () => {
     expect(esqueleto.getAttribute('role')).toBe('status');
     expect(esqueleto.textContent).toBe('Cargando…');
     expect(esqueleto.querySelectorAll('[aria-hidden="true"].rounded-lg')).toHaveLength(3);
+  });
+
+  it('fichas y pantallas de registrar: título, línea y bloques; listas para elegir: renglones', () => {
+    act(() =>
+      root.render(
+        <>
+          <EsqueletoFicha bloques={2} testId="ficha" />
+          <EsqueletoLista filas={4} testId="lista" />
+        </>,
+      ),
+    );
+    const ficha = contenedor.querySelector('[data-testid="ficha"]');
+    expect(ficha.getAttribute('role')).toBe('status');
+    expect(ficha.textContent).toBe('Cargando…');
+    expect(ficha.querySelectorAll('.rounded-lg')).toHaveLength(2);
+    const lista = contenedor.querySelector('[data-testid="lista"]');
+    expect(lista.textContent).toBe('Cargando…');
+    expect(lista.querySelectorAll('li')).toHaveLength(4);
   });
 });

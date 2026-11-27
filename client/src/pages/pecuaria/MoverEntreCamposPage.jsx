@@ -6,6 +6,7 @@ import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros, { ordenNatural } from '../../hooks/usePotreros';
 import { ErrorList, buttonClass, inputClass } from '../../components/ui';
 import { formatNumero, opcionPotrero } from '../../components/pecuaria';
+import { EsqueletoFicha } from '../../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
@@ -133,7 +134,12 @@ export default function MoverEntreCamposPage() {
     }
   }
 
-  if (!campos) return <main className="mx-auto max-w-3xl px-4 py-6 text-suelo-600">Cargando…</main>;
+  if (!campos)
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-6">
+        <EsqueletoFicha testId="esqueleto-ficha" />
+      </main>
+    );
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-5 sm:py-8">

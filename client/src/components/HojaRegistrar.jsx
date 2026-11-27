@@ -10,6 +10,7 @@ import { formatNumero, queHayYUso } from './pecuaria';
 import { ListaEventos } from './HojaEventos';
 import Icono from './Icono';
 import { coincide, prepararBusqueda } from './busqueda';
+import { EsqueletoLista } from './Esqueleto';
 
 
 // El "+" en secciones, como en el boceto de los eventos (20/11): MOVER arriba
@@ -98,7 +99,7 @@ function EventosDelMas({ contexto, onElegir }) {
         </span>
       </button>
       <ErrorList errors={errors} />
-      {!tipos && !errors.length && <p className="py-4 text-sm text-suelo-600">Cargando…</p>}
+      {!tipos && !errors.length && <EsqueletoLista testId="esqueleto-eventos" />}
       {tipos && <ListaEventos tipos={tipos} onElegir={(t) => onElegir(rutaEvento(t.id, contexto))} />}
     </>
   );
@@ -238,7 +239,7 @@ export default function HojaRegistrar({ acciones, onCerrar, eventos = false, con
                     className="w-full bg-transparent text-sm outline-none placeholder:text-suelo-400"
                   />
                 </label>
-                {!potreros && !errors.length && <p className="py-4 text-sm text-suelo-600">Cargando…</p>}
+                {!potreros && !errors.length && <EsqueletoLista testId="esqueleto-potreros-hoja" />}
                 {potreros && lista.length === 0 && (
                   <p className="py-4 text-sm text-suelo-600">
                     {busqueda ? 'Ningún potrero coincide.' : 'No hay potreros con animales.'}

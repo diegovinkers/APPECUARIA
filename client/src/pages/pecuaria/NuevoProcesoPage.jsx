@@ -11,6 +11,7 @@ import { indexarLotes } from '../../components/eventos';
 import { cuerpoProceso, esEmbriones, normalizarModalidad, palabrasServicio, porTandas, separarIatf } from '../../components/procesos';
 import { ElegirEstancia } from './comun';
 import { ListaToros, torosLibres } from '../../components/TorosProceso';
+import { EsqueletoLista } from '../../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
@@ -288,7 +289,7 @@ export default function NuevoProcesoPage() {
               Las vacías (y las no aptas) para volver a servir entran a un entore con toros (una sola vez): volvé al primer paso y elegí Entore con toros.
             </p>
           )}
-          {!potreros && <p className="text-suelo-600">Cargando…</p>}
+          {!potreros && <EsqueletoLista filas={4} testId="esqueleto-lotes" />}
           {potreros && hembras.length === 0 && <p className="text-suelo-600">No hay lotes de hembras libres (sin otro proceso abierto) en esta estancia.</p>}
           <ul className="divide-y divide-suelo-100 rounded-lg border border-suelo-200 bg-superficie">
             {hembras.map((l) => (

@@ -22,6 +22,7 @@ import {
   textoBotonEtapa,
   totalDiagnostico,
 } from '../../components/procesos';
+import { EsqueletoFicha } from '../../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
@@ -315,7 +316,7 @@ export default function ProcesoEtapaPage() {
       <div className="mt-2">
         <ErrorList errors={errors} />
       </div>
-      {!ficha && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {!ficha && !errors.length && <EsqueletoFicha testId="esqueleto-ficha" />}
 
       {ficha && nombrePaso === 'A quién' && (
         <section aria-label="A quién" className="space-y-2">

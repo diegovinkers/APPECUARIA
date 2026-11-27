@@ -21,6 +21,7 @@ import HistorialPotrero from '../components/HistorialPotrero';
 import { PastoMarca } from '../components/PastoSelector';
 import { hace, textoDescanso, textoMomento } from '../components/pasto';
 import { rutaPasto } from '../navegacion/menu';
+import { EsqueletoFicha } from '../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 // Acepta "250" o "250,5" (como se escribe acá).
@@ -83,7 +84,7 @@ export default function PotreroPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-suelo-600">Cargando…</p>}
+        {!errors.length && <EsqueletoFicha testId="esqueleto-ficha" />}
       </main>
     );
   }

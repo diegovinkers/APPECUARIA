@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { puede } from '../navegacion/menu';
+import { EsqueletoFicha } from './Esqueleto';
 
 export const CAMBIAR_PASSWORD = '/cambiar-password';
 
@@ -13,7 +14,13 @@ export default function ProtectedRoute({ permiso }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <p className="p-6 text-suelo-600">Cargando...</p>;
+  // Mientras se revisa la sesión (al abrir la app), la forma de una pantalla (27/11).
+  if (loading)
+    return (
+      <div className="mx-auto max-w-3xl p-4">
+        <EsqueletoFicha testId="esqueleto-sesion" />
+      </div>
+    );
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
   if (user.debeCambiarPassword && location.pathname !== CAMBIAR_PASSWORD) {
     return <Navigate to={CAMBIAR_PASSWORD} replace />;

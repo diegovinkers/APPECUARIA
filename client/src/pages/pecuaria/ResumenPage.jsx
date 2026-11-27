@@ -10,6 +10,7 @@ import { AYUDA_CARGA, Cabecera, CargaPorGrupo, Seccion, TablaResumen, ayudaTabla
 import FeedlotAnalisis from '../../components/FeedlotAnalisis';
 import { BotonOjo, Plata, PlataProvider } from '../../components/Plata';
 import { Encabezado, SinEstancia } from './comun';
+import { EsqueletoBloques } from '../../components/Esqueleto';
 
 // Lo primero que se ve al entrar. Ordenado en zonas (26/11, pedido de Diego):
 // - la cabecera: cabezas, potreros y hectáreas, y el valor del ganado;
@@ -51,7 +52,8 @@ function AlDia({ fecha }) {
   return <span className="text-sm text-suelo-500">al {formatFecha(fecha)}</span>;
 }
 
-const Cargando = () => <p className="text-suelo-600">Cargando…</p>;
+// Mientras carga, bloques grises (27/11; también al tirar para actualizar).
+const Cargando = () => <EsqueletoBloques testId="esqueleto-resumen" />;
 
 const plural = (n, uno, varios) => `${formatNumero(n)} ${n === 1 ? uno : varios}`;
 

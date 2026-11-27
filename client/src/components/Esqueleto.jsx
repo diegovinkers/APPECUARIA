@@ -45,3 +45,20 @@ export function EsqueletoTabla({ columnas, filas = 14, claseFila = '', testId = 
     </div>
   );
 }
+
+// Para las pantallas que no son una tabla (Resumen, Procesos): unos bloques
+// grises con barras, en lugar de "Cargando…".
+export function EsqueletoBloques({ bloques = 4, testId = 'esqueleto' }) {
+  return (
+    <div role="status" aria-live="polite" className="space-y-3" data-testid={testId}>
+      <span className="sr-only">Cargando…</span>
+      {Array.from({ length: bloques }, (_, n) => (
+        <div key={n} aria-hidden="true" className="rounded-lg border border-suelo-200 bg-superficie p-4">
+          <Barra className={`h-4 ${LARGOS[n % LARGOS.length]}`} />
+          <Barra className={`mt-3 ${LARGOS[(n + 2) % LARGOS.length]}`} />
+          <Barra className={`mt-2 ${LARGOS[(n + 4) % LARGOS.length]}`} />
+        </div>
+      ))}
+    </div>
+  );
+}

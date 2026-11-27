@@ -8,6 +8,7 @@ import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros, { DestinoBotonFiltros } from './PanelFiltros';
 import Icono from './Icono';
 import { coincide, prepararBusqueda } from './busqueda';
+import { EsqueletoTabla } from './Esqueleto';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 
@@ -71,6 +72,18 @@ const ANCHO_CELULAR = {
   cabHa: 'w-[3.25rem] md:w-auto',
 };
 const NUMERICAS = new Set(['hectareas', 'cabezas', 'peso', 'kgHa', 'cabHa', 'descanso']);
+
+// Mientras carga (27/11): la misma tabla, vacía, con barras grises (también
+// al tirar para actualizar). Sirve también para Corrales (forma parecida).
+export function EsqueletoPotreros() {
+  const columnas = COLUMNAS.map(([clave, , derecha, , soloCompu]) => ({
+    clave,
+    clase: soloCompu ? SOLO_COMPU : (ANCHO_CELULAR[clave] ?? ''),
+    derecha,
+    dosLineas: clave === 'potrero',
+  }));
+  return <EsqueletoTabla columnas={columnas} filas={12} claseFila={ALTO_FILA} testId="esqueleto-potreros" />;
+}
 // Las direcciones viejas (?orden=carga, ?orden=ugHa) siguen andando.
 const ALIAS_ORDEN = { nombre: 'potrero', carga: 'cabHa', ugHa: 'cabHa' };
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useEstancia } from '../context/EstanciaContext';
@@ -8,6 +8,7 @@ import { menuPara } from '../navegacion/menu';
 import HojaRegistrar from './HojaRegistrar';
 import { DestinoFiltros, PanelFiltrosProvider, usePanelFiltros } from './PanelFiltros';
 import Icono from './Icono';
+import useTirarParaActualizar from '../hooks/useTirarParaActualizar';
 
 // El marco de la app (docs/DECISIONES.md §11; cambio de Diego del 19/11):
 // - arriba: logo, selector de estancia, en la compu Resumen · Potreros ·
@@ -24,16 +25,21 @@ import Icono from './Icono';
 
 // El logo de SAPSA (barras verdes + letras blancas, para la barra verde).
 export function Logo({ className = 'h-7 w-auto' }) {
-  return <img src="/logo-sapsa.png" alt="SAPSA" className={`shrink-0 ${className}`} />;
+  return <img src="/logo-pecuaria.png" alt="Pecuaria" className={`shrink-0 ${className}`} />;
 }
 
-// La marca de la barra de arriba (26/11, pedido de Diego): el logo de SAPSA
-// un poco más chico y, debajo, "Pecuaria" en letra chica.
+// La marca de la barra de arriba (27/11, pedido de Diego): el logo de
+// Pecuaria (la vaca en el hexágono) en un cuadradito blanco (el logo tiene
+// fondo blanco y gris oscuro: sobre el verde no se vería) y, al lado, SAPSA
+// con PECUARIA debajo en letra chica.
 export function Marca() {
   return (
-    <span className="flex shrink-0 flex-col items-start leading-none">
-      <Logo className="h-[18px] w-auto lg:h-5" />
-      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/75">Pecuaria</span>
+    <span className="flex shrink-0 items-center gap-1.5">
+      <Logo className="h-8 w-8 rounded-lg bg-white p-0.5 lg:h-9 lg:w-9" />
+      <span className="flex flex-col items-start leading-none">
+        <span className="text-sm font-bold tracking-[0.08em] text-white">SAPSA</span>
+        <span className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-white/75">Pecuaria</span>
+      </span>
     </span>
   );
 }
@@ -161,6 +167,30 @@ export function AvatarUsuario({ user }) {
   );
 }
 
+// La ruedita de tirar para actualizar (27/11): baja con el dedo, gira según
+// cuánto falta y, pasado el umbral, se pone verde; mientras actualiza, gira sola.
+export function RuedaActualizar({ distancia, listo, actualizando }) {
+  if (!distancia && !actualizando) return null;
+  return (
+    <div
+      className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center"
+      style={{ transform: `translateY(${Math.max(8, distancia - 28)}px)` }}
+      data-testid="rueda-actualizar"
+    >
+      <span
+        className={`flex h-10 w-10 items-center justify-center rounded-full bg-superficie shadow-md ring-1 ring-suelo-200 ${listo || actualizando ? 'text-campo-600' : 'text-suelo-400'}`}
+      >
+        <span className={`flex ${actualizando ? 'motion-safe:animate-spin' : ''}`} style={actualizando ? undefined : { transform: `rotate(${distancia * 3}deg)` }}>
+          <Icono nombre="actualizar" className="h-5 w-5" />
+        </span>
+      </span>
+      <span role="status" className="sr-only">
+        {actualizando ? 'Actualizando…' : listo ? 'Soltá para actualizar' : ''}
+      </span>
+    </div>
+  );
+}
+
 // Es activo si la dirección empieza con la ruta (o con `activoEn`).
 const activo = (pathname, item) => pathname === item.ruta || pathname.startsWith(`${item.activoEn ?? item.ruta}/`) || pathname === item.activoEn;
 
@@ -278,6 +308,24 @@ function MarcoInterno() {
   // flotante las trae y tocar la pantalla (o cambiar de página) las esconde.
   const [barras, setBarras] = useState(false);
   const contenido = useRef(null);
+  // Tirar para actualizar (27/11): la caja del contenido (para escuchar el
+  // dedo) y una vuelta que, al cambiar, vuelve a armar la pantalla (pide de
+  // nuevo sus datos, con los esqueletos mientras llegan).
+  const [caja, setCaja] = useState(null);
+  const refContenido = useCallback((el) => {
+    contenido.current = el;
+    setCaja(el);
+  }, []);
+  const [vuelta, setVuelta] = useState(0);
+  const actualizar = useCallback(() => {
+    setVuelta((v) => v + 1);
+    // De paso, ¿hay una versión nueva publicada? (sale el cartel "Actualizar").
+    navigator.serviceWorker
+      ?.getRegistration?.()
+      .then((r) => r?.update())
+      .catch(() => {});
+  }, []);
+  const tirar = useTirarParaActualizar(caja, actualizar);
   const conMenu = Boolean(user && !user.debeCambiarPassword);
   const menu = menuPara(user);
   const { setAbierto: setFiltrosAbierto, hay: hayFiltros } = filtros;
@@ -405,7 +453,8 @@ function MarcoInterno() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        <RuedaActualizar {...tirar} />
         {/* Panel de filtros: cajón en el celular, fijo en la compu. */}
         {hayFiltros && filtros.abierto && (
           <button type="button" aria-label="Cerrar los filtros" onClick={() => setFiltrosAbierto(false)} className="fixed inset-0 z-40 bg-black/40 lg:hidden" />
@@ -426,12 +475,15 @@ function MarcoInterno() {
         </aside>
         {/* pb-5: que el "+" de la barra de abajo (sobresale) no tape lo último. */}
         <div
-          ref={contenido}
+          ref={refContenido}
           onPointerDown={() => barras && setBarras(false)}
           className="min-w-0 flex-1 overflow-y-auto pb-5 lg:pb-0 acostado:pb-1"
+          // Mientras se tira, el contenido baja con el dedo (en reposo, sin
+          // transform: si no, las ventanas fijas de adentro se correrían).
+          style={tirar.distancia && !tirar.actualizando ? { transform: `translateY(${tirar.distancia}px)` } : undefined}
           data-testid="contenido"
         >
-          <Outlet />
+          <Outlet key={vuelta} />
         </div>
       </div>
 

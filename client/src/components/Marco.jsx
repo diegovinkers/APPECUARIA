@@ -27,6 +27,17 @@ export function Logo({ className = 'h-7 w-auto' }) {
   return <img src="/logo-sapsa.png" alt="SAPSA" className={`shrink-0 ${className}`} />;
 }
 
+// La marca de la barra de arriba (26/11, pedido de Diego): el logo de SAPSA
+// un poco más chico y, debajo, "Pecuaria" en letra chica.
+export function Marca() {
+  return (
+    <span className="flex shrink-0 flex-col items-start leading-none">
+      <Logo className="h-[18px] w-auto lg:h-5" />
+      <span className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-white/75">Pecuaria</span>
+    </span>
+  );
+}
+
 // Dos grupos (feedlots, 19/11): Estancias y Feedlots, cada uno con su
 // "Todas / Todos" (si tiene más de un campo) y sus campos. Si el usuario no
 // tiene feedlots, la lista es la de siempre, sin grupos.
@@ -121,6 +132,35 @@ export function BotonTema() {
   );
 }
 
+// Las iniciales del usuario (27/11): la primera letra de las dos primeras
+// palabras del nombre ("Encargado Ejemplo" → "EE"); con una sola palabra, sus
+// dos primeras letras; sin nombre, las del usuario.
+export function iniciales(user) {
+  const palabras = String(user?.nombre || user?.usuario || '')
+    .trim()
+    .split(/[\s._-]+/)
+    .filter(Boolean);
+  if (!palabras.length) return '?';
+  const letras = palabras.length > 1 ? palabras[0][0] + palabras[1][0] : palabras[0].slice(0, 2);
+  return letras.toLocaleUpperCase('es');
+}
+
+// El círculo con las iniciales, en la barra de arriba entre el tema y el ☰
+// (pedido de Diego, 27/11). Lleva a "Mi perfil".
+export function AvatarUsuario({ user }) {
+  return (
+    <Link
+      to="/profile"
+      aria-label={`Mi perfil (${user.nombre || user.usuario})`}
+      title={user.nombre || user.usuario}
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-trigo-500 text-xs font-bold tracking-wide text-trigo-900 ring-2 ring-white/25 hover:bg-trigo-400"
+      data-testid="avatar-usuario"
+    >
+      {iniciales(user)}
+    </Link>
+  );
+}
+
 // Es activo si la dirección empieza con la ruta (o con `activoEn`).
 const activo = (pathname, item) => pathname === item.ruta || pathname.startsWith(`${item.activoEn ?? item.ruta}/`) || pathname === item.activoEn;
 
@@ -194,7 +234,7 @@ export function ContenidoPanel({ menu, achicado = false, onCerrar, onSalir }) {
 function BarraSimple({ onSalir }) {
   return (
     <header className="flex items-center gap-2 bg-barra px-4 py-3 text-white">
-      <Logo />
+      <Marca />
       <span className="flex-1" />
       {onSalir && (
         <button type="button" onClick={onSalir} className="rounded-md px-3 py-1.5 text-sm hover:bg-white/15">
@@ -304,7 +344,7 @@ function MarcoInterno() {
   const linkArriba = ({ isActive }) =>
     `rounded-md px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`;
   const linkAbajo = ({ isActive }) =>
-    `flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] ${isActive ? 'font-semibold text-campo-600' : 'text-suelo-500'}`;
+    `flex flex-1 flex-col items-center gap-0.5 py-2 text-xs ${isActive ? 'font-semibold text-campo-600' : 'text-suelo-500'}`;
 
   return (
     // La app ocupa justo la pantalla: arriba la barra, abajo (celular) la barra
@@ -313,11 +353,11 @@ function MarcoInterno() {
     // Fijo a la pantalla (fixed inset-0): arrastrar de más no corre la barra de
     // abajo (pedido de Diego, 19/11).
     <div className="fixed inset-0 flex flex-col">
-      {/* En el celular entran logo, estancia, tema y ☰ a 360 px: logo un poco
-          más bajo y menos espacio entre cosas (24/11). */}
+      {/* En el celular entran logo, estancia, tema, iniciales y ☰ a 360 px: logo
+          un poco más bajo y menos espacio entre cosas (24/11). */}
       <header className={`relative z-30 flex shrink-0 items-center gap-1.5 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4 ${barras ? '' : 'acostado:hidden'}`}>
         <Link to="/pecuaria/resumen" className="flex shrink-0 items-center" aria-label="SAPSA, ir al inicio">
-          <Logo className="h-6 w-auto lg:h-7" />
+          <Marca />
         </Link>
         <SelectorEstancia />
         <nav aria-label="Principal" className="ml-3 hidden items-center gap-1 lg:flex">
@@ -337,8 +377,9 @@ function MarcoInterno() {
             <Icono nombre="mas" className="h-4 w-4" /> Registrar
           </button>
         )}
-        <span className="hidden text-sm text-white/80 lg:inline">{user.nombre}</span>
+        {/* Después de las estancias: el tema, las iniciales y, último, el ☰ (27/11). */}
         <BotonTema />
+        <AvatarUsuario user={user} />
         <button
           type="button"
           onClick={() => setMenuAbierto((a) => !a)}

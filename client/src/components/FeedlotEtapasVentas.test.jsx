@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TablaResumen, columnasDe, valorColumna } from './ResumenCampo.jsx';
+import { TablaResumen, ayudaTabla, columnasDe, valorColumna } from './ResumenCampo.jsx';
 import FeedlotAnalisis, { textoDiferencia, textoSalida } from './FeedlotAnalisis.jsx';
 import CamposPrecioVenta, { cuerpoVenta, faltaParaVenta } from './PrecioVenta.jsx';
 import { textoPrecio, textoVenta } from './pecuaria.jsx';
@@ -76,9 +76,10 @@ describe('la tabla de categorías del feedlot, por etapa', () => {
     const links = [...contenedor.querySelectorAll('a')].map((a) => a.getAttribute('href'));
     expect(links).toContain('/pecuaria/potreros?categoria=3');
     expect(links.some((h) => h.includes('grupo='))).toBe(false);
-    expect(contenedor.querySelector('[data-testid="leyenda-etapas"]').textContent).toContain('Engorde, 21 a 90 días');
+    // La leyenda va como ayuda de la sección (ayudaTabla), debajo de la tabla.
+    expect(ayudaTabla(FEEDLOT)).toContain('Engorde, 21 a 90 días');
+    expect(ayudaTabla(FEEDLOT)).not.toContain('CN: campo natural');
     expect(contenedor.textContent).not.toContain('Carga por grupo');
-    expect(contenedor.textContent).not.toContain('CN: campo natural');
   });
 
   it('las columnas y la suma', () => {

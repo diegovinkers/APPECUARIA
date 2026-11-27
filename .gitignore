@@ -10,9 +10,14 @@ dist
 # Grabaciones de CIGAM: tienen datos reales de la empresa. Nunca a git.
 video capturas/
 
-# Archivos reales del campo (planillas, DICOSE, bastón, fotos): nunca a git.
+# Archivos reales del campo (planillas, DICOSE, bastón, fotos, mapas): nunca a git.
 docs/info santi/
 docs/img/
+docs/MAPAS/
+# Planillas sueltas en la raíz (van en docs/info santi/archivos/).
+/*.xlsx
+/*.xls
+/*.csv
 
 # Cliente de Prisma generado (se regenera con npm run db:generate)
 server/src/generated/

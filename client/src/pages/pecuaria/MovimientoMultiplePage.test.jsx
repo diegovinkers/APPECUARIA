@@ -90,10 +90,64 @@ describe('Movimiento múltiple', () => {
     );
   });
 
+  it('los campos obligatorios van marcados (required: el estilo está en index.css)', async () => {
+    await montar();
+    for (const etiqueta of ['Potrero de origen del movimiento 1', 'Lote del movimiento 1', 'Potrero de destino del movimiento 1']) {
+      expect(contenedor.querySelector(`select[aria-label="${etiqueta}"]`).required).toBe(true);
+    }
+    expect(contenedor.querySelector('input[aria-label="Cabezas del movimiento 1"]').required).toBe(true);
+    expect(contenedor.querySelector('input[aria-label="Peso del movimiento 1"]').required).toBe(false);
+  });
+
   it('"Agregar otro movimiento" está siempre', async () => {
     await montar();
     expect(boton('Agregar otro movimiento')).toBeTruthy();
     act(() => boton('Agregar otro movimiento').click());
     expect(contenedor.textContent).toContain('Movimiento 2');
+  });
+
+  it('en cadena: el paso nuevo arranca desde el destino del anterior, con un aviso suave', async () => {
+    await montar();
+    elegir('Potrero de origen del movimiento 1', 1);
+    elegir('Lote del movimiento 1', 11);
+    elegir('Potrero de destino del movimiento 1', 2);
+    act(() => boton('Agregar otro movimiento').click());
+    // 1 → 2, y el 2 arranca desde 2 con su único lote (B, 80 cabezas).
+    expect(contenedor.querySelector('select[aria-label="Potrero de origen del movimiento 2"]').value).toBe('2');
+    expect(contenedor.querySelector('select[aria-label="Lote del movimiento 2"]').value).toBe('22');
+    expect(contenedor.querySelector('input[aria-label="Cabezas del movimiento 2"]').value).toBe('80');
+    expect(contenedor.querySelector('[data-testid="en-cadena"]').textContent).toContain('Sigue desde 2');
+
+    // Si se cambia el origen a mano, el aviso se va.
+    elegir('Potrero de origen del movimiento 2', 1);
+    expect(contenedor.querySelector('[data-testid="en-cadena"]')).toBeNull();
+  });
+
+  it('en cadena: si el anterior suma al único lote del destino, explica qué elegir; al cambiarlo, el lote aparece solo', async () => {
+    await montar();
+    elegir('Potrero de origen del movimiento 1', 1);
+    elegir('Lote del movimiento 1', 11);
+    elegir('Potrero de destino del movimiento 1', 2);
+    const radio = (texto) => [...contenedor.querySelectorAll('label')].find((l) => l.textContent.includes(texto)).querySelector('input');
+    act(() => radio('Sumar al lote B').click());
+    act(() => boton('Agregar otro movimiento').click());
+    expect(contenedor.querySelector('select[aria-label="Potrero de origen del movimiento 2"]').value).toBe('2');
+    expect(contenedor.querySelector('select[aria-label="Lote del movimiento 2"]').value).toBe('');
+    expect(contenedor.querySelector('[data-testid="en-cadena"]').textContent).toContain('Formar un lote nuevo');
+
+    act(() => radio('Formar un lote nuevo').click());
+    expect(contenedor.querySelector('select[aria-label="Lote del movimiento 2"]').value).toBe('22');
+    expect(contenedor.querySelector('[data-testid="en-cadena"]').textContent).toContain('Lo podés cambiar');
+  });
+
+  it('en cadena: si en el destino no había nada antes de empezar, el paso nuevo arranca vacío', async () => {
+    await montar();
+    elegir('Potrero de origen del movimiento 1', 2);
+    elegir('Lote del movimiento 1', 22);
+    elegir('Potrero de destino del movimiento 1', 3);
+    // En 3 no había nada antes de empezar: el paso nuevo arranca vacío.
+    act(() => boton('Agregar otro movimiento').click());
+    expect(contenedor.querySelector('select[aria-label="Potrero de origen del movimiento 2"]').value).toBe('');
+    expect(contenedor.querySelector('[data-testid="en-cadena"]')).toBeNull();
   });
 });

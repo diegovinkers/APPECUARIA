@@ -17,8 +17,8 @@ export const pwaOptions = {
   // El registro lo hace AvisosApp.jsx (virtual:pwa-register/react).
   injectRegister: false,
   manifest: {
-    name: 'SAPSA',
-    short_name: 'SAPSA',
+    name: 'Appecuaria',
+    short_name: 'Appecuaria',
     description: 'App interna de SAPSA',
     lang: 'es-UY',
     start_url: '/',

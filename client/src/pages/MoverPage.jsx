@@ -201,7 +201,7 @@ export default function MoverPage() {
         <section className="mb-4 space-y-2 rounded-lg border border-sky-200 bg-sky-50/50 p-4" aria-label="Las madres">
           <h2 className="font-semibold">Las madres</h2>
           <p className="text-sm text-suelo-600">Se quedan en {origen.nombre}; queda anotado de qué lote son los terneros.</p>
-          <select value={madresId} onChange={(e) => setMadresId(e.target.value)} className={inputClass} aria-label="Lote de las madres">
+          <select value={madresId} onChange={(e) => setMadresId(e.target.value)} required className={inputClass} aria-label="Lote de las madres">
             <option value="">Elegí el lote de las madres…</option>
             {(origen.stock?.lineas ?? [])
               .filter((l) => l.loteId !== loteId)
@@ -222,6 +222,7 @@ export default function MoverPage() {
             <div className="mt-1 flex gap-2">
               <input
                 inputMode="numeric"
+                required
                 value={cabezas}
                 onChange={(e) => setCabezas(e.target.value.replace(/\D/g, ''))}
                 className={inputClass}
@@ -249,7 +250,7 @@ export default function MoverPage() {
 
       <section className="mt-4 space-y-4 rounded-lg border border-suelo-200 p-4">
         <h2 className="font-semibold">2. A dónde van</h2>
-        <select value={destinoId} onChange={(e) => setDestinoId(e.target.value)} className={inputClass} aria-label="Potrero de destino">
+        <select value={destinoId} onChange={(e) => setDestinoId(e.target.value)} required className={inputClass} aria-label="Potrero de destino">
           <option value="">Elegí el potrero de destino…</option>
           {potreros
             .filter((p) => !destete || p.id !== origen.id)
@@ -336,7 +337,7 @@ export default function MoverPage() {
                 {modo === 'CATEGORIA' && (
                   <label className={`${etiqueta} pl-2`}>
                     Categoría nueva
-                    <select value={categoriaEntero} onChange={(e) => setCategoriaEntero(e.target.value)} className={`${inputClass} mt-1`}>
+                    <select required value={categoriaEntero} onChange={(e) => setCategoriaEntero(e.target.value)} className={`${inputClass} mt-1`}>
                       <option value="">Elegí la categoría…</option>
                       {categorias
                         .filter((c) => c.id !== lote.categoriaId)
@@ -405,7 +406,7 @@ export default function MoverPage() {
       <section className="mt-4 grid gap-3 rounded-lg border border-suelo-200 p-4 sm:grid-cols-2">
         <label className={etiqueta}>
           Fecha
-          <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
+          <input type="date" required value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
         </label>
         <label className={etiqueta}>
           Motivo (opcional)

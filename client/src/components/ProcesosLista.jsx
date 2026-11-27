@@ -156,7 +156,7 @@ function TarjetaProceso({ p, todas }) {
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-campo-800">
             {nombreProceso(p, todas)}
-            {p.estado !== 'ABIERTO' && <span className="ml-1 rounded bg-suelo-200 px-1.5 py-0.5 text-[11px] font-normal text-suelo-700">{p.estado === 'CERRADO' ? 'cerrado' : 'anulado'}</span>}
+            {p.estado !== 'ABIERTO' && <span className="ml-1 rounded bg-suelo-200 px-1.5 py-0.5 text-xs font-normal text-suelo-700">{p.estado === 'CERRADO' ? 'cerrado' : 'anulado'}</span>}
           </p>
           <p className="text-sm text-suelo-600">
             {textoTipo(p.modalidad)} · {p.aMedias?.texto ?? p.textoEtapa}

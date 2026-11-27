@@ -2,7 +2,7 @@ import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, Notice } from '../../components/ui';
-import MovimientosLista from '../../components/MovimientosLista';
+import MovimientosLista, { EsqueletoHistorial } from '../../components/MovimientosLista';
 import { DestinoBotonFiltros } from '../../components/PanelFiltros';
 import { BarraAbajo, PantallaTabla, SinEstancia } from './comun';
 
@@ -56,7 +56,8 @@ export default function RegistroPage() {
       <Notice tone="ok">{location.state?.aviso}</Notice>
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
-      {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {/* Mientras llegan los potreros, la tabla vacía (la misma que muestra la lista mientras carga). */}
+      {(campoId || todas) && !potreros && !errors.length && <EsqueletoHistorial ver={ver} />}
       {potreros && <MovimientosLista key={ver} ver={ver} campoId={campoId} potreros={potreros} todas={todas} grupo={grupo} />}
       {/* Abajo, a lo ancho y cerca del pulgar (24/11): las pestañas y los
           filtros, iguales en las dos (anotar va en el "+"). Con el celular

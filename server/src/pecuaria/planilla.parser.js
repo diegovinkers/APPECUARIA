@@ -55,9 +55,11 @@ function numero(v) {
 }
 
 // El nombre del potrero como texto estable: sin espacios de más, sin espacios
-// alrededor de "/", y "45,1" como "45.1".
+// alrededor de "/", y "45,1" como "45.1". Si Excel convirtió "7.1" en una fecha
+// (7 de enero, con formato d.m), vuelve a ser "7.1".
 function nombrePotrero(v) {
   if (typeof v === 'number') return String(v);
+  if (v instanceof Date) return `${v.getUTCDate()}.${v.getUTCMonth() + 1}`;
   return String(v)
     .trim()
     .replace(/\s+/g, ' ')
@@ -113,6 +115,7 @@ export async function leerPlanilla(buffer, { hoja, campo = 'EG' } = {}) {
   const advertencias = [];
   const errores = [];
   const numericos = new Set();
+  const comoFecha = new Set();
   let columnas = null;
   let faltantes = null;
 
@@ -147,6 +150,7 @@ export async function leerPlanilla(buffer, { hoja, campo = 'EG' } = {}) {
 
     const nombre = nombrePotrero(potreroCrudo);
     if (typeof potreroCrudo === 'number') numericos.add(nombre);
+    if (potreroCrudo instanceof Date) comoFecha.add(nombre);
     const has = numero(celdas[columnas.has]);
     const hectareas = Number.isFinite(has) && has > 0 ? has : null;
     const usoTexto = columnas.uso == null ? '' : String(celdas[columnas.uso] ?? '').trim();
@@ -220,6 +224,14 @@ export async function leerPlanilla(buffer, { hoja, campo = 'EG' } = {}) {
     } else {
       resultado.push(p);
     }
+  }
+
+  if (comoFecha.size) {
+    const nombres = [...comoFecha];
+    advertencias.push(
+      `Excel guardó ${lista(nombres.length, 'el potrero', 'los potreros')} ${nombres.join(', ')} como ` +
+        `${lista(nombres.length, 'fecha', 'fechas')} (por ejemplo 7.1 = 7 de enero); se ${lista(nombres.length, 'leyó', 'leyeron')} como potrero. Revisalo.`,
+    );
   }
 
   const aConfirmar = resultado.filter((p) => p.hectareasAConfirmar).map((p) => p.nombre);

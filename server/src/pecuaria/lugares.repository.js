@@ -191,10 +191,14 @@ export async function createPotrero(campoId, { subdivisiones = [], ...data }) {
   if (!campo) return null;
   const problema = problemaArea(data);
   if (problema) throw badRequest(problema);
+  // Un potrero creado en la app va al final de su estancia (el orden de la
+  // lista es el de la planilla; 27/11).
+  const { _max } = await prisma.potrero.aggregate({ where: { campoId: campo.id }, _max: { orden: true } });
+  const orden = data.orden ?? (_max.orden ?? 0) + 1;
   return guardarPotrero(
     () =>
       prisma.potrero.create({
-        data: { ...data, campoId: campo.id, subdivisiones: { create: subdivisiones.map((codigo) => ({ codigo })) } },
+        data: { ...data, orden, campoId: campo.id, subdivisiones: { create: subdivisiones.map((codigo) => ({ codigo })) } },
         select: potreroSelect,
       }),
     data.nombre,

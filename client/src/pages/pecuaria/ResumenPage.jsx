@@ -5,14 +5,18 @@ import { getErrorMessages } from '../../api/axios';
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList, Notice } from '../../components/ui';
-import { Dato, formatFecha, formatNumero } from '../../components/pecuaria';
-import ResumenCampo, { TablaResumen } from '../../components/ResumenCampo';
+import { formatFecha, formatNumero, formatUsdCorto } from '../../components/pecuaria';
+import { AYUDA_CARGA, Cabecera, CargaPorGrupo, Seccion, TablaResumen, ayudaTabla } from '../../components/ResumenCampo';
 import FeedlotAnalisis from '../../components/FeedlotAnalisis';
+import { BotonOjo, Plata, PlataProvider } from '../../components/Plata';
 import { Encabezado, SinEstancia } from './comun';
 
-// Lo primero que se ve al entrar: los totales de la estancia y el resumen por
-// categoría (CN / Verdeos / Corral / Otro). Con "Todas las estancias", las
-// suma y muestra una fila por estancia (tocarla la elige).
+// Lo primero que se ve al entrar. Ordenado en zonas (26/11, pedido de Diego):
+// - la cabecera: cabezas, potreros y hectáreas, y el valor del ganado;
+// - con "Todas las estancias", una fila por estancia (tocarla la elige);
+// - la tabla por categoría (CN / Verdeos / Corral / Otro);
+// - la carga por grupo.
+// La plata arranca tapada: se ve al tocar el ojito (PlataProvider).
 // Con un feedlot o "Todos los feedlots", la vista del feedlot: una tabla por
 // corral (FeedlotAnalisis) y, abajo, las categorías por etapa del encierre
 // (TablaResumen con las columnas que manda el servidor). No se mezcla con las
@@ -27,45 +31,85 @@ export default function ResumenPage() {
   else if (campoId) contenido = <ResumenUna campoId={campoId} />;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-5 sm:py-8">
-      <Notice tone="ok">{location.state?.aviso}</Notice>
-      {contenido ?? (
-        <>
-          <Encabezado titulo="Resumen" />
-          <SinEstancia />
-        </>
-      )}
-    </main>
+    <PlataProvider>
+      <main className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:pt-8">
+        <Notice tone="ok">{location.state?.aviso}</Notice>
+        {contenido ?? (
+          <>
+            <Encabezado titulo="Resumen" />
+            <SinEstancia />
+          </>
+        )}
+      </main>
+    </PlataProvider>
   );
 }
 
+// "al 13/11/2026", a la derecha del título.
+function AlDia({ fecha }) {
+  if (!fecha) return null;
+  return <span className="text-sm text-suelo-500">al {formatFecha(fecha)}</span>;
+}
+
+const Cargando = () => <p className="text-suelo-600">Cargando…</p>;
+
+const plural = (n, uno, varios) => `${formatNumero(n)} ${n === 1 ? uno : varios}`;
+
 function ResumenUna({ campoId }) {
-  const { potreros, errors } = usePotreros(campoId);
+  const { potreros, errors: errorsPotreros } = usePotreros(campoId);
+  const [resumen, setResumen] = useState(null);
+  const [errors, setErrors] = useState([]);
+
+  useEffect(() => {
+    setResumen(null);
+    setErrors([]);
+    let vigente = true;
+    getResumen(campoId)
+      .then(({ data }) => vigente && setResumen(data))
+      .catch((error) => vigente && setErrors(getErrorMessages(error, 'No se pudo cargar el resumen')));
+    return () => {
+      vigente = false;
+    };
+  }, [campoId]);
+
   const totales = useMemo(() => {
     const lista = potreros ?? [];
     return {
       cabezas: lista.reduce((s, p) => s + (p.stock?.cabezas ?? 0), 0),
       hectareas: lista.reduce((s, p) => s + (p.hectareasAConfirmar ? 0 : (p.hectareas ?? 0)), 0),
       aConfirmar: lista.filter((p) => p.hectareasAConfirmar).length,
-      fecha: lista.map((p) => p.stock?.fecha).filter(Boolean).sort().at(-1),
     };
   }, [potreros]);
+
+  const detalle = potreros
+    ? `${plural(potreros.length, 'potrero', 'potreros')} · ${formatNumero(totales.hectareas)} ha${totales.aConfirmar ? ` (${totales.aConfirmar} a confirmar)` : ''}`
+    : null;
 
   return (
     <>
       <Encabezado titulo="Resumen">
-        {totales.fecha && <span className="text-sm text-suelo-500">dato al {formatFecha(totales.fecha)}</span>}
+        <AlDia fecha={resumen?.fecha} />
       </Encabezado>
-      <ErrorList errors={errors} />
-      <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-3">
-        <Dato valor={potreros ? formatNumero(totales.cabezas) : '…'} etiqueta="cabezas" />
-        <Dato valor={potreros ? potreros.length : '…'} etiqueta="potreros" />
-        <Dato
-          valor={potreros ? formatNumero(totales.hectareas) : '…'}
-          etiqueta={totales.aConfirmar ? `ha (${totales.aConfirmar} a confirmar)` : 'ha'}
-        />
-      </div>
-      <ResumenCampo campoId={campoId} />
+      <ErrorList errors={[...errorsPotreros, ...errors]} />
+      <Cabecera cabezas={resumen ? formatNumero(resumen.totales.total) : potreros ? formatNumero(totales.cabezas) : '…'} detalle={detalle} valor={resumen?.valor} />
+
+      {!resumen && !errors.length && (
+        <div className="mt-8">
+          <Cargando />
+        </div>
+      )}
+      {resumen && (
+        <>
+          <Seccion titulo="Por categoría" ayuda={resumen.filas.length ? ayudaTabla(resumen) : null}>
+            <TablaResumen resumen={resumen} />
+          </Seccion>
+          {resumen.porGrupo?.some((g) => g.potreros > 0 && g.cabezas > 0) && (
+            <Seccion titulo="Carga por grupo" ayuda={AYUDA_CARGA}>
+              <CargaPorGrupo porGrupo={resumen.porGrupo} />
+            </Seccion>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -97,16 +141,18 @@ export function ResumenFeedlot({ campoId, todas }) {
   return (
     <>
       <Encabezado titulo="Resumen">
-        {analisis?.fecha && <span className="text-sm text-suelo-500">dato al {formatFecha(analisis.fecha)}</span>}
+        <span className="flex items-center gap-1">
+          <AlDia fecha={analisis?.fecha} />
+          {analisis?.totales.valorUsd > 0 && <BotonOjo />}
+        </span>
       </Encabezado>
       <ErrorList errors={errors} />
-      {!analisis && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {!analisis && !errors.length && <Cargando />}
       {analisis && <FeedlotAnalisis analisis={analisis} todas={todas} onElegir={setCampoId} />}
       {resumen && resumen.filas.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-2 font-semibold">Por categoría y etapa</h2>
+        <Seccion titulo="Por categoría y etapa" ayuda={ayudaTabla(resumen)}>
           <TablaResumen resumen={resumen} />
-        </section>
+        </Seccion>
       )}
     </>
   );
@@ -129,45 +175,58 @@ function ResumenTodas() {
   return (
     <>
       <Encabezado titulo="Resumen">
-        {resumen?.fecha && <span className="text-sm text-suelo-500">último dato al {formatFecha(resumen.fecha)}</span>}
+        <AlDia fecha={resumen?.fecha} />
       </Encabezado>
       <ErrorList errors={errors} />
-      {!resumen && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {!resumen && !errors.length && <Cargando />}
       {resumen && (
         <>
-          <div className="mb-4 grid grid-cols-3 gap-2 sm:gap-3">
-            <Dato valor={formatNumero(resumen.totales.total)} etiqueta="cabezas" />
-            <Dato valor={potreros} etiqueta="potreros" />
-            <Dato valor={formatNumero(hectareas)} etiqueta="ha conocidas" />
-          </div>
+          <Cabecera
+            cabezas={formatNumero(resumen.totales.total)}
+            detalle={`${plural(resumen.estancias.length, 'estancia', 'estancias')} · ${plural(potreros, 'potrero', 'potreros')} · ${formatNumero(hectareas)} ha conocidas`}
+            valor={resumen.valor}
+          />
 
-          <h2 className="mb-2 font-semibold">Por estancia</h2>
-          <ul className="mb-6 divide-y divide-suelo-200 overflow-hidden rounded-lg border border-suelo-200 bg-superficie">
-            {resumen.estancias.map((e) => (
-              <li key={e.id}>
-                <button
-                  type="button"
-                  onClick={() => setCampoId(e.id)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-campo-50"
-                >
-                  <span>
-                    <span className="block font-medium">{e.nombre}</span>
-                    <span className="block text-xs text-suelo-500">
-                      {e.potreros} {e.potreros === 1 ? 'potrero' : 'potreros'} · {formatNumero(e.hectareas)} ha conocidas
-                      {e.valorUsd > 0 && ` · USD ${formatNumero(e.valorUsd)}`}
+          <Seccion titulo="Por estancia" ayuda="Tocá una estancia para ver solo la suya.">
+            <ul className="divide-y divide-suelo-200 overflow-hidden rounded-xl border border-suelo-200 bg-superficie" data-testid="por-estancia">
+              {resumen.estancias.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => setCampoId(e.id)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-campo-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-semibold">{e.nombre}</span>
+                      <span className="block text-sm text-suelo-600">
+                        {plural(e.potreros, 'potrero', 'potreros')} · {formatNumero(e.hectareas)} ha
+                        {e.valorUsd > 0 && (
+                          <>
+                            {' · '}
+                            <span className="whitespace-nowrap"><Plata>USD {formatUsdCorto(e.valorUsd)}</Plata></span>
+                          </>
+                        )}
+                      </span>
                     </span>
-                  </span>
-                  <span className="text-right">
-                    <span className="block text-lg font-bold tabular-nums">{formatNumero(e.cabezas)}</span>
-                    <span className="block text-xs text-suelo-500">cabezas</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-lg font-bold tabular-nums">{formatNumero(e.cabezas)}</span>
+                      <span className="block text-sm text-suelo-600">cabezas</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Seccion>
 
-          <h2 className="mb-2 font-semibold">Por categoría</h2>
-          <TablaResumen resumen={resumen} />
+          <Seccion titulo="Por categoría" ayuda={resumen.filas.length ? ayudaTabla(resumen) : null}>
+            <TablaResumen resumen={resumen} />
+          </Seccion>
+
+          {resumen.porGrupo?.some((g) => g.potreros > 0 && g.cabezas > 0) && (
+            <Seccion titulo="Carga por grupo" ayuda={AYUDA_CARGA}>
+              <CargaPorGrupo porGrupo={resumen.porGrupo} />
+            </Seccion>
+          )}
         </>
       )}
     </>

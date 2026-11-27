@@ -16,6 +16,7 @@ import usePuede from '../hooks/usePuede';
 import { Paginador, TituloOrdenable, celda, paginar } from './tabla';
 import PanelFiltros from './PanelFiltros';
 import Icono from './Icono';
+import { EsqueletoTabla } from './Esqueleto';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 const iso = (d) => d.toLocaleDateString('sv-SE');
@@ -60,7 +61,7 @@ const COLUMNAS = [
   ['destino', 'Destino', 'compu'],
   ['cabezas', 'Cab.', 'ambos'],
   ['peso', 'Peso', 'compu'],
-  ['usuario', 'Usuario', 'compu'],
+  ['usuario', 'Usuario', 'grande'],
 ];
 // La pestaña Eventos: un evento no va de un lado a otro, se anota en un lugar.
 // Debajo del nombre, el dato que importa (el peso, el producto, el resultado).
@@ -70,9 +71,36 @@ const COLUMNAS_EVENTOS = [
   ['categoria', 'Categoría', 'compu'],
   ['origen', 'Dónde', 'ambos'],
   ['cabezas', 'Cab.', 'ambos'],
-  ['usuario', 'Usuario', 'compu'],
+  ['usuario', 'Usuario', 'grande'],
 ];
-const VISTA = { ambos: '', compu: 'hidden md:table-cell', celular: 'md:hidden' };
+// grande: el Usuario solo en una pantalla muy ancha (también está en el detalle);
+// así Origen y Destino tienen más lugar.
+const VISTA = { ambos: '', compu: 'hidden md:table-cell', grande: 'hidden 2xl:table-cell', celular: 'md:hidden' };
+// Tabla tipo Excel sin scroll de costado (27/11): ancho fijo para las columnas
+// cortas; las de texto se reparten lo que queda y lo que no entra se corta con
+// "…" (el texto entero, al pasar el mouse o en el detalle).
+const ANCHO = {
+  fecha: 'w-14 md:w-[6.5rem]',
+  cabezas: 'w-[3.25rem] md:w-[4.5rem]',
+  peso: 'md:w-20',
+  usuario: '2xl:w-32',
+};
+// Todas las filas del mismo alto: en el celular dos líneas (el tipo y, debajo,
+// la categoría o el dato); en la compu una.
+const ALTO_FILA = 'h-[3.25rem] md:h-[2.375rem]';
+const celdaFila = `${celda.replace('align-top', 'align-middle')} overflow-hidden whitespace-nowrap text-ellipsis`;
+
+// Mientras carga: la misma tabla (columnas, anchos y alto de fila), vacía.
+export function EsqueletoHistorial({ ver = 'movimientos', conAcciones = true }) {
+  const columnas = (ver === 'eventos' ? COLUMNAS_EVENTOS : COLUMNAS).map(([clave, , vista]) => ({
+    clave,
+    clase: `${VISTA[vista]} ${ANCHO[clave] ?? ''}`,
+    derecha: clave === 'cabezas' || clave === 'peso',
+    dosLineas: clave === 'tipo',
+  }));
+  if (conAcciones) columnas.push({ clave: 'acciones', clase: 'w-9' });
+  return <EsqueletoTabla columnas={columnas} claseFila={ALTO_FILA} testId="esqueleto-historial" />;
+}
 // Los tipos del filtro de cada pestaña: en Movimientos, los que mueven, entran
 // o salen, más el recuento (que puede cambiar las cabezas); en Eventos, los
 // que se anotan.
@@ -389,7 +417,6 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
   const nombreLista = deEventos ? 'eventos' : 'movimientos';
   const conRevertir = puedo('pecuaria:ANULAR');
   const titulos = deEventos ? COLUMNAS_EVENTOS : COLUMNAS;
-  const columnas = conRevertir ? titulos.length + 1 : titulos.length;
   const cuantosEventos = datos?.resumen.eventos ?? 0;
 
   return (
@@ -452,7 +479,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
       <Notice tone="ok">{aviso}</Notice>
 
       {!datos ? (
-        <p className="text-suelo-600">Cargando…</p>
+        errors.length ? null : <EsqueletoHistorial ver={ver} conAcciones={conRevertir} />
       ) : filas.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">
           {hayFiltros
@@ -462,12 +489,13 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
               : 'Todavía no hay movimientos. Se registran con el botón +.'}
         </p>
       ) : (
-        // Se achica para que entre en la pantalla; lo que no entra, scrollea adentro.
-        <div className="min-h-0 overflow-auto rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-movimientos">
-          <table className="w-full border-separate border-spacing-0 text-left text-sm md:min-w-[56rem]">
+        // Entra siempre a lo ancho (table-fixed); solo scrollea hacia abajo, con
+        // los títulos y el total fijos.
+        <div className="min-h-0 overflow-y-auto overflow-x-hidden rounded-lg border border-suelo-300 bg-superficie" data-testid="tabla-movimientos">
+          <table className="w-full table-fixed border-separate border-spacing-0 text-left text-[15px]">
             <thead className="text-xs text-suelo-600">
               <tr>
-                {titulos.map(([col, titulo, vista], i) => (
+                {titulos.map(([col, titulo, vista]) => (
                   <TituloOrdenable
                     key={col}
                     col={col}
@@ -475,8 +503,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                     orden={orden}
                     onOrdenar={ordenarPor}
                     derecha={col === 'cabezas' || col === 'peso'}
-                    fija={i === 0}
-                    className={VISTA[vista]}
+                    className={`${VISTA[vista]} ${ANCHO[col] ?? ''} overflow-hidden`}
                   />
                 ))}
                 {conRevertir && (
@@ -493,16 +520,19 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                   fila={fila}
                   titulos={titulos}
                   par={n % 2 === 1}
+                  deEventos={deEventos}
                   onAbrir={() => setDetalle(fila)}
                   conRevertir={conRevertir}
                   onRevertir={() => onRevertir(fila)}
                 />
               ))}
             </tbody>
-            <tfoot className="acostado:hidden">
-              <tr>
-                <td colSpan={columnas} className="sticky bottom-0 left-0 z-20 whitespace-normal border-t-2 border-suelo-300 bg-suelo-50 px-3 py-2 text-sm">
-                  <span className="sticky left-3">
+          </table>
+          {/* El total va fuera de la tabla, fijo abajo de la caja: un colSpan
+              de todas las columnas armaría las que en el celular no se ven
+              (con table-fixed quedaban vacías a la derecha). */}
+          <div className="sticky bottom-0 z-20 border-t-2 border-suelo-300 bg-suelo-50 px-2 py-2 text-sm md:px-3 acostado:hidden" data-testid="total-historial">
+                  <span>
                     <strong>Total{hayFiltros ? ' filtrado' : ''}:</strong>{' '}
                     {deEventos ? (
                       <>
@@ -518,10 +548,7 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
                       </>
                     )}
                   </span>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+          </div>
         </div>
       )}
       {datos && <Paginador {...pag} onCambiar={setPagina} de={filas.length} />}
@@ -541,12 +568,24 @@ export default function MovimientosLista({ campoId, potreros, todas = false, gru
 
 // Una fila: lo justo (25/11). Tocarla abre el detalle; el ícono de la
 // derecha revierte (o anula) sin abrirlo.
-function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
+function Fila({ fila, titulos, par, deEventos, onAbrir, conRevertir, onRevertir }) {
   const colorCabezas = fila.signo === '+' ? 'text-emerald-800' : fila.signo === '−' ? 'text-red-700' : '';
   // Filas alternadas, como en Excel.
   const fondo = par ? '[&>td]:bg-suelo-50' : '[&>td]:bg-superficie';
-  // Debajo del tipo: en un evento, el dato (o la categoría); en un movimiento, la categoría.
+  // En el celular, debajo del tipo: en un evento, el dato (o la categoría); en
+  // un movimiento, la categoría. En la compu la categoría tiene su columna y el
+  // dato del evento va en el mismo renglón, al lado del nombre.
   const debajo = fila.eventos ? fila.detalle || fila.categoria : fila.categoria;
+  const dato = fila.eventos ? fila.detalle : '';
+  const marca = fila.eventos ? 'anulado' : 'revertido';
+  const textos = {
+    tipo: [fila.tipo, dato, fila.revertido ? marca : ''].filter(Boolean).join(' · '),
+    categoria: fila.categoria,
+    donde: fila.donde,
+    origen: fila.origen,
+    destino: fila.destino,
+    usuario: fila.usuario,
+  };
   const celdas = {
     fecha: (
       <>
@@ -556,10 +595,24 @@ function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
     ),
     tipo: (
       <>
-        {fila.eventos && <span className="mr-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
-        <span className={`font-medium ${fila.eventos && fila.revertido ? 'line-through' : ''}`}>{fila.tipo}</span>
-        {fila.revertido && <span className="ml-1 rounded bg-red-500/15 px-1.5 py-0.5 text-xs text-red-700">{fila.eventos ? 'anulado' : 'revertido'}</span>}
-        {debajo && debajo !== '—' && <span className="block truncate text-xs text-suelo-600">{debajo}</span>}
+        <span className="flex min-w-0 items-center gap-1">
+          {/* Las marcas, solo en la compu: en el celular no entran (el
+              revertido se ve en la segunda línea, y la fila queda gris). */}
+          {fila.eventos && !deEventos && (
+            <span className="hidden shrink-0 rounded bg-sky-500/15 px-1 text-xs font-medium text-sky-800 md:inline">evento</span>
+          )}
+          {/* El nombre tiene prioridad: el dato de al lado se corta primero. */}
+          <span className={`max-w-full shrink-0 truncate font-medium ${fila.revertido ? 'line-through' : ''}`}>{fila.tipo}</span>
+          {dato && <span className="hidden min-w-0 truncate text-sm text-suelo-600 md:inline">{dato}</span>}
+          {fila.revertido && <span className="hidden shrink-0 rounded bg-red-500/15 px-1 text-xs text-red-700 md:inline">{marca}</span>}
+        </span>
+        {((debajo && debajo !== '—') || fila.revertido) && (
+          <span className="block truncate text-xs text-suelo-600 md:hidden">
+            {fila.revertido && <span className="text-red-700">{marca}</span>}
+            {fila.revertido && debajo && debajo !== '—' && ' · '}
+            {debajo !== '—' && debajo}
+          </span>
+        )}
       </>
     ),
     categoria: fila.categoria,
@@ -584,14 +637,15 @@ function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
   };
   return (
     <tr
-      className={`${fondo} cursor-pointer hover:[&>td]:bg-campo-50 ${fila.revertido ? 'text-suelo-400' : ''}`}
+      className={`${fondo} ${ALTO_FILA} cursor-pointer hover:[&>td]:bg-campo-50 ${fila.revertido ? 'text-suelo-400' : ''}`}
       onClick={onAbrir}
       data-testid="fila-historial"
     >
       {titulos.map(([col, , vista], i) => (
         <td
           key={col}
-          className={`${celda} ${VISTA[vista]} ${i === 0 ? 'sticky left-0 z-[5] whitespace-nowrap font-medium' : ''} ${col === 'cabezas' || col === 'peso' ? 'text-right tabular-nums' : ''} ${col === 'usuario' ? 'whitespace-nowrap' : ''}`}
+          title={textos[col] && textos[col] !== '—' ? textos[col] : undefined}
+          className={`${celdaFila} ${VISTA[vista]} ${i === 0 ? 'font-medium tabular-nums' : ''} ${col === 'cabezas' || col === 'peso' ? 'text-right tabular-nums' : ''}`}
         >
           {col === 'tipo' ? (
             // El tipo es el botón (para el teclado y los lectores de pantalla).
@@ -612,7 +666,7 @@ function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
         </td>
       ))}
       {conRevertir && (
-        <td className={`${celda} w-9 px-1 text-center align-middle`}>
+        <td className={`${celdaFila} w-9 px-1 text-center`}>
           {fila.puedeRevertir && (
             <button
               type="button"
@@ -622,7 +676,7 @@ function Fila({ fila, titulos, par, onAbrir, conRevertir, onRevertir }) {
               }}
               aria-label={fila.eventos ? 'Anular' : 'Revertir'}
               title={fila.eventos ? 'Anular' : 'Revertir'}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-red-700 hover:bg-red-500/10"
+              className="inline-flex h-6 w-7 items-center justify-center rounded-md align-middle text-red-700 hover:bg-red-500/10"
             >
               <Icono nombre={fila.eventos ? 'anular' : 'deshacer'} className="h-4 w-4" />
             </button>
@@ -686,7 +740,7 @@ export function Detalle({ fila, campoId, conRevertir, onRevertir, onAnular, onCe
           <div className="min-w-0 flex-1">
             <p className="text-xs text-suelo-500">
               {formatFecha(fila.fecha)}
-              {fila.eventos && <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-medium text-sky-800">evento</span>}
+              {fila.eventos && <span className="ml-1.5 rounded bg-sky-500/15 px-1.5 py-0.5 text-xs font-medium text-sky-800">evento</span>}
             </p>
             <h2 className={`text-lg font-bold leading-tight ${fila.revertido ? 'text-suelo-400 line-through' : ''}`}>{fila.tipo}</h2>
             {fila.revertido && <p className="mt-0.5 text-sm font-semibold text-red-700">{fila.eventos ? 'Anulado' : 'Revertido'}</p>}
@@ -731,7 +785,7 @@ export function Detalle({ fila, campoId, conRevertir, onRevertir, onAnular, onCe
               <ol className="mt-1 divide-y divide-suelo-200 rounded-lg border border-suelo-200">
                 {fila.pasos.map((p, n) => (
                   <li key={p.id} className="flex items-start gap-2 px-2.5 py-2" data-testid="paso">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-campo-100 text-[11px] font-bold text-campo-800">{n + 1}</span>
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-campo-100 text-xs font-bold text-campo-800">{n + 1}</span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">
                         {tipoDe(p)} · {categoriaDe(p)}

@@ -254,7 +254,7 @@ export const crearPotreroSchema = z.object({
   areaUtilizable: areaUtilizable.default(null),
   metrosComedero: metrosComedero.default(null),
   idAreaManejoCigam: claveCigam,
-  orden: orden.default(0),
+  orden: orden.optional(),
   subdivisiones: subdivisiones.default([]),
 });
 

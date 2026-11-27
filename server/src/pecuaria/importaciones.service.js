@@ -205,15 +205,19 @@ export async function confirmar(id, { fecha, nombreCampo }, usuarioId) {
         (await tx.campo.create({ data: { sigla, nombre: nombreCampo || sigla } }));
 
       let potrerosNuevos = 0;
-      for (const p of d.potreros) {
+      for (const [i, p] of d.potreros.entries()) {
+        // El orden de la lista es el de las filas de la planilla (27/11).
+        const orden = i + 1;
         // Un potrero que ya existe conserva sus datos (la app manda: por
-        // ejemplo, las hectáreas corregidas a mano).
+        // ejemplo, las hectáreas corregidas a mano), salvo el orden.
         let potrero = await tx.potrero.findUnique({ where: { campoId_nombre: { campoId: campo.id, nombre: p.nombre } } });
+        if (potrero && potrero.orden !== orden) potrero = await tx.potrero.update({ where: { id: potrero.id }, data: { orden } });
         if (!potrero) {
           potrero = await tx.potrero.create({
             data: {
               campoId: campo.id,
               nombre: p.nombre,
+              orden,
               hectareas: p.hectareas,
               hectareasAConfirmar: p.hectareasAConfirmar,
               subdivisiones: { create: p.subdivisiones.map((codigo) => ({ codigo })) },

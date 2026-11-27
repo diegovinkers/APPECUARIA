@@ -90,6 +90,21 @@ describe('leerPlanilla', () => {
     expect(lectura.advertencias).toContainEqual(expect.stringMatching(/Potrero 4: la planilla dice 19000 kg.*16720 kg/));
   });
 
+  it('un potrero que Excel guardó como fecha (7.1 = 7 de enero) vuelve a ser "7.1", con aviso', async () => {
+    const lectura = await leer({
+      '13.11.2026': [
+        ENCABEZADO,
+        fila('EJ', 'Raygras', new Date(Date.UTC(2026, 0, 7)), 40, 'Terneros', 100, 180),
+        fila('EJ', 'Sorgo', new Date(Date.UTC(2026, 1, 9)), 40, 'Terneros', 110, 180),
+        fila('EJ', 'Sorgo', new Date(Date.UTC(2026, 9, 12)), 10, null, 0, null),
+      ],
+    });
+    expect(lectura.potreros.map((p) => p.nombre)).toEqual(['7.1', '9.2', '12.10']);
+    expect(potrero(lectura, '7.1').lineas).toEqual([{ categoriaTexto: 'Terneros', cabezas: 100, pesoPromedioKg: 180 }]);
+    expect(lectura.advertencias).toContainEqual(expect.stringMatching(/los potreros 7\.1, 9\.2, 12\.10 como fechas/));
+    expect(lectura.errores).toEqual([]);
+  });
+
   it('recupera el cero que Excel le borra al potrero (72.10 leído como 72.1)', async () => {
     const lectura = await leer({
       '13.11.2026': [ENCABEZADO, fila('EJ', 'Raygras', '72.1/2', 86.65, null, 0, null), fila('EJ', 'Raygras', 72.1, 1.31, null, 0, null)],

@@ -128,7 +128,7 @@ function Recorrida({ campo, inicial, onCambiarEstancia }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-sm text-suelo-600">
           Fecha
-          <input type="date" value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
+          <input type="date" required value={fecha} max={hoy()} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} />
         </label>
         {onCambiarEstancia && (
           <button type="button" onClick={onCambiarEstancia} className="self-end text-left text-sm text-campo-600 hover:underline sm:text-right">

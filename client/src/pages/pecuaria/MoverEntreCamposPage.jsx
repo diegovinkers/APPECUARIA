@@ -166,6 +166,7 @@ export default function MoverEntreCamposPage() {
               setPotreroId(e.target.value);
               setLoteId('');
             }}
+            required
             className={`${inputClass} mt-1`}
             aria-label="Potrero de origen"
           >
@@ -180,7 +181,7 @@ export default function MoverEntreCamposPage() {
         {potrero && (
           <label className={etiqueta}>
             Lote
-            <select value={loteId} onChange={(e) => elegirLote(e.target.value)} className={`${inputClass} mt-1`} aria-label="Lote de origen">
+            <select required value={loteId} onChange={(e) => elegirLote(e.target.value)} className={`${inputClass} mt-1`} aria-label="Lote de origen">
               <option value="">Elegí el lote…</option>
               {potrero.stock.lotes.map((l) => (
                 <option key={l.loteId} value={l.loteId}>
@@ -194,7 +195,7 @@ export default function MoverEntreCamposPage() {
           <div className="grid grid-cols-2 gap-3">
             <label className={etiqueta}>
               Cabezas
-              <input inputMode="numeric" value={cabezas} onChange={(e) => setCabezas(e.target.value.replace(/\D/g, ''))} className={`${inputClass} mt-1`} aria-label="Cabezas" />
+              <input inputMode="numeric" required value={cabezas} onChange={(e) => setCabezas(e.target.value.replace(/\D/g, ''))} className={`${inputClass} mt-1`} aria-label="Cabezas" />
             </label>
             <label className={etiqueta}>
               Peso de los que van (opcional)
@@ -215,6 +216,7 @@ export default function MoverEntreCamposPage() {
               setCampoDestinoId(e.target.value);
               setPotreroDestinoId('');
             }}
+            required
             className={`${inputClass} mt-1`}
             aria-label="Campo de destino"
           >
@@ -229,7 +231,7 @@ export default function MoverEntreCamposPage() {
         {campoDestino && (
           <label className={etiqueta}>
             Potrero de destino
-            <select value={potreroDestinoId} onChange={(e) => setPotreroDestinoId(e.target.value)} className={`${inputClass} mt-1`} aria-label="Potrero de destino">
+            <select required value={potreroDestinoId} onChange={(e) => setPotreroDestinoId(e.target.value)} className={`${inputClass} mt-1`} aria-label="Potrero de destino">
               <option value="">Elegí el potrero…</option>
               {campoDestino.potreros.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -253,7 +255,7 @@ export default function MoverEntreCamposPage() {
         {modoReal === 'NUEVO' && (
           <div className="grid gap-2 pl-6 sm:grid-cols-2">
             <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre (si no, potrero · categoría)" aria-label="Nombre del lote nuevo" className={inputClass} />
-            <select value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} aria-label="Categoría del lote nuevo" className={inputClass}>
+            <select required value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} aria-label="Categoría del lote nuevo" className={inputClass}>
               <option value="">Categoría…</option>
               {categorias.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -281,7 +283,7 @@ export default function MoverEntreCamposPage() {
           </label>
           <label className={etiqueta}>
             Fecha
-            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} aria-label="Fecha" />
+            <input type="date" required value={fecha} onChange={(e) => setFecha(e.target.value)} className={`${inputClass} mt-1`} aria-label="Fecha" />
           </label>
         </div>
         <label className={etiqueta}>

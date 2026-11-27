@@ -197,7 +197,7 @@ describe('la tabla', () => {
   it('una fila por movimiento, con los totales de lo filtrado abajo', async () => {
     await montar();
     expect(filasDelCuerpo()).toHaveLength(3);
-    expect(contenedor.querySelector('tfoot').textContent).toMatch(/4 movimientos · 230 cabezas movidas · \+0 entraron · −3 salieron/);
+    expect(contenedor.querySelector('[data-testid="total-historial"]').textContent).toMatch(/4 movimientos · 230 cabezas movidas · \+0 entraron · −3 salieron/);
     // Ya no están Mover / Entrada / Salida arriba: todo se registra desde el "+".
     expect(boton('Mover')).toBeUndefined();
   });
@@ -253,6 +253,48 @@ describe('la tabla', () => {
     expect(muerte.querySelector('td:nth-child(2)').textContent).toBe('MuerteVacas');
     expect(muerte.querySelector('td:nth-child(4)').textContent).toBe('2 →');
     expect(contenedor.querySelectorAll('[data-testid="fila-historial"]')[1].querySelector('td:nth-child(4)').textContent).toBe('10.3 → 2, 2 → 3');
+  });
+
+  it('mientras carga, la tabla vacía con sus columnas (esqueleto, 27/11); al llegar, la de verdad', async () => {
+    let llegar;
+    api.getMovimientos.mockReturnValue(new Promise((r) => (llegar = r)));
+    await montar();
+    const esqueleto = contenedor.querySelector('[data-testid="esqueleto-historial"]');
+    expect(esqueleto.getAttribute('role')).toBe('status');
+    expect(esqueleto.textContent).toBe('Cargando…');
+    // Las mismas columnas que la tabla (con la de revertir), con su ancho y en dónde se ven.
+    const ths = [...esqueleto.querySelectorAll('thead th')].map((th) => th.className);
+    expect(ths).toHaveLength(10);
+    expect(ths[0]).toMatch(/w-14 md:w-\[6\.5rem\]/);
+    expect(ths[3]).toMatch(/md:hidden/);
+    expect(esqueleto.querySelector('tbody tr').className).toMatch(/h-\[3\.25rem\] md:h-\[2\.375rem\]/);
+    await act(async () => llegar({ data: { movimientos: MOVIMIENTOS, resumen: { movimientos: 4, cabezas: 230, entradas: 0, salidas: 3 } } }));
+    expect(contenedor.querySelector('[data-testid="esqueleto-historial"]')).toBeNull();
+    expect(filasDelCuerpo()).toHaveLength(3);
+  });
+
+  it('sin scroll de costado: ancho fijo, una fila del mismo alto y lo largo cortado con "…" (27/11)', async () => {
+    const revertido = { ...MOVIMIENTOS[3], id: 31, revertido: true, puedeRevertir: false };
+    api.getMovimientos.mockResolvedValue({ data: { movimientos: [revertido], resumen: { movimientos: 1, cabezas: 3, entradas: 0, salidas: 3 } } });
+    await montar();
+    const caja = contenedor.querySelector('[data-testid="tabla-movimientos"]');
+    expect(caja.className).toMatch(/overflow-x-hidden/);
+    const tabla = caja.querySelector('table');
+    expect(tabla.className).toMatch(/table-fixed/);
+    expect(tabla.className).not.toMatch(/min-w/);
+    // Sin colSpan: el total va fuera de la tabla (si no, arma columnas vacías a la derecha).
+    expect(tabla.querySelector('[colspan]')).toBeNull();
+    expect(caja.querySelector('[data-testid="total-historial"]')).not.toBeNull();
+    // El Usuario, solo en una pantalla muy ancha.
+    const usuario = [...tabla.querySelectorAll('thead th')].find((th) => th.textContent.includes('Usuario'));
+    expect(usuario.className).toMatch(/hidden 2xl:table-cell/);
+    const fila = tabla.querySelector('[data-testid="fila-historial"]');
+    expect(fila.className).toMatch(/h-\[3\.25rem\] md:h-\[2\.375rem\]/);
+    // Revertido: en el celular, en la segunda línea; en la compu, la marca al lado.
+    const tipo = fila.querySelector('td:nth-child(2)');
+    expect(tipo.querySelector('.md\\:hidden').textContent).toBe('revertido · Vacas');
+    expect(textoCompu(tipo)).toBe('Muerterevertido');
+    expect(tipo.getAttribute('title')).toBe('Muerte · revertido');
   });
 
   it('ordena tocando el título de la columna', async () => {
@@ -410,7 +452,7 @@ describe('eventos en la lista (20/11)', () => {
       api.getMovimientos.mockResolvedValue({ data: { movimientos: [], eventos: [recuento], resumen: { movimientos: 0, cabezas: 0, entradas: 0, salidas: 0, eventos: 1 } } });
       await montar('/pecuaria/historial', 'movimientos');
       expect(textoCompu(contenedor.querySelector('tbody tr'))).toMatch(/evento.*Recuento.*había 100, se contaron 96/);
-      expect(contenedor.querySelector('tfoot').textContent).toMatch(/0 movimientos.*1 recuento con diferencia/);
+      expect(contenedor.querySelector('[data-testid="total-historial"]').textContent).toMatch(/0 movimientos.*1 recuento con diferencia/);
     });
 
     it('el filtro Tipo muestra los de la pestaña', async () => {
@@ -432,9 +474,11 @@ describe('eventos en la lista (20/11)', () => {
       await montar();
       const filas = [...contenedor.querySelectorAll('tbody tr')].map(textoCompu);
       expect(filas).toHaveLength(2);
-      expect(filas[0]).toMatch(/evento.*Vacuna aftosa · 2 lotes.*Producto: Bivalente/);
-      expect(contenedor.querySelector('tfoot').textContent).toMatch(/3 eventos \(uno por lote\)/);
-      expect(contenedor.querySelector('tfoot').textContent).not.toMatch(/movimientos/);
+      expect(filas[0]).toMatch(/Vacuna aftosa · 2 lotes.*Producto: Bivalente/);
+      // En la pestaña Eventos todas lo son: sin la marca "evento" (27/11).
+      expect(filas[0]).not.toMatch(/evento/i);
+      expect(contenedor.querySelector('[data-testid="total-historial"]').textContent).toMatch(/3 eventos \(uno por lote\)/);
+      expect(contenedor.querySelector('[data-testid="total-historial"]').textContent).not.toMatch(/movimientos/);
       act(() => contenedor.querySelector('[data-testid="fila-historial"]').click());
       const lotes = [...document.querySelectorAll('[data-testid="lote-evento"]')].map((li) => li.textContent);
       expect(lotes).toHaveLength(2);

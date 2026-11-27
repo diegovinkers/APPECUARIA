@@ -8,9 +8,13 @@ import { ConPanel } from '../../test-utils.jsx';
 vi.mock('../../context/EstanciaContext', () => ({
   useEstancia: () => ({ campoId: 1, campo: { id: 1, nombre: 'La Gateada' }, todas: false, grupo: 'estancias', campos: [] }),
 }));
-vi.mock('../../hooks/usePotreros', () => ({ default: () => ({ errors: [], potreros: [] }) }));
+const cargados = vi.hoisted(() => ({ potreros: [] }));
+vi.mock('../../hooks/usePotreros', () => ({ default: () => ({ errors: [], potreros: cargados.potreros }) }));
 // La lista se prueba aparte: acá solo importa qué pestaña recibe.
-vi.mock('../../components/MovimientosLista', () => ({ default: ({ ver }) => <p data-testid="lista">{ver}</p> }));
+vi.mock('../../components/MovimientosLista', () => ({
+  default: ({ ver }) => <p data-testid="lista">{ver}</p>,
+  EsqueletoHistorial: ({ ver }) => <p data-testid="esqueleto">{ver}</p>,
+}));
 
 const { default: RegistroPage } = await import('./RegistroPage.jsx');
 const { RedirigirA } = await import('./comun.jsx');
@@ -24,6 +28,7 @@ function Donde() {
 let contenedor;
 let root;
 beforeEach(() => {
+  cargados.potreros = [];
   contenedor = document.createElement('div');
   document.body.appendChild(contenedor);
   root = createRoot(contenedor);
@@ -65,6 +70,14 @@ describe('Historial (antes Registro): pestañas Movimientos y Eventos (20/11)', 
     montar('/pecuaria/historial?ver=eventos');
     expect(pestania('Eventos').getAttribute('aria-current')).toBe('page');
     expect(lista()).toBe('eventos');
+  });
+
+  it('mientras llegan los potreros, el esqueleto de la tabla de la pestaña (27/11), con las pestañas abajo', () => {
+    cargados.potreros = null;
+    montar('/pecuaria/historial?ver=eventos');
+    expect(contenedor.querySelector('[data-testid="esqueleto"]').textContent).toBe('eventos');
+    expect(contenedor.querySelector('[data-testid="lista"]')).toBeNull();
+    expect(pestania('Eventos').getAttribute('aria-current')).toBe('page');
   });
 
   it('cambiar de pestaña conserva el período y el potrero, pero no el tipo', () => {

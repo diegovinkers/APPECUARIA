@@ -19,6 +19,10 @@
    - tierra: correcciones = tierra-600.
    Rojo, ámbar y esmeralda siguen siendo los de Tailwind (errores, avisos, ok). */
 @theme {
+  /* Letra chica un poco más grande en toda la app (27/11, pedido de Diego):
+     text-xs pasa de 12 a 13 px. */
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1.125 / 0.8125);
   --color-suelo-50: #fbf9f4;
   --color-suelo-100: #f6f3ec;
   --color-suelo-200: #e9e4d8;
@@ -135,4 +139,24 @@ body {
 html,
 body {
   overscroll-behavior: none;
+}
+
+/* Campos obligatorios (27/11, pedido de Diego): mientras están vacíos llevan
+   una raya trigo a la izquierda, un fondo apenas tibio y un puntito trigo
+   antes del nombre; completos, se ven como los demás. Se marcan con el
+   atributo `required` (las pantallas de carga no usan <form>, así que el
+   navegador no muestra sus propios avisos). */
+:is(input, select, textarea):required:invalid:not(:disabled) {
+  box-shadow: inset 3px 0 0 var(--color-trigo-500);
+  background-color: color-mix(in srgb, var(--color-trigo-100) 55%, var(--color-superficie));
+}
+label:has(:is(input, select, textarea):required:invalid:not(:disabled))::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 9999px;
+  background-color: var(--color-trigo-500);
+  vertical-align: middle;
 }

@@ -39,7 +39,7 @@ const TIPOS = vi.hoisted(() => [
 ]);
 vi.mock('../api/pecuaria', () => ({ getTiposMovimiento: () => Promise.resolve({ data: TIPOS }) }));
 
-const { default: Marco } = await import('./Marco.jsx');
+const { default: Marco, iniciales } = await import('./Marco.jsx');
 const { default: PanelFiltros } = await import('./PanelFiltros.jsx');
 const { RedirigirPecuaria } = await import('../pages/pecuaria/comun.jsx');
 
@@ -131,6 +131,30 @@ describe('Marco: barras y panel', () => {
     montar();
     expect(contenedor.querySelector('select[aria-label="Estancia"]')).toBeNull();
     expect(texto()).toContain('La Gateada');
+  });
+
+  it('arriba, después de las estancias: el tema, las iniciales (llevan al perfil) y por último el ☰ (27/11)', () => {
+    estado.campos = [EG, { id: 2, sigla: 'ES', nombre: 'Otra estancia' }];
+    montar();
+    const header = contenedor.querySelector('header');
+    const orden = [...header.querySelectorAll('select, [data-testid="boton-tema"], [data-testid="avatar-usuario"], button[aria-label="Menú"]')].map(
+      (el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label'),
+    );
+    expect(orden).toEqual(['Estancia', 'boton-tema', 'avatar-usuario', 'Menú']);
+    const avatar = header.querySelector('[data-testid="avatar-usuario"]');
+    expect(avatar.textContent).toBe('SU');
+    expect(avatar.getAttribute('href')).toBe('/profile');
+    click(avatar);
+    expect(donde()).toBe('/profile');
+  });
+
+  it('las iniciales del usuario', () => {
+    expect(iniciales({ nombre: 'Encargado Ejemplo' })).toBe('EE');
+    expect(iniciales({ nombre: '  jefe   pecuario de campo ' })).toBe('JP');
+    expect(iniciales({ nombre: 'Superadmin' })).toBe('SU');
+    expect(iniciales({ nombre: '', usuario: 'carga.inicial' })).toBe('CI');
+    expect(iniciales({ nombre: 'Ñandú Último' })).toBe('ÑÚ');
+    expect(iniciales(null)).toBe('?');
   });
 
   it('con varias estancias, aparece el selector', () => {
@@ -249,6 +273,8 @@ describe('Marco: barras y panel', () => {
     const logo = contenedor.querySelector('header img[alt="SAPSA"]');
     expect(logo.getAttribute('src')).toBe('/logo-sapsa.png');
     expect(logo.closest('a').getAttribute('href')).toBe('/pecuaria/resumen');
+    // Debajo del logo, "Pecuaria" en letra chica (26/11).
+    expect(logo.closest('a').textContent).toContain('Pecuaria');
   });
 
   it('sin sesión no hay menú, solo la barra simple', () => {

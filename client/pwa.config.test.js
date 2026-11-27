@@ -28,8 +28,8 @@ describe('pwaOptions', () => {
   it('manifiesto de SAPSA', () => {
     const m = pwaOptions.manifest;
     expect(m).toMatchObject({
-      name: 'SAPSA',
-      short_name: 'SAPSA',
+      name: 'Appecuaria',
+      short_name: 'Appecuaria',
       lang: 'es-UY',
       display: 'standalone',
       start_url: '/',

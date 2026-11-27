@@ -7,9 +7,20 @@
 FROM node:24-bookworm-slim
 
 # Las migraciones de Prisma necesitan openssl.
+# Las copias de seguridad (src/copias, el servicio "copias" de Railway, que usa
+# esta misma imagen con otro comando) necesitan pg_dump y pg_restore de la
+# versión de la base (18): Debian trae una más vieja, así que salen del
+# repositorio oficial de PostgreSQL (apt.postgresql.org).
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends openssl ca-certificates curl \
+  && install -d /usr/share/postgresql-common/pgdg \
+  && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+  && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends postgresql-client-18 \
+  && apt-get purge -y curl && apt-get autoremove -y \
+  && rm -rf /var/lib/apt/lists/* \
+  && pg_dump --version
 
 WORKDIR /app
 

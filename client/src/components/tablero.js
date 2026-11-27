@@ -1,15 +1,20 @@
 import { diasCorto, esEmbriones, textoTipo } from './procesos';
 
-// El tablero de Procesos (24/11, dibujo de Diego): las 4 secciones del ciclo
+// El tablero de Procesos (24/11, dibujo de Diego): las 5 secciones del ciclo (desde el 27/11, con Embriones aparte y sin números)
 // de la vaca. El servidor manda, en cada proceso abierto, sus `grupos` (uno
 // por estado, cada uno con su sección); acá se juntan por sección.
 // La IATF es la primera oportunidad y el toro la segunda: lo que viene de una
 // IATF y pasó al toro va en Entore con otro color (deIatf). La transferencia
-// de embriones (26/11) va como la IATF: en la sección 1, y lo que pasa al toro
-// (las no aptas y las vacías) con el color y "de embriones" (vieneDe; corto, para que entre en el celular).
+// de embriones (26/11) va como la IATF, y lo que pasa al toro (las no aptas y
+// las vacías) con el color y "de embriones" (vieneDe; corto, para que entre en
+// el celular). Desde el 27/11 (pedido de Diego) tiene su propia sección,
+// "Embriones", aparte de la IATF; el servidor sigue mandando 'iatf' para las
+// dos y acá se separan por la modalidad del proceso. Las preñadas y las que
+// pasan al toro van a Preñadas y a Entore, como las de la IATF.
 
 export const SECCIONES_TABLERO = [
-  { clave: 'iatf', nombre: 'Inseminación · Embriones', sub: 'IATF y transferencia', vacio: 'No hay vacas en inseminación ni con embriones. Se empieza con "+ Nuevo".' },
+  { clave: 'iatf', nombre: 'Inseminación', sub: 'IATF', vacio: 'No hay vacas en inseminación. Se empieza con "+ Nuevo".' },
+  { clave: 'embriones', nombre: 'Embriones', sub: 'Transferencia de embriones', vacio: 'No hay vacas con embriones. Se empieza con "+ Nuevo".' },
   { clave: 'entore', nombre: 'Entore', sub: 'Con toros', vacio: 'No hay vacas con toros.' },
   { clave: 'prenadas', nombre: 'Preñadas', sub: 'Hasta el parto', vacio: 'No hay preñadas esperando el parto.' },
   { clave: 'cria', nombre: 'Con cría al pie', sub: 'Hasta el destete', vacio: 'No hay vacas con cría al pie.' },
@@ -45,6 +50,10 @@ export function textoDeOrigen(origen = {}) {
   return partes.join(' · ');
 }
 
+// En qué sección va un grupo: la que manda el servidor, salvo la IATF de un
+// proceso de embriones, que va en Embriones.
+export const seccionDe = (g, proceso) => (g.seccion === 'iatf' && esEmbriones(proceso?.modalidad) ? 'embriones' : g.seccion);
+
 // { iatf: [tarjetas], ..., totales: { iatf: cabezas, ... }, deIatf: { entore: cabezas, ... },
 //   deOrigen: { entore: { IATF: cabezas, TE: cabezas }, ... } }.
 // Cada tarjeta es un grupo con su proceso; primero lo que vence antes (lo que
@@ -52,7 +61,7 @@ export function textoDeOrigen(origen = {}) {
 export function armarTablero(procesos = []) {
   const tablero = Object.fromEntries(SECCIONES_TABLERO.map((s) => [s.clave, []]));
   for (const p of procesos) {
-    for (const g of p.grupos ?? []) tablero[g.seccion]?.push({ ...g, proceso: p, clave: `${p.id}-${g.tipo}-${g.deIatf ? 'iatf' : ''}` });
+    for (const g of p.grupos ?? []) tablero[seccionDe(g, p)]?.push({ ...g, proceso: p, clave: `${p.id}-${g.tipo}-${g.deIatf ? 'iatf' : ''}` });
   }
   const totales = {};
   const deIatf = {};

@@ -16,9 +16,9 @@ describe('armarTablero', () => {
       { id: 3, nombre: 'C' },
     ]);
     expect(t.prenadas.map((g) => g.proceso.nombre)).toEqual(['A', 'B']);
-    expect(t.totales).toEqual({ iatf: 0, entore: 20, prenadas: 150, cria: 0 });
+    expect(t.totales).toEqual({ iatf: 0, embriones: 0, entore: 20, prenadas: 150, cria: 0 });
     // Cuántas vienen de IATF en cada sección (van con otro color).
-    expect(t.deIatf).toEqual({ iatf: 0, entore: 20, prenadas: 0, cria: 0 });
+    expect(t.deIatf).toEqual({ iatf: 0, embriones: 0, entore: 20, prenadas: 0, cria: 0 });
     expect(t.entore[0].clave).toBe('2-VACIAS_REENTORE-iatf');
   });
 });
@@ -99,8 +99,17 @@ describe('textoEstadoGrupo (reglas del campo, 25/11)', () => {
 });
 
 describe('transferencia de embriones en el tablero (26/11)', () => {
-  it('la sección 1 es "Inseminación · Embriones"', () => {
-    expect(SECCIONES_TABLERO[0]).toMatchObject({ clave: 'iatf', nombre: 'Inseminación · Embriones' });
+  it('Embriones tiene su sección, aparte de la IATF (27/11)', () => {
+    expect(SECCIONES_TABLERO.map((s) => s.nombre)).toEqual(['Inseminación', 'Embriones', 'Entore', 'Preñadas', 'Con cría al pie']);
+    const t = armarTablero([
+      { id: 1, nombre: 'TE', modalidad: 'TE', grupos: [{ seccion: 'iatf', tipo: 'VIENTRES', cabezas: 80 }] },
+      { id: 2, nombre: 'IATF', modalidad: 'IATF', grupos: [{ seccion: 'iatf', tipo: 'VIENTRES', cabezas: 50 }] },
+      { id: 3, nombre: 'TE preñadas', modalidad: 'TE', grupos: [{ seccion: 'prenadas', tipo: 'PRENADAS', cabezas: 30 }] },
+    ]);
+    expect(t.embriones.map((g) => g.proceso.nombre)).toEqual(['TE']);
+    expect(t.iatf.map((g) => g.proceso.nombre)).toEqual(['IATF']);
+    // Las preñadas de embriones van a Preñadas, como las de la IATF.
+    expect(t.totales).toMatchObject({ iatf: 50, embriones: 80, prenadas: 30 });
   });
 
   it('lo que pasa al toro dice de dónde viene, y el total de la sección lo separa', () => {

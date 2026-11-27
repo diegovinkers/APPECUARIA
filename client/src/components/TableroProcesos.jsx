@@ -34,7 +34,7 @@ export function useTablero({ campoId, todas, grupo }) {
   return { tablero, errors };
 }
 
-// Las 4 secciones una debajo de la otra, como un acordeón (el dibujo de
+// Las 5 secciones una debajo de la otra, como un acordeón (el dibujo de
 // Diego: todo el ciclo a la vista). Arrancan cerradas. Pedido del 25/11 (con
 // captura): cada sección mide lo que mide su contenido (cerrada, el
 // encabezado; abierta, el encabezado y la tabla entera), no un pedazo fijo de
@@ -53,7 +53,7 @@ export default function TableroProcesos({ tablero, errors, todas }) {
   return (
     <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1" data-testid="tablero">
       <div className="flex flex-col gap-2">
-        {SECCIONES_TABLERO.map((s, i) => {
+        {SECCIONES_TABLERO.map((s) => {
           const abierta = abiertas.has(s.clave);
           const grupos = tablero[s.clave];
           // Cerrada: debajo del nombre, lo más urgente (abierta, ya se ve en la tabla).
@@ -68,7 +68,6 @@ export default function TableroProcesos({ tablero, errors, todas }) {
                   aria-controls={`seccion-${s.clave}-contenido`}
                   className={`flex w-full items-center gap-3 bg-suelo-100 px-3 py-2.5 text-left hover:bg-suelo-200/70 ${abierta ? 'rounded-t-lg' : 'rounded-lg'}`}
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-boton font-bold text-white">{i + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block font-semibold leading-tight">{s.nombre}</span>
                     {aviso ? (

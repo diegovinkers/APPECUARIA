@@ -9,8 +9,8 @@ import { ErrorList } from './ui';
 import { formatNumero, queHayYUso } from './pecuaria';
 import { ListaEventos } from './HojaEventos';
 import Icono from './Icono';
+import { coincide, prepararBusqueda } from './busqueda';
 
-const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 // El "+" en secciones, como en el boceto de los eventos (20/11): MOVER arriba
 // (el primero, grande), ENTRA y SALE en dos columnas, y lo demás abajo, chico.
@@ -137,10 +137,10 @@ export default function HojaRegistrar({ acciones, onCerrar, eventos = false, con
 
   const lista = useMemo(() => {
     if (!potreros) return [];
-    const q = sinTildes(busqueda.trim());
+    const q = prepararBusqueda(busqueda);
     return potreros
       .filter((p) => accion?.pide !== 'lote' || (p.stock?.lotes ?? []).length >= (accion.minLotes ?? 1))
-      .filter((p) => !q || sinTildes(p.nombre).includes(q) || (p.stock?.lotes ?? []).some((l) => sinTildes(l.lote).includes(q)));
+      .filter((p) => !q || coincide(p.nombre, q) || (p.stock?.lotes ?? []).some((l) => coincide(l.lote, q)));
   }, [potreros, busqueda, accion]);
 
   function elegirPotrero(p) {

@@ -2,8 +2,8 @@
 // buscador, qué quedó elegido y el cuerpo que va a la API. Todo puro, para
 // probarlo sin pantalla.
 import { formularioDe, sexoCorresponde } from '../navegacion/eventos';
+import { coincide, prepararBusqueda } from './busqueda';
 
-const sinTildes = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 
 // Los lotes con animales de los potreros de una estancia (lo que trae usePotreros).
@@ -47,17 +47,17 @@ export function opcionesDe(tipo) {
 // los potreros (con sus lotes que coinciden, o todos si coincide el potrero)
 // y las categorías que coinciden. Sin texto: todos los potreros.
 export function buscar(lotes, texto) {
-  const q = sinTildes(texto.trim());
+  const q = prepararBusqueda(texto);
   const potreros = new Map();
   const categorias = new Map();
   for (const l of lotes) {
-    const enPotrero = !q || sinTildes(l.potrero).includes(q);
-    const enLote = q && (sinTildes(l.lote).includes(q) || sinTildes(l.categoria).includes(q));
+    const enPotrero = !q || coincide(l.potrero, q);
+    const enLote = q && (coincide(l.lote, q) || coincide(l.categoria, q));
     if (enPotrero || enLote) {
       if (!potreros.has(l.potreroId)) potreros.set(l.potreroId, { potreroId: l.potreroId, potrero: l.potrero, lotes: [] });
       potreros.get(l.potreroId).lotes.push(l);
     }
-    if (q && sinTildes(l.categoria).includes(q)) {
+    if (q && coincide(l.categoria, q)) {
       if (!categorias.has(l.categoriaId)) categorias.set(l.categoriaId, { categoriaId: l.categoriaId, categoria: l.categoria, lotes: [] });
       categorias.get(l.categoriaId).lotes.push(l);
     }

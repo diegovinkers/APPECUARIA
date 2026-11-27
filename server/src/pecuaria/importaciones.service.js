@@ -10,6 +10,7 @@ import { categorias, usosSuelo } from './catalogos.repository.js';
 import { normalizarTexto } from './normalizar.js';
 import { PlanillaError, leerPlanilla } from './planilla.parser.js';
 import { crearLote, crearVersion } from './lotes.js';
+import { ordenDeLaLista } from './orden.js';
 
 export const fechaISO = (d) => (d ? d.toISOString().slice(0, 10) : null);
 export const aFecha = (iso) => new Date(`${iso}T00:00:00Z`);
@@ -205,8 +206,9 @@ export async function confirmar(id, { fecha, nombreCampo }, usuarioId) {
         (await tx.campo.create({ data: { sigla, nombre: nombreCampo || sigla } }));
 
       let potrerosNuevos = 0;
-      for (const [i, p] of d.potreros.entries()) {
-        // El orden de la lista es el de las filas de la planilla (27/11).
+      for (const [i, p] of ordenDeLaLista(d.potreros).entries()) {
+        // El orden de la lista es el de las filas de la planilla, con los
+        // pivots abajo, después de los "Frente" (27/11, orden.js).
         const orden = i + 1;
         // Un potrero que ya existe conserva sus datos (la app manda: por
         // ejemplo, las hectáreas corregidas a mano), salvo el orden.

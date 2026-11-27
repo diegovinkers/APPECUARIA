@@ -310,6 +310,13 @@ describe('Marco: barras y panel', () => {
     expect(contenedor.querySelector('[data-testid="contenido"]').className).toContain('overflow-y-auto');
   });
 
+  it('con el teclado abierto (27/11): el marco ocupa lo que se ve arriba de él y la barra de abajo se queda abajo, tapada', () => {
+    montar();
+    expect(contenedor.firstElementChild.className).toContain('sigue-teclado');
+    expect(contenedor.querySelector('nav[aria-label="Barra de abajo"]').className).toContain('teclado:hidden');
+    expect(boton('Abrir los filtros')?.className ?? 'teclado:hidden').toContain('teclado:hidden');
+  });
+
   it('la barra de arriba lleva el logo de Pecuaria (la vaca) con SAPSA y PECUARIA al lado, y vuelve al inicio (27/11)', () => {
     montar();
     const logo = contenedor.querySelector('header img[alt="Pecuaria"]');

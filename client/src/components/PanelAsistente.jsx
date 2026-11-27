@@ -96,6 +96,9 @@ export default function PanelAsistente({ abierto, onCerrar }) {
   const lista = useRef(null);
   const campo = useRef(null);
   const alFondo = useRef(true);
+  const panel = useRef(null);
+  // Cuánto faltaba para el final de la lista (para el teclado, abajo).
+  const hastaElFondo = useRef(0);
 
   const cargar = useCallback(async () => {
     setErrorCarga(null);
@@ -123,9 +126,33 @@ export default function PanelAsistente({ abierto, onCerrar }) {
     if (alFondo.current && lista.current) lista.current.scrollTop = lista.current.scrollHeight;
   }, [mensajes, abierto]);
 
+  // Al abrirlo, el cursor en la caja de escribir solo en la compu: en el
+  // celular abriría el teclado sin que lo pidan (como WhatsApp, se abre al
+  // tocar la caja).
   useEffect(() => {
-    if (abierto && estado?.configurado) campo.current?.focus({ preventScroll: true });
+    if (abierto && estado?.configurado && window.matchMedia?.('(pointer: fine)').matches) campo.current?.focus({ preventScroll: true });
   }, [abierto, estado]);
+
+  // Al cerrarlo, se cierra el teclado (si no, queda abierto sobre la pantalla).
+  useEffect(() => {
+    if (!abierto && panel.current?.contains(document.activeElement)) document.activeElement.blur();
+  }, [abierto]);
+
+  // Como WhatsApp (27/11): cuando el teclado achica la lista, lo que se veía
+  // abajo sigue abajo (el último mensaje sube con el teclado, no queda tapado).
+  useEffect(() => {
+    const caja = lista.current;
+    if (!caja || typeof ResizeObserver === 'undefined') return undefined;
+    const observador = new ResizeObserver(() => {
+      caja.scrollTop = caja.scrollHeight - caja.clientHeight - hastaElFondo.current;
+    });
+    observador.observe(caja);
+    return () => observador.disconnect();
+  }, []);
+  const alScrollear = (e) => {
+    const c = e.currentTarget;
+    hastaElFondo.current = Math.max(0, c.scrollHeight - c.scrollTop - c.clientHeight);
+  };
 
   async function verAnteriores() {
     if (!masViejoId || cargandoMas) return;
@@ -215,11 +242,12 @@ export default function PanelAsistente({ abierto, onCerrar }) {
         <button type="button" aria-label="Cerrar el asistente" onClick={onCerrar} className="fixed inset-0 z-40 bg-black/40 lg:hidden" data-testid="fondo-asistente" />
       )}
       <aside
+        ref={panel}
         aria-label="Asistente"
         aria-hidden={!abierto}
         inert={!abierto}
         data-sin-tirar
-        className={`fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col bg-suelo-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] shadow-2xl transition-transform sm:w-[92%] lg:w-[28rem] lg:border-l lg:border-suelo-200 ${
+        className={`sigue-teclado fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col bg-suelo-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] teclado:pb-0 shadow-2xl transition-transform sm:w-[92%] lg:w-[28rem] lg:border-l lg:border-suelo-200 ${
           abierto ? 'translate-x-0' : 'translate-x-full'
         }`}
         data-testid="panel-asistente"
@@ -234,7 +262,7 @@ export default function PanelAsistente({ abierto, onCerrar }) {
           </button>
         </div>
 
-        <div ref={lista} onClick={alTocar} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3" aria-live="polite" data-testid="lista-asistente">
+        <div ref={lista} onClick={alTocar} onScroll={alScrollear} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3" aria-live="polite" data-testid="lista-asistente">
           {errorCarga ? (
             <div className="space-y-2 pt-4 text-center text-suelo-600">
               <p>{errorCarga}</p>
@@ -310,12 +338,16 @@ export default function PanelAsistente({ abierto, onCerrar }) {
                 maxLength={2000}
                 onChange={(e) => setTexto(e.target.value)}
                 onKeyDown={alTeclear}
+                enterKeyHint="send"
                 placeholder="Escribí o dictá tu pregunta…"
                 className="max-h-32 min-h-11 flex-1 resize-none rounded-xl border border-suelo-300 bg-superficie px-4 py-2.5 text-suelo-900 placeholder-suelo-400 outline-none focus:ring-2 focus:ring-campo-500"
               />
               <button
                 type="submit"
                 disabled={enviando || !texto.trim()}
+                // Tocar Enviar no saca el cursor de la caja: el teclado queda
+                // abierto para seguir preguntando (como WhatsApp).
+                onPointerDown={(e) => e.preventDefault()}
                 aria-label="Enviar"
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-boton text-white transition hover:bg-boton-hover disabled:opacity-40"
               >

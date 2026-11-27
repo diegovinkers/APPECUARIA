@@ -12,9 +12,12 @@ const MINIMO_MS = 700;
 
 // ¿Se puede empezar a tirar desde ahí? Solo si todo lo que scrollea, desde lo
 // tocado hasta la caja del contenido, está arriba de todo; nunca dentro de una
-// ventana (el detalle de un movimiento) ni de un campo de texto o selector.
+// ventana (el detalle de un movimiento) ni de un campo de texto o selector, ni
+// con el teclado abierto.
 export function puedeTirar(tocado, caja) {
   if (!tocado || !caja || !caja.contains(tocado)) return false;
+  // Con el teclado abierto se está escribiendo: bajar la lista no actualiza.
+  if (tocado.ownerDocument?.documentElement?.hasAttribute('data-teclado')) return false;
   if (tocado.closest?.('[role="dialog"], input, textarea, select, [data-sin-tirar]')) return false;
   for (let el = tocado; el; el = el.parentElement) {
     if (el.scrollTop > 0) return false;

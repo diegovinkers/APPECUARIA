@@ -16,7 +16,7 @@ describe('menuPara', () => {
     const m = menuPara(superadmin);
     expect(claves(m.principal)).toEqual(['resumen', 'potreros', 'registro', 'procesos']);
     expect(panel(superadmin)).toEqual({
-      Campo: ['pecuaria', 'asistente', 'parcelas'],
+      Campo: ['pecuaria', 'parcelas'],
       Pecuaria: ['importar', 'configuracion'],
       Administración: ['usuarios', 'roles'],
     });
@@ -24,12 +24,12 @@ describe('menuPara', () => {
   });
 
   it('el encargado: todo Pecuaria, nada de Administración', () => {
-    expect(panel(encargado)).toEqual({ Campo: ['pecuaria', 'asistente', 'parcelas'], Pecuaria: ['importar', 'configuracion'] });
+    expect(panel(encargado)).toEqual({ Campo: ['pecuaria', 'parcelas'], Pecuaria: ['importar', 'configuracion'] });
     expect(menuPara(encargado).registrar).toHaveLength(REGISTRAR.length);
   });
 
   it('el capataz: ve y registra, pero no importa ni configura', () => {
-    expect(panel(capataz)).toEqual({ Campo: ['pecuaria', 'asistente', 'parcelas'] });
+    expect(panel(capataz)).toEqual({ Campo: ['pecuaria', 'parcelas'] });
     expect(claves(menuPara(capataz).principal)).toEqual(['resumen', 'potreros', 'registro', 'procesos']);
     expect(menuPara(capataz).registrar).toHaveLength(REGISTRAR.length);
   });

@@ -58,20 +58,53 @@ async function cargarConversacion(conversacionId, usuarioId) {
   return c;
 }
 
+const preguntasDe = (guardada) => guardada.mensajes.mensajes.filter((m) => m.role === 'user' && typeof m.content === 'string').length;
+
+// Un chat por persona (pedido de Diego, 27/11): en la pantalla se ve un solo
+// historial. Por dentro, lo que Claude recuerda es la conversación de las
+// últimas horas: después de HORAS_DE_CONTEXTO sin preguntar, o con
+// MAX_PREGUNTAS, arranca otra (sin recortar la vieja: la API no deja editar
+// el medio de una conversación con razonamiento guardado).
+export const HORAS_DE_CONTEXTO = 12;
+
+async function conversacionActual(usuarioId) {
+  const desde = new Date(Date.now() - HORAS_DE_CONTEXTO * 60 * 60 * 1000);
+  const guardada = await prisma.asistenteConversacion.findFirst({
+    where: { usuarioId, actualizadaEn: { gte: desde } },
+    orderBy: { actualizadaEn: 'desc' },
+  });
+  return guardada && preguntasDe(guardada) < MAX_PREGUNTAS ? guardada : null;
+}
+
 /**
  * Prepara la pregunta (todo lo que puede fallar antes de empezar a contestar).
+ * Sin `conversacionId`, sigue la conversación actual de la persona.
  * @returns {Promise<{ conversacionId, sistema, mensajes, nueva }>}
  */
 export async function preparar({ ctx, usuarioId, conversacionId }) {
-  const guardada = await cargarConversacion(conversacionId, usuarioId);
+  const guardada = conversacionId ? await cargarConversacion(conversacionId, usuarioId) : await conversacionActual(usuarioId);
   if (guardada) {
+    if (preguntasDe(guardada) >= MAX_PREGUNTAS) throw new HttpError(400, 'Esta conversación ya es muy larga. Empezá una nueva.', 'CONVERSACION_LARGA');
     const { sistema, mensajes } = guardada.mensajes;
-    const preguntas = mensajes.filter((m) => m.role === 'user' && typeof m.content === 'string').length;
-    if (preguntas >= MAX_PREGUNTAS) throw new HttpError(400, 'Esta conversación ya es muy larga. Empezá una nueva.', 'CONVERSACION_LARGA');
     return { conversacionId: guardada.id, sistema, mensajes, nueva: false };
   }
   const catalogo = await leerCatalogo(ctx);
   return { conversacionId: randomUUID(), sistema: armarInstrucciones(catalogo), mensajes: [], nueva: true, catalogo };
+}
+
+export const POR_PAGINA = 30;
+
+// El historial de la persona: sus consultas, de la más vieja a la más nueva,
+// de a POR_PAGINA (`antes`: el id de la más vieja que ya se ve). Las de más de
+// 90 días ya no tienen texto y no se muestran.
+export async function historial(usuarioId, { antes } = {}) {
+  const filas = await prisma.asistenteConsulta.findMany({
+    where: { usuarioId, pregunta: { not: null }, ...(antes && { id: { lt: antes } }) },
+    orderBy: { id: 'desc' },
+    take: POR_PAGINA + 1,
+    select: { id: true, pregunta: true, respuesta: true, error: true, creadaEn: true },
+  });
+  return { consultas: filas.slice(0, POR_PAGINA).reverse(), hayMas: filas.length > POR_PAGINA };
 }
 
 /**

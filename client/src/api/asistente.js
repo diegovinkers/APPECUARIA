@@ -45,3 +45,8 @@ export async function preguntarAlAsistente({ conversacionId, pregunta, alEvento,
   }
   if (resto.trim()) alEvento(JSON.parse(resto));
 }
+
+// El historial de la persona (un chat por persona): { consultas, hayMas }.
+// `antes`: el id de la consulta más vieja que ya se ve, para traer las anteriores.
+export const historialAsistente = (antes) =>
+  api.get('/asistente/historial', { params: antes ? { antes } : {} }).then((r) => r.data);

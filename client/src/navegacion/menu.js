@@ -25,8 +25,6 @@ export const PANEL = [
     grupo: 'Campo',
     items: [
       { clave: 'pecuaria', texto: 'Pecuaria', ruta: '/pecuaria/resumen', activoEn: '/pecuaria', icono: 'pecuaria', requiere: 'pecuaria:VER' },
-      // El asistente (27/11, docs/superpowers/specs/2026-11-27-asistente-design.md): fase 1, solo consulta.
-      { clave: 'asistente', texto: 'Asistente', ruta: '/asistente', icono: 'asistente', requiere: 'pecuaria:VER' },
       { clave: 'parcelas', texto: 'Parcelas', icono: 'parcelas', pronto: true },
     ],
   },

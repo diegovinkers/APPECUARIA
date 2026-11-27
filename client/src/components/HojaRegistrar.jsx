@@ -11,6 +11,7 @@ import { ListaEventos } from './HojaEventos';
 import Icono from './Icono';
 import { coincide, prepararBusqueda } from './busqueda';
 import { EsqueletoLista } from './Esqueleto';
+import { cerrarTecladoConEnter } from '../hooks/useTeclado';
 
 
 // El "+" en secciones, como en el boceto de los eventos (20/11): MOVER arriba
@@ -169,12 +170,13 @@ export default function HojaRegistrar({ acciones, onCerrar, eventos = false, con
   if (potrero) titulo = accion.pideLote ?? `¿Qué lote de ${potrero.nombre}?`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center lg:items-center">
+    // sigue-teclado: con el teclado abierto (buscar potrero), la hoja queda arriba de él.
+    <div className="sigue-teclado fixed inset-0 z-50 flex items-end justify-center lg:items-center">
       <button type="button" aria-label="Cerrar" onClick={onCerrar} className="absolute inset-0 bg-black/40" />
       <div
         role="dialog"
         aria-label={titulo}
-        className="relative flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-superficie px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
+        className="relative flex max-h-[85%] w-full flex-col rounded-t-2xl bg-superficie px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 teclado:max-h-full teclado:pb-3 lg:max-w-md lg:rounded-2xl lg:pb-5"
       >
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-suelo-300 lg:hidden" aria-hidden="true" />
         <div className="mb-2 flex items-center gap-2">
@@ -234,6 +236,8 @@ export default function HojaRegistrar({ acciones, onCerrar, eventos = false, con
                   <input
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
+                    enterKeyHint="search"
+                    onKeyDown={cerrarTecladoConEnter}
                     placeholder={`Buscar potrero en ${campo?.nombre ?? 'la estancia'}`}
                     aria-label="Buscar potrero"
                     className="w-full bg-transparent text-sm outline-none placeholder:text-suelo-400"

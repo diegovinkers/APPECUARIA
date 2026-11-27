@@ -10,6 +10,7 @@ import { PastoMarca, PastoSelector } from '../../components/PastoSelector';
 import { ALTURAS, hace, lecturasDe, textoDescanso } from '../../components/pasto';
 import Icono from '../../components/Icono';
 import { EsqueletoLista } from '../../components/Esqueleto';
+import { cerrarTecladoConEnter } from '../../hooks/useTeclado';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -151,6 +152,8 @@ function Recorrida({ campo, inicial, onCambiarEstancia }) {
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
+          enterKeyHint="search"
+          onKeyDown={cerrarTecladoConEnter}
           placeholder="Buscar potrero"
           aria-label="Buscar potrero"
           className="w-full bg-transparent text-sm outline-none placeholder:text-suelo-400"

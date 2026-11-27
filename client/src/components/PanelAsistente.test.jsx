@@ -160,6 +160,34 @@ describe('el cajón del asistente', () => {
     expect(api.preguntarAlAsistente).toHaveBeenCalledTimes(1);
   });
 
+  it('el teclado (27/11): en el celular no se abre solo; Enviar no lo cierra; al cerrar el cajón, se va', async () => {
+    const antes = window.matchMedia;
+    try {
+      // Celular (dedo): al abrir, el cursor no va a la caja (no salta el teclado).
+      window.matchMedia = vi.fn(() => ({ matches: false }));
+      await montar();
+      expect(document.activeElement).not.toBe(campo());
+      const aside = contenedor.querySelector('[data-testid="panel-asistente"]');
+      expect(aside.className).toContain('sigue-teclado');
+      expect(campo().getAttribute('enterkeyhint')).toBe('send');
+      // Tocar Enviar no le saca el cursor a la caja.
+      const toque = new Event('pointerdown', { bubbles: true, cancelable: true });
+      enviarBoton().dispatchEvent(toque);
+      expect(toque.defaultPrevented).toBe(true);
+      // Al cerrar el cajón, la caja pierde el cursor (se cierra el teclado).
+      campo().focus();
+      expect(document.activeElement).toBe(campo());
+      await montar(false);
+      expect(document.activeElement).not.toBe(campo());
+      // En la compu (mouse), al abrir el cursor va a la caja.
+      window.matchMedia = vi.fn(() => ({ matches: true }));
+      await montar(true);
+      expect(document.activeElement).toBe(campo());
+    } finally {
+      window.matchMedia = antes;
+    }
+  });
+
   it('los errores se ven en la respuesta', async () => {
     api.preguntarAlAsistente
       .mockImplementationOnce(async ({ alEvento }) => alEvento({ tipo: 'error', mensaje: 'Se terminó el saldo de Anthropic.' }))

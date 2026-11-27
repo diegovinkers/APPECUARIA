@@ -10,6 +10,7 @@ import { DestinoFiltros, PanelFiltrosProvider, usePanelFiltros } from './PanelFi
 import Icono from './Icono';
 import PanelAsistente, { BotonAsistente } from './PanelAsistente';
 import useTirarParaActualizar from '../hooks/useTirarParaActualizar';
+import useTeclado from '../hooks/useTeclado';
 
 // El marco de la app (docs/DECISIONES.md §11; cambio de Diego del 19/11):
 // - arriba: logo, selector de estancia, en la compu Resumen · Potreros ·
@@ -330,6 +331,10 @@ function MarcoInterno() {
   }, []);
   const tirar = useTirarParaActualizar(caja, actualizar);
   const conMenu = Boolean(user && !user.debeCambiarPassword);
+  // El teclado del celular (27/11): con él abierto, la app ocupa solo lo que
+  // queda arriba (sigue-teclado) y la barra de abajo se queda abajo, tapada
+  // (teclado:hidden). Solo con sesión: el login es una página común.
+  useTeclado(conMenu);
   const menu = menuPara(user);
   const { setAbierto: setFiltrosAbierto, hay: hayFiltros } = filtros;
   // El asistente consulta Pecuaria: lo ve quien puede ver Pecuaria.
@@ -406,7 +411,8 @@ function MarcoInterno() {
     // (PantallaTabla) dejan fijos el título y el paginador y solo scrollea la tabla.
     // Fijo a la pantalla (fixed inset-0): arrastrar de más no corre la barra de
     // abajo (pedido de Diego, 19/11).
-    <div className="fixed inset-0 flex flex-col">
+    // Con el teclado abierto, el marco ocupa lo que se ve arriba de él (sigue-teclado).
+    <div className="sigue-teclado fixed inset-0 flex flex-col">
       {/* En el celular entran logo, estancia, tema, iniciales y ☰ a 360 px: logo
           un poco más bajo y menos espacio entre cosas (24/11). */}
       <header className={`relative z-30 flex shrink-0 items-center gap-1.5 bg-barra px-3 py-2.5 text-white lg:gap-3 lg:px-4 ${barras ? '' : 'acostado:hidden'}`}>
@@ -486,7 +492,7 @@ function MarcoInterno() {
         <div
           ref={refContenido}
           onPointerDown={() => barras && setBarras(false)}
-          className="min-w-0 flex-1 overflow-y-auto pb-5 lg:pb-0 acostado:pb-1"
+          className="min-w-0 flex-1 overflow-y-auto pb-5 lg:pb-0 acostado:pb-1 teclado:pb-1"
           // Mientras se tira, el contenido baja con el dedo (en reposo, sin
           // transform: si no, las ventanas fijas de adentro se correrían).
           style={tirar.distancia && !tirar.actualizando ? { transform: `translateY(${tirar.distancia}px)` } : undefined}
@@ -502,7 +508,7 @@ function MarcoInterno() {
           type="button"
           onClick={() => setFiltrosAbierto(true)}
           aria-label="Abrir los filtros"
-          className="fixed left-0 top-1/2 z-20 flex h-12 w-5 -translate-y-1/2 items-center justify-center rounded-r-lg bg-boton/90 text-white lg:hidden"
+          className="fixed left-0 top-1/2 z-20 flex h-12 w-5 -translate-y-1/2 items-center justify-center rounded-r-lg bg-boton/90 text-white lg:hidden teclado:hidden"
         >
           <Icono nombre="derecha" className="h-4 w-4" />
         </button>
@@ -523,7 +529,8 @@ function MarcoInterno() {
 
       <nav
         aria-label="Barra de abajo"
-        className={`relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-superficie pb-[env(safe-area-inset-bottom)] lg:hidden ${barras ? '' : 'acostado:hidden'}`}
+        className={`relative z-30 flex shrink-0 items-end border-t border-suelo-200 bg-superficie pb-[env(safe-area-inset-bottom)] lg:hidden teclado:hidden ${barras ? '' : 'acostado:hidden'}`}
+        data-testid="barra-abajo"
       >
         {menu.principal.slice(0, 2).map((item) => (
           <NavLink key={item.clave} to={item.ruta} className={linkAbajo}>

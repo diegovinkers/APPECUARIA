@@ -32,7 +32,11 @@ describe('puedeTirar', () => {
     arriba(caja, 0);
     expect(puedeTirar(document.getElementById('modal'), caja)).toBe(false);
     expect(puedeTirar(document.getElementById('campo'), caja)).toBe(false);
-    expect(puedeTirar(document.getElementById('afuera'), caja)).toBe(false);
+    expect(puedeTirar(document.getElementById('afuera'), caja)).toBe(false);    // Con el teclado abierto se está escribiendo: no actualiza.
+    document.documentElement.setAttribute('data-teclado', '');
+    expect(puedeTirar(fila, caja)).toBe(false);
+    document.documentElement.removeAttribute('data-teclado');
+    expect(puedeTirar(fila, caja)).toBe(true);
   });
 });
 

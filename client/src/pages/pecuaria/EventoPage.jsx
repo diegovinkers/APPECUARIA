@@ -28,6 +28,7 @@ import {
   seleccionInicial,
 } from '../../components/eventos';
 import { EsqueletoFicha, EsqueletoLista } from '../../components/Esqueleto';
+import { cerrarTecladoConEnter } from '../../hooks/useTeclado';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-sm text-suelo-600';
@@ -492,6 +493,8 @@ export function PasoAQuien({ tipo, estancia, campo, sinCampo, onElegirEstancia, 
         <input
           value={busqueda}
           onChange={(e) => onBuscar(e.target.value)}
+          enterKeyHint="search"
+          onKeyDown={cerrarTecladoConEnter}
           placeholder='Buscar: "8.1", "terneros"…'
           aria-label="Buscar potrero, lote o categoría"
           className="w-full bg-transparent py-2 text-sm outline-none placeholder:text-suelo-400"

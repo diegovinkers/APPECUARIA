@@ -12,6 +12,11 @@
    compu (más de 500 px de alto) no cambian. */
 @custom-variant md (@media (min-width: 48rem) and (min-height: 501px));
 
+/* Con el teclado del celular abierto (27/11; src/hooks/useTeclado.js pone
+   <html data-teclado>). Ej.: la barra de abajo, `teclado:hidden` (queda
+   abajo, tapada por el teclado). */
+@custom-variant teclado (:root[data-teclado] &);
+
 /* Paleta "de campo" (docs/DECISIONES.md §11). Tema claro: al sol se lee mejor.
    - suelo: los neutros cálidos (fondo hueso = suelo-100, texto = suelo-900).
    - campo: el verde principal (barras, botones, links) = campo-600.
@@ -139,6 +144,16 @@ body {
 html,
 body {
   overscroll-behavior: none;
+}
+
+/* Lo fijo a la pantalla que se acomoda arriba del teclado (27/11): el marco
+   de la app, el asistente y la hoja del "+". Con el teclado abierto ocupan
+   solo lo que se ve (useTeclado.js); cerrado, la pantalla entera como siempre.
+   Fuera de las capas de Tailwind: le gana a inset-0 / inset-y-0. */
+:root[data-teclado] .sigue-teclado {
+  top: var(--teclado-arriba, 0px);
+  bottom: auto;
+  height: var(--teclado-alto, 100%);
 }
 
 /* Campos obligatorios (27/11, pedido de Diego): mientras están vacíos llevan

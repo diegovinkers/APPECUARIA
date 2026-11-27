@@ -9,6 +9,7 @@ import PanelFiltros, { DestinoBotonFiltros } from './PanelFiltros';
 import Icono from './Icono';
 import { coincide, prepararBusqueda } from './busqueda';
 import { EsqueletoTabla } from './Esqueleto';
+import { cerrarTecladoConEnter } from '../hooks/useTeclado';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 
@@ -336,6 +337,7 @@ export function BarraBuscar({ valor, onCambiar, placeholder }) {
           enterKeyHint="search"
           value={valor}
           onChange={(e) => onCambiar(e.target.value)}
+          onKeyDown={cerrarTecladoConEnter}
           placeholder={placeholder}
           aria-label={placeholder.replace('…', '')}
           className="block w-full rounded-md border border-suelo-300 bg-superficie py-1.5 pl-8 pr-8 text-sm text-suelo-900 placeholder-suelo-400 outline-none focus:border-campo-500 focus:ring-2 focus:ring-campo-500/40"

@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useEstancia } from '../context/EstanciaContext';
 import { useTema } from '../context/TemaContext';
 import { FEEDLOTS, TODAS, separarGrupos } from '../navegacion/grupos';
-import { menuPara } from '../navegacion/menu';
+import { menuPara, puede } from '../navegacion/menu';
 import HojaRegistrar from './HojaRegistrar';
 import { DestinoFiltros, PanelFiltrosProvider, usePanelFiltros } from './PanelFiltros';
 import Icono from './Icono';
+import PanelAsistente, { BotonAsistente } from './PanelAsistente';
 import useTirarParaActualizar from '../hooks/useTirarParaActualizar';
 
 // El marco de la app (docs/DECISIONES.md §11; cambio de Diego del 19/11):
@@ -304,6 +305,8 @@ function MarcoInterno() {
   const filtros = usePanelFiltros();
   const [menuAbierto, setMenuAbierto] = useState(false);
   const [registrarAbierto, setRegistrarAbierto] = useState(false);
+  // El asistente (27/11): cajón de la derecha, con el botón IA de arriba.
+  const [asistenteAbierto, setAsistenteAbierto] = useState(false);
   // Celular acostado: las barras de arriba y de abajo se esconden; el botón
   // flotante las trae y tocar la pantalla (o cambiar de página) las esconde.
   const [barras, setBarras] = useState(false);
@@ -329,6 +332,8 @@ function MarcoInterno() {
   const conMenu = Boolean(user && !user.debeCambiarPassword);
   const menu = menuPara(user);
   const { setAbierto: setFiltrosAbierto, hay: hayFiltros } = filtros;
+  // El asistente consulta Pecuaria: lo ve quien puede ver Pecuaria.
+  const conAsistente = conMenu && puede(user, 'pecuaria:VER');
 
   async function salir() {
     setMenuAbierto(false);
@@ -370,15 +375,16 @@ function MarcoInterno() {
 
   // Escape cierra lo que esté abierto.
   useEffect(() => {
-    if (!menuAbierto && !filtros.abierto) return undefined;
+    if (!menuAbierto && !filtros.abierto && !asistenteAbierto) return undefined;
     const tecla = (e) => {
       if (e.key !== 'Escape') return;
       setMenuAbierto(false);
       setFiltrosAbierto(false);
+      setAsistenteAbierto(false);
     };
     document.addEventListener('keydown', tecla);
     return () => document.removeEventListener('keydown', tecla);
-  }, [menuAbierto, filtros.abierto, setFiltrosAbierto]);
+  }, [menuAbierto, filtros.abierto, asistenteAbierto, setFiltrosAbierto]);
 
   if (!conMenu) {
     return (
@@ -427,6 +433,7 @@ function MarcoInterno() {
         )}
         {/* Después de las estancias: el tema, las iniciales y, último, el ☰ (27/11). */}
         <BotonTema />
+        {conAsistente && <BotonAsistente abierto={asistenteAbierto} onClick={() => setAsistenteAbierto((a) => !a)} />}
         <AvatarUsuario user={user} />
         <button
           type="button"
@@ -438,6 +445,8 @@ function MarcoInterno() {
           <Icono nombre={menuAbierto ? 'cerrar' : 'menu'} className="h-6 w-6" />
         </button>
       </header>
+
+      {conAsistente && <PanelAsistente abierto={asistenteAbierto} onCerrar={() => setAsistenteAbierto(false)} />}
 
       {/* El menú: se despliega desde el botón ☰ de arriba (o "Menú" abajo). */}
       {menuAbierto && (

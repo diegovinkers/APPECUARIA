@@ -164,3 +164,10 @@ Usuarios, roles, permisos y configuración; importar planillas; leer CIGAM; What
 - **Probado con datos reales** (base de desarrollo, Chrome sin ventana a 375 y 1280 px): "¿Cuántos terneros hay en La Gateada…?" contestó bien en 7 s, con 2 herramientas, por unos USD 0,002.
 - **Tests:** `server/test/asistente.test.js` (21, con Claude simulado), `client/src/components/asistenteFormato.test.js` y `client/src/pages/AsistentePage.test.jsx`.
 - **Para publicar:** cargar `ANTHROPIC_API_KEY` en Railway. Sin la clave, la pantalla dice "no está configurado".
+
+## Cajón con historial, un chat por persona (27/11, pedido de Diego)
+
+- **Botón "IA"** en la barra de arriba (entre el tema y las iniciales), para quien tiene `pecuaria:VER`. Abre el asistente como un **cajón desde la derecha** (`components/PanelAsistente.jsx`), como el de los filtros de la izquierda. Queda armado aunque se cierre o se cambie de pantalla (vive en el Marco); Escape lo cierra. En el celular, tocar un enlace de la respuesta cierra el cajón para ver la ficha. Se borró la pantalla `/asistente` y su ítem del menú.
+- **Un chat por persona:** al abrirse muestra el **historial de sus consultas** (`GET /api/asistente/historial`, de a 30, "Ver anteriores"), con separadores Hoy / Ayer / fecha.
+- **Lo que recuerda Claude:** la conversación de las últimas 12 horas (`HORAS_DE_CONTEXTO`) o hasta 30 preguntas; después arranca otra por dentro, y en la pantalla se sigue viendo un solo chat. No se recorta la conversación vieja: la API no deja editar el medio de una conversación con razonamiento guardado.
+- **Pendiente de ver:** a 360 px, el selector de estancia queda más angosto ("La ...").

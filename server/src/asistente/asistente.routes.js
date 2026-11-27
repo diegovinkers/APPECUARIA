@@ -1,6 +1,8 @@
 // Rutas del asistente (docs/superpowers/specs/2026-11-27-asistente-design.md).
-//   GET  /api/asistente/estado  → { configurado, modelo }
-//   POST /api/asistente         → la respuesta, de a poco (NDJSON: un JSON por renglón)
+//   GET  /api/asistente/estado     → { configurado, modelo }
+//   GET  /api/asistente/historial  → { consultas, hayMas } (?antes=<id> para ver más atrás)
+//   POST /api/asistente            → la respuesta, de a poco (NDJSON: un JSON por renglón)
+// Un chat por persona (27/11): sin conversacionId, sigue el suyo.
 // Fase 1: solo consulta, así que pide pecuaria:VER. Las herramientas, además,
 // pasan por las rutas de siempre con la cookie de la persona (llamar.js).
 import { Router } from 'express';
@@ -9,8 +11,8 @@ import { z } from 'zod';
 import { authRequired } from '../auth/auth.middleware.js';
 import { requirePermission } from '../auth/permisos.js';
 import { validateBody } from '../middlewares/validate.js';
-import { HttpError } from '../errors.js';
-import { contestar, dependencias, estaConfigurado, guardar, modelo, preparar } from './asistente.service.js';
+import { HttpError, parseId } from '../errors.js';
+import { contestar, dependencias, estaConfigurado, guardar, historial, modelo, preparar } from './asistente.service.js';
 
 const router = Router();
 const ver = requirePermission('pecuaria', 'VER');
@@ -37,6 +39,12 @@ const limitePreguntas = rateLimit({
 
 router.get('/estado', authRequired, ver, (req, res) => {
   res.json({ configurado: estaConfigurado(), modelo: modelo() });
+});
+
+router.get('/historial', authRequired, ver, async (req, res) => {
+  const antes = req.query.antes ? parseId(req.query.antes) : null;
+  if (req.query.antes && !antes) throw new HttpError(400, 'El parámetro antes no es válido');
+  res.json(await historial(req.user.id, { antes }));
 });
 
 router.post('/', authRequired, ver, limitePreguntas, validateBody(preguntaSchema), async (req, res) => {

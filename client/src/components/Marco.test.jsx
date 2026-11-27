@@ -38,6 +38,11 @@ const TIPOS = vi.hoisted(() => [
   { id: 31, clave: 'DOSIS', nombre: 'Dosificación', efecto: 'REGISTRO', activo: false, orden: 310 },
 ]);
 vi.mock('../api/pecuaria', () => ({ getTiposMovimiento: () => Promise.resolve({ data: TIPOS }) }));
+vi.mock('../api/asistente', () => ({
+  estadoAsistente: () => Promise.resolve({ configurado: true }),
+  historialAsistente: () => Promise.resolve({ consultas: [], hayMas: false }),
+  preguntarAlAsistente: () => Promise.resolve(),
+}));
 
 const { default: Marco, iniciales } = await import('./Marco.jsx');
 const { default: PanelFiltros } = await import('./PanelFiltros.jsx');
@@ -138,19 +143,30 @@ describe('Marco: barras y panel', () => {
     expect(texto()).toContain('La Gateada');
   });
 
-  it('arriba, después de las estancias: el tema, las iniciales (llevan al perfil) y por último el ☰ (27/11)', () => {
+  it('arriba, después de las estancias: el tema, la IA, las iniciales (llevan al perfil) y por último el ☰ (27/11)', () => {
     estado.campos = [EG, { id: 2, sigla: 'ES', nombre: 'Otra estancia' }];
     montar();
     const header = contenedor.querySelector('header');
-    const orden = [...header.querySelectorAll('select, [data-testid="boton-tema"], [data-testid="avatar-usuario"], button[aria-label="Menú"]')].map(
-      (el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label'),
-    );
-    expect(orden).toEqual(['Estancia', 'boton-tema', 'avatar-usuario', 'Menú']);
+    const orden = [
+      ...header.querySelectorAll('select, [data-testid="boton-tema"], [data-testid="boton-asistente"], [data-testid="avatar-usuario"], button[aria-label="Menú"]'),
+    ].map((el) => el.getAttribute('data-testid') ?? el.getAttribute('aria-label'));
+    expect(orden).toEqual(['Estancia', 'boton-tema', 'boton-asistente', 'avatar-usuario', 'Menú']);
     const avatar = header.querySelector('[data-testid="avatar-usuario"]');
     expect(avatar.textContent).toBe('SU');
     expect(avatar.getAttribute('href')).toBe('/profile');
     click(avatar);
     expect(donde()).toBe('/profile');
+  });
+
+  it('el botón IA abre y cierra el cajón del asistente (a la derecha); Escape lo cierra', async () => {
+    montar();
+    const panel = () => contenedor.querySelector('[data-testid="panel-asistente"]');
+    expect(panel().className).toContain('translate-x-full');
+    click(contenedor.querySelector('[data-testid="boton-asistente"]'));
+    await act(async () => {});
+    expect(panel().className).toContain('translate-x-0');
+    await act(async () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(panel().className).toContain('translate-x-full');
   });
 
   it('tirar hacia abajo con el dedo y soltar vuelve a armar la pantalla (como Instagram, 27/11)', async () => {

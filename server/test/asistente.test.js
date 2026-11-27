@@ -8,7 +8,7 @@ import { prisma } from '../src/db.js';
 import asistenteRoutes from '../src/asistente/asistente.routes.js';
 import { aTexto, limpiar } from '../src/asistente/limpiar.js';
 import { buscarCampo, buscarCategoria, herramienta, definiciones, leerCatalogo } from '../src/asistente/herramientas.js';
-import { MAX_IDAS, dependencias, purgarAsistente } from '../src/asistente/asistente.service.js';
+import { HORAS_DE_CONTEXTO, MAX_IDAS, MAX_PREGUNTAS, POR_PAGINA, dependencias, purgarAsistente } from '../src/asistente/asistente.service.js';
 import { ALICE, BOB, loggedAgent, sessionCookie, useTestDatabase, usuarioCon } from './helpers.js';
 import { prepararCampo } from './pecuaria-helpers.js';
 
@@ -329,8 +329,73 @@ describe('POST /api/asistente', () => {
 
   it('las rutas declaran su permiso', () => {
     const rutas = asistenteRoutes.stack.filter((capa) => capa.route);
-    expect(rutas.length).toBe(2);
+    expect(rutas.length).toBe(3);
     expect(rutas.every((capa) => capa.route.stack.some((l) => l.handle.permiso === 'pecuaria:VER'))).toBe(true);
+  });
+});
+
+describe('un chat por persona', () => {
+  it('sin conversacionId sigue su conversación; la de otra persona, no', async () => {
+    const { agent } = await preparar();
+    const cliente = clienteFalso((params) => texto(`Van ${params.messages.filter((m) => typeof m.content === 'string').length}.`));
+    dependencias.crearCliente = () => cliente;
+    const a = await preguntar(agent, { pregunta: 'uno' });
+    const b = await preguntar(agent, { pregunta: 'dos' });
+    expect(b.eventos[0].id).toBe(a.eventos[0].id);
+    expect(b.respuesta).toBe('Van 2.');
+
+    const CARLOS = { usuario: 'carlos', nombre: 'Carlos Test', password: 'password789' };
+    await usuarioCon(CARLOS, { permisos: ['pecuaria:VER'], todas: true });
+    const c = await preguntar(await loggedAgent(CARLOS), { pregunta: 'tres' });
+    expect(c.eventos[0].id).not.toBe(a.eventos[0].id);
+    expect(c.respuesta).toBe('Van 1.');
+  });
+
+  it(`después de ${HORAS_DE_CONTEXTO} horas sin preguntar, o con ${MAX_PREGUNTAS} preguntas, Claude arranca de cero`, async () => {
+    const { agent } = await preparar();
+    dependencias.crearCliente = () => clienteFalso(() => texto('ok'));
+    const a = await preguntar(agent, { pregunta: 'uno' });
+    const viejo = new Date(Date.now() - (HORAS_DE_CONTEXTO + 1) * 60 * 60 * 1000);
+    await prisma.asistenteConversacion.update({ where: { id: a.eventos[0].id }, data: { actualizadaEn: viejo } });
+    const b = await preguntar(agent, { pregunta: 'dos' });
+    expect(b.eventos[0].id).not.toBe(a.eventos[0].id);
+
+    const llena = await prisma.asistenteConversacion.findUnique({ where: { id: b.eventos[0].id } });
+    const muchas = Array.from({ length: MAX_PREGUNTAS }, (_, i) => [
+      { role: 'user', content: `p${i}` },
+      { role: 'assistant', content: [{ type: 'text', text: 'r' }] },
+    ]).flat();
+    await prisma.asistenteConversacion.update({ where: { id: llena.id }, data: { mensajes: { ...llena.mensajes, mensajes: muchas } } });
+    const c = await preguntar(agent, { pregunta: 'tres' });
+    expect(c.res.status).toBe(200);
+    expect(c.eventos[0].id).not.toBe(b.eventos[0].id);
+  });
+});
+
+describe('GET /api/asistente/historial', () => {
+  it('las consultas de la persona, de la más vieja a la más nueva, de a páginas', async () => {
+    const { agent } = await preparar();
+    const alice = await prisma.usuario.findFirst({ where: { usuario: ALICE.usuario } });
+    const bob = await prisma.usuario.findFirst({ where: { usuario: BOB.usuario } });
+    const total = POR_PAGINA + 5;
+    for (let i = 1; i <= total; i++) {
+      await prisma.asistenteConsulta.create({ data: { usuarioId: alice.id, modelo: 'm', pregunta: `p${i}`, respuesta: `r${i}` } });
+    }
+    await prisma.asistenteConsulta.create({ data: { usuarioId: alice.id, modelo: 'm', pregunta: null, respuesta: null } });
+    await prisma.asistenteConsulta.create({ data: { usuarioId: bob.id, modelo: 'm', pregunta: 'de bob', respuesta: 'x' } });
+    await prisma.asistenteConsulta.create({ data: { usuarioId: alice.id, modelo: 'm', pregunta: 'falló', error: 'Algo salió mal.' } });
+
+    const { body } = await agent.get('/api/asistente/historial').expect(200);
+    expect(body.hayMas).toBe(true);
+    expect(body.consultas).toHaveLength(POR_PAGINA);
+    expect(body.consultas.at(-1)).toMatchObject({ pregunta: 'falló', error: 'Algo salió mal.' });
+    expect(body.consultas.map((c) => c.pregunta)).not.toContain('de bob');
+
+    const antes = body.consultas[0].id;
+    const { body: resto } = await agent.get(`/api/asistente/historial?antes=${antes}`).expect(200);
+    expect(resto.hayMas).toBe(false);
+    expect(resto.consultas.map((c) => c.pregunta)).toEqual(['p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
+    await agent.get('/api/asistente/historial?antes=abc').expect(400);
   });
 });
 

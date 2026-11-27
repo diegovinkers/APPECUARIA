@@ -8,6 +8,7 @@ import { requirePermission } from '../src/auth/permisos.js';
 import pecuariaRoutes from '../src/pecuaria/pecuaria.routes.js';
 import usersRoutes from '../src/users/users.routes.js';
 import rolesRoutes from '../src/roles/roles.routes.js';
+import asistenteRoutes from '../src/asistente/asistente.routes.js';
 import { BOB, PECUARIA_TODO, loggedAgent, rolConPermisos, superAgent, useTestDatabase, usuarioCon } from './helpers.js';
 import { dia, prepararCampo } from './pecuaria-helpers.js';
 
@@ -45,6 +46,7 @@ describe('cada ruta declara su permiso', () => {
     ['pecuaria', pecuariaRoutes],
     ['usuarios', usersRoutes],
     ['roles', rolesRoutes],
+    ['asistente', asistenteRoutes],
   ])('%s', (nombre, router) => {
     const rutas = router.stack.filter((capa) => capa.route);
     expect(rutas.length).toBeGreaterThan(0);

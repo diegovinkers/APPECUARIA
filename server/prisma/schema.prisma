@@ -72,6 +72,9 @@ model Usuario {
   importacionesPrecio    ImportacionPrecio[] @relation("ImportacionPrecioUsuario")
   importacionesAprobadas ImportacionPrecio[] @relation("ImportacionPrecioAprobador")
 
+  conversacionesAsistente AsistenteConversacion[]
+  consultasAsistente      AsistenteConsulta[]
+
   @@map("usuario")
 }
 
@@ -1195,4 +1198,51 @@ model LecturaPasto {
   @@index([movimientoId])
   @@index([grupoId])
   @@map("lectura_pasto")
+}
+
+/// El asistente (docs/superpowers/specs/2026-11-27-asistente-design.md): una
+/// conversación con Claude. `mensajes` es la conversación tal como la manda la
+/// API de Anthropic (con los bloques de razonamiento, que hay que devolver
+/// sin tocar). Se borra a los 90 días de la última pregunta.
+model AsistenteConversacion {
+  id            String   @id @db.Uuid
+  usuarioId     Int      @map("usuario_id")
+  mensajes      Json
+  creadaEn      DateTime @default(now()) @map("creada_en") @db.Timestamptz(3)
+  actualizadaEn DateTime @default(now()) @map("actualizada_en") @db.Timestamptz(3)
+
+  usuario   Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  consultas AsistenteConsulta[]
+
+  @@index([usuarioId])
+  @@index([actualizadaEn])
+  @@map("asistente_conversacion")
+}
+
+/// Una pregunta al asistente: para ver el costo y qué se pide más. El texto
+/// de la pregunta y de la respuesta se borra a los 90 días; los números quedan.
+model AsistenteConsulta {
+  id                  Int       @id @default(autoincrement())
+  conversacionId      String?   @map("conversacion_id") @db.Uuid
+  usuarioId           Int       @map("usuario_id")
+  modelo              String    @db.VarChar(60)
+  pregunta            String?
+  respuesta           String?
+  /// Los nombres de las herramientas que usó, en orden.
+  herramientas        Json      @default("[]")
+  /// Cuántas veces se le pidió algo a Claude para contestar.
+  idas                Int       @default(0)
+  tokensEntrada       Int       @default(0) @map("tokens_entrada")
+  tokensSalida        Int       @default(0) @map("tokens_salida")
+  tokensCacheLeidos   Int       @default(0) @map("tokens_cache_leidos")
+  tokensCacheEscritos Int       @default(0) @map("tokens_cache_escritos")
+  error               String?   @db.VarChar(255)
+  creadaEn            DateTime  @default(now()) @map("creada_en") @db.Timestamptz(3)
+
+  conversacion AsistenteConversacion? @relation(fields: [conversacionId], references: [id], onDelete: SetNull)
+  usuario      Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, creadaEn])
+  @@index([creadaEn])
+  @@map("asistente_consulta")
 }

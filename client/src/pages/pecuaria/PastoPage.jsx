@@ -9,6 +9,7 @@ import { UsoBadge } from '../../components/pecuaria';
 import { PastoMarca, PastoSelector } from '../../components/PastoSelector';
 import { ALTURAS, hace, lecturasDe, textoDescanso } from '../../components/pasto';
 import Icono from '../../components/Icono';
+import { EsqueletoLista } from '../../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -48,7 +49,7 @@ export default function PastoPage() {
         <ErrorList errors={errors} />
       </div>
 
-      {esperando && <p className="text-suelo-600">Cargando…</p>}
+      {esperando && <EsqueletoLista testId="esqueleto-potreros-elegir" />}
       {!esperando && !campo && estancia.esFeedlot && <Notice>Los feedlots no llevan pasto. Elegí una estancia arriba.</Notice>}
       {!esperando && !campo && !estancia.esFeedlot && estancia.todas && (
         <section aria-label="Elegí la estancia">
@@ -157,7 +158,7 @@ function Recorrida({ campo, inicial, onCambiarEstancia }) {
       </label>
 
       <ErrorList errors={[...errorsLista, ...errors]} />
-      {!potreros && !errorsLista.length && <p className="py-4 text-sm text-suelo-600">Cargando…</p>}
+      {!potreros && !errorsLista.length && <EsqueletoLista testId="esqueleto-potreros-elegir" />}
       {potreros && lista.length === 0 && <p className="py-4 text-sm text-suelo-600">{busqueda ? 'Ningún potrero coincide.' : 'Esta estancia no tiene potreros.'}</p>}
 
       <ul className="mt-2 space-y-2" data-testid="lista-recorrida">

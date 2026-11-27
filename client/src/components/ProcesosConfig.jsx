@@ -4,6 +4,7 @@ import { getErrorMessages } from '../api/axios';
 import { useEstancia } from '../context/EstanciaContext';
 import { separarGrupos } from '../navegacion/grupos';
 import { ErrorList, Notice, inputClass } from './ui';
+import { EsqueletoLista } from './Esqueleto';
 
 const boton = 'min-h-11 rounded-md bg-boton px-4 py-2 text-sm font-medium text-white hover:bg-boton-hover disabled:opacity-50';
 const botonSecundario = 'min-h-11 rounded-md border border-suelo-300 px-3 py-2 text-sm font-medium text-suelo-800 hover:border-campo-500';
@@ -215,7 +216,7 @@ export function ConfigToros() {
       )}
       <ErrorList errors={errors} />
       <Notice tone="ok">{aviso}</Notice>
-      {!toros && <p className="text-sm text-suelo-600">Cargando…</p>}
+      {!toros && <EsqueletoLista filas={3} testId="esqueleto-toros" />}
       {toros?.length === 0 && <p className="mb-3 text-sm text-suelo-600">Todavía no hay toros cargados en esta estancia.</p>}
       <ul className="space-y-2">
         {toros?.map((t) =>

@@ -16,6 +16,7 @@ import {
   textoBotonEtapa,
   textoTipo,
 } from '../../components/procesos';
+import { EsqueletoFicha } from '../../components/Esqueleto';
 
 // Caracteres simples (no emoji: en el celular el ✔ y el ⚠ salen de colores).
 const MARCA = { HECHA: '✓', PENDIENTE: '○', ATRASADA: '!' };
@@ -148,7 +149,7 @@ export default function ProcesoPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-suelo-600">Cargando…</p>}
+        {!errors.length && <EsqueletoFicha testId="esqueleto-ficha" />}
       </main>
     );
   }

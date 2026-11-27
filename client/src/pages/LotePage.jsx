@@ -6,6 +6,7 @@ import { ErrorList, Notice, inputClass } from '../components/ui';
 import { formatFecha, formatNumero, EnProceso } from '../components/pecuaria';
 import { EventoItem, MovimientoItem } from '../components/movimientos';
 import usePuede from '../hooks/usePuede';
+import { EsqueletoFicha } from '../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -149,7 +150,7 @@ export default function LotePage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-suelo-600">Cargando…</p>}
+        {!errors.length && <EsqueletoFicha testId="esqueleto-ficha" />}
       </main>
     );
   }

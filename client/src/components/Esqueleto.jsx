@@ -62,3 +62,44 @@ export function EsqueletoBloques({ bloques = 4, testId = 'esqueleto' }) {
     </div>
   );
 }
+
+// Para una ficha o una pantalla de registrar (potrero, lote, proceso, mover…):
+// el título, una línea debajo y unos bloques.
+export function EsqueletoFicha({ bloques = 3, testId = 'esqueleto' }) {
+  return (
+    <div role="status" aria-live="polite" data-testid={testId}>
+      <span className="sr-only">Cargando…</span>
+      <div aria-hidden="true" className="mb-4">
+        <Barra className="h-6 w-1/2" />
+        <Barra className="mt-2 w-1/3" />
+      </div>
+      <div aria-hidden="true" className="space-y-3">
+        {Array.from({ length: bloques }, (_, n) => (
+          <div key={n} className="rounded-lg border border-suelo-200 bg-superficie p-4">
+            <Barra className={`h-4 ${LARGOS[n % LARGOS.length]}`} />
+            <Barra className={`mt-3 ${LARGOS[(n + 2) % LARGOS.length]}`} />
+            <Barra className={`mt-2 ${LARGOS[(n + 4) % LARGOS.length]}`} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Para una lista de opciones (potreros del "+", tipos de evento, toros…):
+// renglones con una barra cada uno.
+export function EsqueletoLista({ filas = 6, testId = 'esqueleto' }) {
+  return (
+    <div role="status" aria-live="polite" data-testid={testId}>
+      <span className="sr-only">Cargando…</span>
+      <ul aria-hidden="true" className="divide-y divide-suelo-200 rounded-lg border border-suelo-200 bg-superficie">
+        {Array.from({ length: filas }, (_, n) => (
+          <li key={n} className="flex items-center gap-3 px-3 py-3">
+            <Barra className={`h-4 ${LARGOS[n % LARGOS.length]}`} />
+            <Barra className="ml-auto h-4 w-10 shrink-0" />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

@@ -14,6 +14,7 @@ import { getErrorMessages } from '../api/axios';
 import { ErrorList, buttonClass, inputClass } from '../components/ui';
 import { formatNumero, formatUsd, opcionPotrero } from '../components/pecuaria';
 import CamposPrecioVenta, { cuerpoVenta } from '../components/PrecioVenta';
+import { EsqueletoFicha } from '../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto ?? '').trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -206,7 +207,7 @@ export default function RegistrarPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-suelo-600">Cargando…</p>}
+        {!errors.length && <EsqueletoFicha testId="esqueleto-ficha" />}
       </main>
     );
   }

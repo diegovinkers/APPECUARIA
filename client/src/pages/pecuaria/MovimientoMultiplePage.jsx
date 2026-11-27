@@ -7,6 +7,7 @@ import usePotreros, { ordenNatural } from '../../hooks/usePotreros';
 import { ErrorList, buttonClass, inputClass } from '../../components/ui';
 import { formatNumero, opcionPotrero } from '../../components/pecuaria';
 import { ElegirEstancia, SinEstancia } from './comun';
+import { EsqueletoFicha } from '../../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const etiqueta = 'block text-xs text-suelo-500';
@@ -214,7 +215,7 @@ export default function MovimientoMultiplePage() {
     <main className="mx-auto max-w-3xl space-y-4 px-4 py-5 sm:py-8">
       {encabezado}
       <ErrorList errors={[...erroresCarga, ...errors]} />
-      {!potreros && !erroresCarga.length && <p className="text-suelo-600">Cargando…</p>}
+      {!potreros && !erroresCarga.length && <EsqueletoFicha bloques={2} testId="esqueleto-ficha" />}
 
       {potreros && (
         <>

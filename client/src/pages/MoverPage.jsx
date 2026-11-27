@@ -5,6 +5,7 @@ import { getErrorMessages } from '../api/axios';
 import { ErrorList, Notice, buttonClass, inputClass } from '../components/ui';
 import { UsoBadge, cabezasPorCategoria, formatNumero } from '../components/pecuaria';
 import { PastoSelector } from '../components/PastoSelector';
+import { EsqueletoFicha } from '../components/Esqueleto';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
 const aNumero = (texto) => (String(texto).trim() === '' ? null : Number(String(texto).replace(',', '.')));
@@ -180,7 +181,7 @@ export default function MoverPage() {
     return (
       <main className="mx-auto max-w-3xl px-4 py-6">
         <ErrorList errors={errors} />
-        {!errors.length && <p className="text-suelo-600">{origen ? 'Ese lote ya no está en este potrero.' : 'Cargando…'}</p>}
+        {!errors.length && (origen ? <p className="text-suelo-600">Ese lote ya no está en este potrero.</p> : <EsqueletoFicha testId="esqueleto-ficha" />)}
       </main>
     );
   }

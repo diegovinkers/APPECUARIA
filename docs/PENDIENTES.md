@@ -22,7 +22,7 @@
 - [ ] **Feedlot:** las 7 preguntas para el jefe en `docs/FEEDLOT.md`. Con eso siguen las fases 2 a 5.
 - [ ] **Precios de INAC:** el email para el User-Agent y el secreto `PRECIOS_TOKEN` en GitHub. Con eso sigue la actualización automática semanal (fase 3 de `docs/PRECIOS_INAC.md`).
 - [ ] **Movimientos y bastón:** las preguntas para el encargado en `docs/PROPUESTA_MOVIMIENTOS.md` y `docs/LOGISTICA_MOVIMIENTOS.md`.
-- [ ] **Asistente (bot), fase 1 hecha:** probarlo y dar el OK (`docs/superpowers/specs/2026-11-27-asistente-design.md`). ~~Clave de Anthropic en `server/.env`~~ (hecho, 27/11). Para publicar: cargar `ANTHROPIC_API_KEY` en Railway.
+- [ ] **Asistente (bot), fase 1 hecha:** probarlo y dar el OK (`docs/superpowers/specs/2026-11-27-asistente-design.md`). ~~Clave de Anthropic en `server/.env`~~ (hecho, 27/11). ~~Publicado y con la clave en Railway~~ (27/11). Falta el OK de Diego y decidir: logo más chico en el celular (el selector dice "Todas ...") y el Total de ha cortado ("10.03") con Todas las estancias.
 - [ ] **Clave de Anthropic de prueba (`sapsa-appecuaria`) vence el 27/12/2026** (30 días, espacio Default, USD 3 de saldo de la cuenta de Diego). Si el asistente sirve: crear una definitiva (espacio SAPSA, sin vencimiento o 1 año, límite de gasto, ¿tarjeta de SAPSA?) y cargarla en Railway.
 - [ ] **Logo de Pecuaria en mejor calidad** (el original grande o en SVG), para regenerar el ícono de 512 px.
 

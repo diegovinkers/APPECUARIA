@@ -8,6 +8,7 @@ import { formatFecha, formatNumero } from './pecuaria';
 import { Paginador, paginar } from './tabla';
 import PanelFiltros from './PanelFiltros';
 import { campaniasParaFiltro, diasCorto, estiloSugerencia, nombreProceso, textoTipo } from './procesos';
+import { EsqueletoBloques } from './Esqueleto';
 
 const ESTADOS = [
   ['ABIERTO', 'Abiertos'],
@@ -118,7 +119,7 @@ export default function ProcesosLista({ campoId, todas = false, grupo = 'estanci
       <ErrorList errors={errors} />
 
       {!datos ? (
-        !errors.length && <p className="text-suelo-600">Cargando…</p>
+        !errors.length && <EsqueletoBloques testId="esqueleto-procesos" />
       ) : datos.length === 0 ? (
         <p className="rounded-lg border border-dashed border-suelo-300 p-6 text-center text-suelo-600">
           {activos ? 'No hay procesos con esos filtros.' : 'Todavía no hay procesos abiertos. Se empiezan con "+ Nuevo proceso" o desde Eventos → Entore o Inseminación.'}

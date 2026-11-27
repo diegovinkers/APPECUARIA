@@ -1,7 +1,7 @@
 import { useEstancia } from '../../context/EstanciaContext';
 import usePotreros from '../../hooks/usePotreros';
 import { ErrorList } from '../../components/ui';
-import PotrerosLista from '../../components/PotrerosLista';
+import PotrerosLista, { EsqueletoPotreros } from '../../components/PotrerosLista';
 import CorralesLista from '../../components/CorralesLista';
 import { PantallaTabla, SinEstancia } from './comun';
 
@@ -23,7 +23,7 @@ export default function PotrerosPage() {
     <PantallaTabla>
       <ErrorList errors={errors} />
       {!campoId && !todas && <SinEstancia />}
-      {(campoId || todas) && !potreros && !errors.length && <p className="text-suelo-600">Cargando…</p>}
+      {(campoId || todas) && !potreros && !errors.length && <EsqueletoPotreros />}
       {potreros && (esFeedlot ? <CorralesLista potreros={potreros} todas={todas} /> : <PotrerosLista potreros={potreros} todas={todas} />)}
     </PantallaTabla>
   );

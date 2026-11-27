@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -52,8 +52,13 @@ const superadmin = { nombre: 'Superadmin', esSuperadmin: true, roles: [], permis
 const capataz = { nombre: 'Capataz', esSuperadmin: false, roles: [{ nombre: 'Capataz' }], permisos: ['pecuaria:CREAR', 'pecuaria:VER'] };
 const direccion = { nombre: 'Dirección', esSuperadmin: false, roles: [{ nombre: 'Dirección' }], permisos: ['pecuaria:VER'] };
 
+// Cuántas veces se armó la pantalla (tirar para actualizar la vuelve a armar).
+let montajes = 0;
 function Donde() {
   const { pathname, search } = useLocation();
+  useEffect(() => {
+    montajes++;
+  }, []);
   return <p data-testid="donde">{pathname + search}</p>;
 }
 
@@ -146,6 +151,27 @@ describe('Marco: barras y panel', () => {
     expect(avatar.getAttribute('href')).toBe('/profile');
     click(avatar);
     expect(donde()).toBe('/profile');
+  });
+
+  it('tirar hacia abajo con el dedo y soltar vuelve a armar la pantalla (como Instagram, 27/11)', async () => {
+    montar();
+    const antes = montajes;
+    const contenido = contenedor.querySelector('[data-testid="contenido"]');
+    const dedo = (tipo, y) => {
+      const e = new Event(tipo, { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'touches', { value: tipo === 'touchend' ? [] : [{ clientY: y }] });
+      contenedor.querySelector('[data-testid="donde"]').dispatchEvent(e);
+    };
+    act(() => dedo('touchstart', 100));
+    act(() => dedo('touchmove', 300));
+    expect(contenedor.querySelector('[data-testid="rueda-actualizar"]')).not.toBeNull();
+    expect(contenido.style.transform).toMatch(/translateY/);
+    act(() => dedo('touchend'));
+    expect(montajes).toBe(antes + 1);
+    expect(contenido.style.transform).toBe('');
+    expect(texto()).toContain('Actualizando…');
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    expect(contenedor.querySelector('[data-testid="rueda-actualizar"]')).toBeNull();
   });
 
   it('las iniciales del usuario', () => {
@@ -268,13 +294,13 @@ describe('Marco: barras y panel', () => {
     expect(contenedor.querySelector('[data-testid="contenido"]').className).toContain('overflow-y-auto');
   });
 
-  it('la barra de arriba lleva el logo de SAPSA, que vuelve al inicio', () => {
+  it('la barra de arriba lleva el logo de Pecuaria (la vaca) con SAPSA y PECUARIA al lado, y vuelve al inicio (27/11)', () => {
     montar();
-    const logo = contenedor.querySelector('header img[alt="SAPSA"]');
-    expect(logo.getAttribute('src')).toBe('/logo-sapsa.png');
+    const logo = contenedor.querySelector('header img[alt="Pecuaria"]');
+    expect(logo.getAttribute('src')).toBe('/logo-pecuaria.png');
+    expect(logo.className).toMatch(/bg-white/);
     expect(logo.closest('a').getAttribute('href')).toBe('/pecuaria/resumen');
-    // Debajo del logo, "Pecuaria" en letra chica (26/11).
-    expect(logo.closest('a').textContent).toContain('Pecuaria');
+    expect(logo.closest('a').textContent).toBe('SAPSAPecuaria');
   });
 
   it('sin sesión no hay menú, solo la barra simple', () => {
@@ -282,7 +308,7 @@ describe('Marco: barras y panel', () => {
     montar('/login');
     expect(contenedor.querySelector('nav[aria-label="Barra de abajo"]')).toBeNull();
     expect(boton('Salir')).toBeUndefined();
-    expect(contenedor.querySelector('header img[alt="SAPSA"]')).toBeTruthy();
+    expect(contenedor.querySelector('header img[alt="Pecuaria"]')).toBeTruthy();
   });
 
   it('con la contraseña por cambiar, solo se puede salir', () => {

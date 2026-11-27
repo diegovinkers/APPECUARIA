@@ -9,6 +9,7 @@ import { formatFecha, formatNumero } from './pecuaria';
 import { diasCorto, estiloSugerencia, nombreProceso } from './procesos';
 import { SECCIONES_TABLERO, accionDeGrupo, armarTablero, avance, avisoDeSeccion, ordenarGrupos, textoDeOrigen, textoEstadoGrupo, textoVieneDe } from './tablero';
 import { TituloOrdenable, celda } from './tabla';
+import { EsqueletoBloques } from './Esqueleto';
 
 const hoyIso = () => new Date().toLocaleDateString('sv-SE');
 
@@ -49,7 +50,7 @@ export default function TableroProcesos({ tablero, errors, todas }) {
       return nuevas;
     });
   if (errors.length) return <ErrorList errors={errors} />;
-  if (!tablero) return <p className="text-suelo-600">Cargando…</p>;
+  if (!tablero) return <EsqueletoBloques testId="esqueleto-procesos" />;
   return (
     <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1" data-testid="tablero">
       <div className="flex flex-col gap-2">

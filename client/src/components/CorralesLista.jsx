@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { aprox, cabezasPorCategoria, formatDiaMes, formatFecha, formatNumero, formatUsdCorto, nombreConSigla } from './pecuaria';
+import { aprox, cabezasPorCategoria, formatDiaMes, formatFecha, formatNumero, formatUsdCorto } from './pecuaria';
 import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros from './PanelFiltros';
 import { BarraBuscar, Chip, Select, categoriasCortas } from './PotrerosLista';
 import { textoSalida } from './FeedlotAnalisis';
-import { coincide, prepararBusqueda } from './busqueda';
+import { filtrarBusqueda, textosPotrero } from './busqueda';
 
 // La tabla de Corrales (feedlot, fase 1, 25/11; docs/FEEDLOT.md §4). En un
 // feedlot las hectáreas no dicen nada: se mira cuánto hace que entraron, cuánto
@@ -160,12 +160,10 @@ export default function CorralesLista({ potreros, todas = false }) {
   }, [potreros]);
 
   const visibles = useMemo(() => {
-    const q = prepararBusqueda(f.q);
-    const lista = potreros.filter((p) => {
+    const filtrados = potreros.filter((p) => {
       const lotes = p.stock?.lotes ?? [];
       const cabezas = p.stock?.cabezas ?? 0;
       const d = fl(p);
-      if (q && !coincide(nombreConSigla(p, todas), q) && !lotes.some((l) => coincide(l.lote, q))) return false;
       if (f.etapa && d?.etapa !== f.etapa) return false;
       if (f.salida === 'atrasados' && !d?.atrasado) return false;
       if (f.salida === '30' && !(d && !d.atrasado && d.diasParaSalida != null && d.diasParaSalida <= 30)) return false;
@@ -176,6 +174,7 @@ export default function CorralesLista({ potreros, todas = false }) {
       if (f.incompletos && !(d?.datosIncompletos || (cabezas > 0 && p.metrosComedero == null))) return false;
       return true;
     });
+    const lista = filtrarBusqueda(filtrados, f.q, textosPotrero);
     return ordenarCorrales(lista, f.orden);
   }, [potreros, todas, f.q, f.etapa, f.salida, f.categoria, f.animales, f.apretado, f.incompletos, f.orden.col, f.orden.dir]);
 

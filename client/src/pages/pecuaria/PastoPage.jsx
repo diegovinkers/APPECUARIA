@@ -10,11 +10,10 @@ import { PastoMarca, PastoSelector } from '../../components/PastoSelector';
 import { ALTURAS, hace, lecturasDe, textoDescanso } from '../../components/pasto';
 import Icono from '../../components/Icono';
 import { EsqueletoLista } from '../../components/Esqueleto';
+import { filtrarBusqueda, textosPotrero } from '../../components/busqueda';
 import { cerrarTecladoConEnter } from '../../hooks/useTeclado';
 
 const hoy = () => new Date().toLocaleDateString('sv-SE');
-const sinTildes = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
 // Recorrida de pasto (docs/superpowers/plans/2026-11-26-pasto.md): la altura de
 // varios potreros de una estancia de una vez, sin mover ganado. Se llega desde
 // el "+" → Eventos → "Pasto de los potreros", o desde la ficha de un potrero
@@ -84,9 +83,9 @@ function Recorrida({ campo, inicial, onCambiarEstancia }) {
   // Los corrales no llevan pasto. El de la ficha, primero.
   const lista = useMemo(() => {
     if (!potreros) return [];
-    const q = sinTildes(busqueda.trim());
     const con = potreros.filter((p) => p.llevaPasto !== false && p.tipo !== 'CORRAL');
-    const filtrados = con.filter((p) => !q || sinTildes(p.nombre).includes(q) || p.id === inicial);
+    const encontrados = new Set(filtrarBusqueda(con, busqueda, textosPotrero));
+    const filtrados = con.filter((p) => encontrados.has(p) || p.id === inicial);
     return [...filtrados.filter((p) => p.id === inicial), ...filtrados.filter((p) => p.id !== inicial)];
   }, [potreros, busqueda, inicial]);
 

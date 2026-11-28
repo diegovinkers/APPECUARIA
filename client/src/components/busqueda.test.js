@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coincide, prepararBusqueda } from './busqueda';
+import { armarBusqueda, coincide, filtrarBusqueda, nivelBusqueda, prepararBusqueda, textosPotrero } from './busqueda';
 
 // Los potreros de La Gateada, en el orden de la lista.
 const EG = [
@@ -53,5 +53,59 @@ describe('el buscador de potreros (27/11, pedido de Diego)', () => {
   it('sin texto (o solo espacios y puntos), todos', () => {
     expect(prepararBusqueda('  . ')).toBe('');
     expect(buscar('')).toEqual(EG);
+  });
+});
+
+describe('que toda búsqueda encuentre algo (27/11): en todo el potrero y en tres pasadas', () => {
+  const potrero = (nombre, extra = {}) => ({
+    nombre,
+    campo: { sigla: 'EG', nombre: 'La Gateada' },
+    usoActual: extra.uso ? { nombre: extra.uso } : null,
+    stock: { lotes: (extra.lotes ?? []).map(([lote, categoria]) => ({ lote, categoria })) },
+  });
+  const LISTA = [
+    potrero('8.1', { uso: 'Campo natural', lotes: [['Frente A', 'Terneros/as']] }),
+    potrero('8.2/3/4/5', { uso: 'Avena', lotes: [['8.2 · Vacas', 'Vacas de cría']] }),
+    potrero('81.1/2/3/4'),
+    potrero('P 1'),
+    potrero('P 10'),
+  ];
+  const nombres = (texto) => filtrarBusqueda(LISTA, texto, textosPotrero).map((p) => p.nombre);
+
+  it('lo preciso sigue preciso: "8" trae los 8.x y no el 81; "p1", el P 1', () => {
+    expect(nombres('8')).toEqual(['8.1', '8.2/3/4/5']);
+    expect(nombres('p1')).toEqual(['P 1']);
+    expect(nombres('')).toEqual(LISTA.map((p) => p.nombre));
+  });
+
+  it('busca también en la categoría, el uso, la sigla y el nombre de la estancia', () => {
+    expect(nombres('terneros')).toEqual(['8.1']);
+    expect(nombres('avena')).toEqual(['8.2/3/4/5']);
+    expect(nombres('eg 8.1')).toEqual(['8.1']);
+    expect(nombres('gateada')).toEqual(LISTA.map((p) => p.nombre));
+  });
+
+  it('cada palabra en un dato distinto: "8 vacas", "vacas avena"', () => {
+    expect(nombres('8 vacas')).toEqual(['8.2/3/4/5']);
+    expect(nombres('vacas avena')).toEqual(['8.2/3/4/5']);
+  });
+
+  it('si nada coincide preciso, lo que se parece: "81" sin punto, un pedazo de palabra', () => {
+    // "81" preciso trae el 81.1 (es su número); "811" no es nada preciso → el 81.1/2/3/4.
+    expect(nombres('81')).toEqual(['81.1/2/3/4']);
+    expect(nombres('811')).toEqual(['81.1/2/3/4']);
+    expect(nombres('823')).toEqual(['8.2/3/4/5']);
+    expect(nombres('acas')).toEqual(['8.2/3/4/5']);
+    expect(nombres('rneros')).toEqual(['8.1']);
+    expect(nombres('xyz')).toEqual([]);
+  });
+
+  it('nivelBusqueda: 3 preciso, 2 por palabras, 1 flojo, 0 nada', () => {
+    const b = (t) => armarBusqueda(t);
+    expect(nivelBusqueda(['8.1'], b('8.1'))).toBe(3);
+    expect(nivelBusqueda(['8.1', 'Vacas'], b('8 vacas'))).toBe(2);
+    expect(nivelBusqueda(['8.1'], b('81'))).toBe(1);
+    expect(nivelBusqueda(['8.1'], b('9'))).toBe(0);
+    expect(nivelBusqueda(['8.1'], null)).toBe(3);
   });
 });

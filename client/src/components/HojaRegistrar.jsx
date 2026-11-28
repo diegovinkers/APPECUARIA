@@ -9,7 +9,7 @@ import { ErrorList } from './ui';
 import { formatNumero, queHayYUso } from './pecuaria';
 import { ListaEventos } from './HojaEventos';
 import Icono from './Icono';
-import { coincide, prepararBusqueda } from './busqueda';
+import { filtrarBusqueda, textosPotrero } from './busqueda';
 import { EsqueletoLista } from './Esqueleto';
 import { cerrarTecladoConEnter } from '../hooks/useTeclado';
 
@@ -139,10 +139,8 @@ export default function HojaRegistrar({ acciones, onCerrar, eventos = false, con
 
   const lista = useMemo(() => {
     if (!potreros) return [];
-    const q = prepararBusqueda(busqueda);
-    return potreros
-      .filter((p) => accion?.pide !== 'lote' || (p.stock?.lotes ?? []).length >= (accion.minLotes ?? 1))
-      .filter((p) => !q || coincide(p.nombre, q) || (p.stock?.lotes ?? []).some((l) => coincide(l.lote, q)));
+    const sirven = potreros.filter((p) => accion?.pide !== 'lote' || (p.stock?.lotes ?? []).length >= (accion.minLotes ?? 1));
+    return filtrarBusqueda(sirven, busqueda, textosPotrero);
   }, [potreros, busqueda, accion]);
 
   function elegirPotrero(p) {

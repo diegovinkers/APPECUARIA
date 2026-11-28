@@ -121,18 +121,30 @@ export function cambios(antes, despues, claves) {
   return Object.keys(resultado.antes).length ? resultado : null;
 }
 
+// Lo que se confirma desde el asistente (fase 2) llega por la dirección local
+// de la app (asistente/llamar.js) con la cabecera X-Origen: asistente. Solo se
+// cree si viene de la misma máquina: desde afuera la cabecera no cuenta.
+const LOCAL = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+export function desdeElAsistente(req) {
+  if (req.get?.('x-origen') !== 'asistente' || !LOCAL.has(req.socket?.remoteAddress)) return null;
+  const propuestaId = Number(req.get('x-asistente-propuesta'));
+  return { origen: 'asistente', ...(Number.isInteger(propuestaId) && propuestaId > 0 && { propuestaId }) };
+}
+
 // usuarioId = quién lo hizo (por defecto, el de la sesión). Para los logins
 // es la cuenta con la que se intentó entrar, o null si no existe: en ese caso
 // no se guarda el nombre que escribieron, porque a veces es la contraseña
 // tipeada en el campo equivocado.
 export async function registrar(req, { accion, usuarioId = req.user?.id ?? null, entidad = null, entidadId = null, detalle }) {
+  const asistente = desdeElAsistente(req);
   await prisma.auditoria.create({
     data: {
       accion,
       usuarioId,
       entidad,
       entidadId: entidadId == null ? null : String(entidadId),
-      detalle,
+      detalle: asistente ? { ...detalle, ...asistente } : detalle,
       ip: req.ip?.slice(0, 45) ?? null,
     },
   });

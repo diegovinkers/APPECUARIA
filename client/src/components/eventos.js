@@ -2,7 +2,7 @@
 // buscador, qué quedó elegido y el cuerpo que va a la API. Todo puro, para
 // probarlo sin pantalla.
 import { formularioDe, sexoCorresponde } from '../navegacion/eventos';
-import { coincide, prepararBusqueda } from './busqueda';
+import { armarBusqueda, nivelBusqueda } from './busqueda';
 
 const ordenNatural = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
 
@@ -45,23 +45,24 @@ export function opcionesDe(tipo) {
 
 // El buscador: por potrero ("8.1"), lote o categoría ("terneros"). Devuelve
 // los potreros (con sus lotes que coinciden, o todos si coincide el potrero)
-// y las categorías que coinciden. Sin texto: todos los potreros.
+// y las categorías que coinciden. Sin texto: todos los potreros. Si no hay
+// nada preciso, lo que se parece ("81" → 8.1; busqueda.js).
 export function buscar(lotes, texto) {
-  const q = prepararBusqueda(texto);
+  const b = armarBusqueda(texto);
   const potreros = new Map();
   const categorias = new Map();
-  for (const l of lotes) {
-    const enPotrero = !q || coincide(l.potrero, q);
-    const enLote = q && (coincide(l.lote, q) || coincide(l.categoria, q));
-    if (enPotrero || enLote) {
-      if (!potreros.has(l.potreroId)) potreros.set(l.potreroId, { potreroId: l.potreroId, potrero: l.potrero, lotes: [] });
-      potreros.get(l.potreroId).lotes.push(l);
-    }
-    if (q && coincide(l.categoria, q)) {
+  // Cada lote con la pasada que lo encuentra (busqueda.js); quedan los de la mejor.
+  const niveles = lotes.map((l) => nivelBusqueda([l.potrero, l.lote, l.categoria], b));
+  const mejor = Math.max(0, ...niveles);
+  lotes.forEach((l, i) => {
+    if (b && (mejor === 0 || niveles[i] !== mejor)) return;
+    if (!potreros.has(l.potreroId)) potreros.set(l.potreroId, { potreroId: l.potreroId, potrero: l.potrero, lotes: [] });
+    potreros.get(l.potreroId).lotes.push(l);
+    if (b && nivelBusqueda([l.categoria], b) === mejor) {
       if (!categorias.has(l.categoriaId)) categorias.set(l.categoriaId, { categoriaId: l.categoriaId, categoria: l.categoria, lotes: [] });
       categorias.get(l.categoriaId).lotes.push(l);
     }
-  }
+  });
   return {
     potreros: [...potreros.values()].sort((a, b) => ordenNatural.compare(a.potrero, b.potrero)),
     categorias: [...categorias.values()].sort((a, b) => a.categoria.localeCompare(b.categoria)),

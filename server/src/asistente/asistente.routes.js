@@ -1,21 +1,38 @@
 // Rutas del asistente (docs/superpowers/specs/2026-11-27-asistente-design.md).
-//   GET  /api/asistente/estado     → { configurado, modelo }
+//   GET  /api/asistente/estado     → { configurado, modelo, puedeRegistrar }
 //   GET  /api/asistente/historial  → { consultas, hayMas } (?antes=<id> para ver más atrás)
 //   POST /api/asistente            → la respuesta, de a poco (NDJSON: un JSON por renglón)
 // Un chat por persona (27/11): sin conversacionId, sigue el suyo.
-// Fase 1: solo consulta, así que pide pecuaria:VER. Las herramientas, además,
-// pasan por las rutas de siempre con la cookie de la persona (llamar.js).
+//   POST /api/asistente/propuestas/:id/confirmar → registra la propuesta (fase 2)
+//   POST /api/asistente/propuestas/:id/cancelar
+// Preguntar pide pecuaria:VER; las herramientas proponer_* se ofrecen solo con
+// pecuaria:CREAR, y confirmar lo pide. Todo pasa, además, por las rutas de
+// siempre con la cookie de la persona (llamar.js).
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { authRequired } from '../auth/auth.middleware.js';
-import { requirePermission } from '../auth/permisos.js';
+import { requirePermission, tienePermiso } from '../auth/permisos.js';
 import { validateBody } from '../middlewares/validate.js';
 import { HttpError, parseId } from '../errors.js';
-import { contestar, dependencias, estaConfigurado, guardar, historial, modelo, preparar } from './asistente.service.js';
+import {
+  cancelarPropuesta,
+  confirmarPropuesta,
+  contestar,
+  dependencias,
+  estaConfigurado,
+  guardar,
+  historial,
+  modelo,
+  preparar,
+} from './asistente.service.js';
 
 const router = Router();
 const ver = requirePermission('pecuaria', 'VER');
+const crear = requirePermission('pecuaria', 'CREAR');
+
+// Lo que necesitan las herramientas para llamar a las rutas de siempre como la persona.
+const contexto = (req) => ({ app: req.app, cookie: req.headers.cookie, ip: req.ip, usuarioId: req.user.id });
 
 export const preguntaSchema = z.object({
   conversacionId: z.uuid({ error: 'La conversación no es válida' }).optional(),
@@ -38,7 +55,7 @@ const limitePreguntas = rateLimit({
 });
 
 router.get('/estado', authRequired, ver, (req, res) => {
-  res.json({ configurado: estaConfigurado(), modelo: modelo() });
+  res.json({ configurado: estaConfigurado(), modelo: modelo(), puedeRegistrar: tienePermiso(req.user, 'pecuaria', 'CREAR') });
 });
 
 router.get('/historial', authRequired, ver, async (req, res) => {
@@ -52,11 +69,16 @@ router.post('/', authRequired, ver, limitePreguntas, validateBody(preguntaSchema
   if (!cliente) throw new HttpError(503, 'El asistente no está configurado todavía.', 'SIN_CLAVE');
 
   const usuarioId = req.user.id;
-  const ctx = { app: req.app, cookie: req.headers.cookie };
+  const ctx = contexto(req);
   const { pregunta } = req.body;
   // Lo que puede fallar con un error común (conversación vieja, catálogo),
   // antes de empezar a mandar la respuesta.
-  const preparada = await preparar({ ctx, usuarioId, conversacionId: req.body.conversacionId });
+  const preparada = await preparar({
+    ctx,
+    usuarioId,
+    conversacionId: req.body.conversacionId,
+    puedeRegistrar: tienePermiso(req.user, 'pecuaria', 'CREAR'),
+  });
 
   // Si la persona cierra la pantalla, se corta la pregunta a Claude.
   const corte = new AbortController();
@@ -82,6 +104,20 @@ router.post('/', authRequired, ver, limitePreguntas, validateBody(preguntaSchema
   }
   emitir(resultado.error ? { tipo: 'error', mensaje: resultado.error } : { tipo: 'fin' });
   res.end();
+});
+
+const idPropuesta = (req) => {
+  const id = parseId(req.params.id);
+  if (!id) throw new HttpError(404, 'Esa propuesta no existe.');
+  return id;
+};
+
+router.post('/propuestas/:id/confirmar', authRequired, crear, async (req, res) => {
+  res.json({ propuesta: await confirmarPropuesta({ ctx: contexto(req), usuarioId: req.user.id, id: idPropuesta(req) }) });
+});
+
+router.post('/propuestas/:id/cancelar', authRequired, ver, async (req, res) => {
+  res.json({ propuesta: await cancelarPropuesta({ usuarioId: req.user.id, id: idPropuesta(req) }) });
 });
 
 export default router;

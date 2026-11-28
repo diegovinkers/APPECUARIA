@@ -324,13 +324,17 @@ describe('POST /api/asistente', () => {
   it('GET /estado dice si está configurado y con qué modelo', async () => {
     const { agent } = await preparar();
     const { body } = await agent.get('/api/asistente/estado').expect(200);
-    expect(body).toEqual({ configurado: expect.any(Boolean), modelo: 'claude-haiku-5-5' });
+    expect(body).toEqual({ configurado: expect.any(Boolean), modelo: 'claude-haiku-5-5', puedeRegistrar: true });
   });
 
   it('las rutas declaran su permiso', () => {
     const rutas = asistenteRoutes.stack.filter((capa) => capa.route);
-    expect(rutas.length).toBe(3);
-    expect(rutas.every((capa) => capa.route.stack.some((l) => l.handle.permiso === 'pecuaria:VER'))).toBe(true);
+    expect(rutas.length).toBe(5);
+    const permisos = rutas.map((capa) => capa.route.stack.map((l) => l.handle.permiso).find(Boolean));
+    expect(permisos.every((p) => p === 'pecuaria:VER' || p === 'pecuaria:CREAR')).toBe(true);
+    // Confirmar registra: pide CREAR.
+    const confirmar = rutas.find((capa) => capa.route.path === '/propuestas/:id/confirmar');
+    expect(confirmar.route.stack.some((l) => l.handle.permiso === 'pecuaria:CREAR')).toBe(true);
   });
 });
 

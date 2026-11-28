@@ -50,3 +50,8 @@ export async function preguntarAlAsistente({ conversacionId, pregunta, alEvento,
 // `antes`: el id de la consulta más vieja que ya se ve, para traer las anteriores.
 export const historialAsistente = (antes) =>
   api.get('/asistente/historial', { params: antes ? { antes } : {} }).then((r) => r.data);
+
+// Fase 2: la persona confirma o cancela una propuesta del asistente.
+// Devuelven la propuesta con su estado nuevo; un 409 trae el motivo en el mensaje.
+export const confirmarPropuesta = (id) => api.post(`/asistente/propuestas/${id}/confirmar`).then((r) => r.data.propuesta);
+export const cancelarPropuesta = (id) => api.post(`/asistente/propuestas/${id}/cancelar`).then((r) => r.data.propuesta);

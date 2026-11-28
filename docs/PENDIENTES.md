@@ -4,7 +4,7 @@
 
 ## 1. Urgente: seguridad y datos
 
-- [ ] **Copia de seguridad automática de la base de Railway**, una por noche, cifrada, a Cloudflare R2 (gratis). En el plan Hobby Railway no hace copias; hoy la única es la manual del 26/11 (`C:\backups-sapsa\`). — *Claude, con Diego para crear la cuenta de R2.*
+- [ ] **Copia de seguridad automática de la base de Railway**, cifrada, a Cloudflare R2 (gratis), solo las noches con cambios. En el plan Hobby Railway no hace copias; hoy la única es la manual del 26/11 (`C:\backups-sapsa\`). **El programa está hecho y publicado (27/11); faltan los pasos de Diego en Railway y Cloudflare: `docs/COPIAS_PUESTA_EN_MARCHA.md`.** Cómo funciona: `docs/COPIAS.md`.
 - [ ] **Cambiar las contraseñas que se vieron en el chat:** la de la base local (`sapsa_app`) y la de `sapsa-db` de Render. — *Diego (Claude lo guía).*
 - [ ] **Verificación en dos pasos** en Railway y en GitHub. — *Diego.*
 
@@ -35,7 +35,7 @@
 
 ## 5. Funcionalidades que siguen
 
-- [ ] **Asistente (bot que entiende lo que le pedís):** ~~fase 1, solo preguntas~~ (hecha 27/11, sin commitear). Sigue la fase 2: acciones con Confirmar. Fase 3: procesos, foto del bastón, WhatsApp. Después: probar las mismas preguntas con Sonnet 5.5 para comparar (`docs/superpowers/specs/2026-11-27-asistente-design.md`).
+- [ ] **Asistente (bot que entiende lo que le pedís):** ~~fase 1, solo preguntas~~ (hecha 27/11, sin commitear). Fase 2 (acciones con Confirmar): servidor y pantalla hechos el 27/11, sin commitear; falta que Diego lo pruebe con frases reales y publicarlo. Fase 3: procesos, foto del bastón, WhatsApp. Después: probar las mismas preguntas con Sonnet 5.5 para comparar (`docs/superpowers/specs/2026-11-27-asistente-design.md`).
 - [ ] **Tandas de parición** (cabeza / cuerpo / cola), cuando Diego conteste las preguntas.
 - [ ] **Pasto, pasos 2 y 3:** rendimiento por potrero y datos de afuera (`docs/superpowers/plans/2026-11-26-pasto.md`).
 - [ ] **Feedlot, fases 2 a 5** (`docs/FEEDLOT.md`).

@@ -74,6 +74,7 @@ model Usuario {
 
   conversacionesAsistente AsistenteConversacion[]
   consultasAsistente      AsistenteConsulta[]
+  propuestasAsistente     AsistentePropuesta[]
 
   @@map("usuario")
 }
@@ -1212,7 +1213,8 @@ model AsistenteConversacion {
   actualizadaEn DateTime @default(now()) @map("actualizada_en") @db.Timestamptz(3)
 
   usuario   Usuario             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  consultas AsistenteConsulta[]
+  consultas  AsistenteConsulta[]
+  propuestas AsistentePropuesta[]
 
   @@index([usuarioId])
   @@index([actualizadaEn])
@@ -1241,8 +1243,55 @@ model AsistenteConsulta {
 
   conversacion AsistenteConversacion? @relation(fields: [conversacionId], references: [id], onDelete: SetNull)
   usuario      Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  propuestas   AsistentePropuesta[]
 
   @@index([usuarioId, creadaEn])
   @@index([creadaEn])
   @@map("asistente_consulta")
+}
+
+/// Cómo terminó una propuesta del asistente. CONFIRMANDO: la persona tocó
+/// Confirmar y se está registrando (así no se registra dos veces).
+enum EstadoPropuesta {
+  PENDIENTE
+  CONFIRMANDO
+  CONFIRMADA
+  CANCELADA
+  VENCIDA
+  ERROR
+}
+
+/// Una acción que propuso el asistente (fase 2,
+/// docs/superpowers/plans/2026-11-27-asistente-fase2.md). Nada se registra
+/// hasta que la persona toca Confirmar: entonces se llama a `ruta` con
+/// `cuerpo`, la misma ruta de las pantallas. Se borra a los 90 días.
+model AsistentePropuesta {
+  id             Int             @id @default(autoincrement())
+  usuarioId      Int             @map("usuario_id")
+  conversacionId String?         @map("conversacion_id") @db.Uuid
+  /// La pregunta que la armó (se completa al guardar la consulta).
+  consultaId     Int?            @map("consulta_id")
+  herramienta    String          @db.VarChar(40)
+  /// La ruta de siempre, bajo /api/pecuaria (por ejemplo /movimientos).
+  ruta           String          @db.VarChar(120)
+  cuerpo         Json
+  /// Lo que se mostró: { titulo, renglones, avisos, link }.
+  tarjeta        Json
+  estado         EstadoPropuesta @default(PENDIENTE)
+  /// Lo que contestó la ruta al confirmar (ids), o null.
+  resultado      Json?
+  error          String?         @db.VarChar(500)
+  /// Claude ya se enteró de cómo terminó (se le cuenta en la pregunta siguiente).
+  avisada        Boolean         @default(false)
+  creadaEn       DateTime        @default(now()) @map("creada_en") @db.Timestamptz(3)
+  decididaEn     DateTime?       @map("decidida_en") @db.Timestamptz(3)
+
+  usuario      Usuario                @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  conversacion AsistenteConversacion? @relation(fields: [conversacionId], references: [id], onDelete: SetNull)
+  consulta     AsistenteConsulta?     @relation(fields: [consultaId], references: [id], onDelete: SetNull)
+
+  @@index([usuarioId, creadaEn])
+  @@index([conversacionId])
+  @@index([consultaId])
+  @@map("asistente_propuesta")
 }

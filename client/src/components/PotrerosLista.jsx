@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { UsoBadge, aprox, cabezasPorCategoria, formatDiaMes, formatNumero, nombreConSigla } from './pecuaria';
+import { UsoBadge, aprox, cabezasPorCategoria, formatDiaMes, formatNumero } from './pecuaria';
 import { PastoMarca } from './PastoSelector';
 import { diasCortos, ordenDescanso, ordenPasto } from './pasto';
 import { porEstanciaYPlanilla } from '../hooks/usePotreros';
 import { TituloOrdenable, celda } from './tabla';
 import PanelFiltros, { DestinoBotonFiltros } from './PanelFiltros';
 import Icono from './Icono';
-import { coincide, prepararBusqueda } from './busqueda';
+import { filtrarBusqueda, textosPotrero } from './busqueda';
 import { EsqueletoTabla } from './Esqueleto';
 import { cerrarTecladoConEnter } from '../hooks/useTeclado';
 
@@ -186,11 +186,9 @@ export default function PotrerosLista({ potreros, todas = false }) {
   }, [potreros, f.grupo]);
 
   const visibles = useMemo(() => {
-    const q = prepararBusqueda(f.q);
-    const lista = potreros.filter((p) => {
+    const filtrados = potreros.filter((p) => {
       const lotes = p.stock?.lotes ?? [];
       const cabezas = p.stock?.cabezas ?? 0;
-      if (q && !coincide(nombreConSigla(p, todas), q) && !lotes.some((l) => coincide(l.lote, q))) return false;
       if (f.grupo && grupoDe(p) !== f.grupo) return false;
       if (f.uso && p.usoActual?.nombre !== f.uso) return false;
       if (f.animales === 'con' && cabezas === 0) return false;
@@ -201,6 +199,9 @@ export default function PotrerosLista({ potreros, todas = false }) {
       if (f.incompletos && !incompleto(p)) return false;
       return true;
     });
+    // La búsqueda va al final: busca en todo el potrero y, si no hay nada
+    // preciso, muestra lo que se parece (busqueda.js).
+    const lista = filtrarBusqueda(filtrados, f.q, textosPotrero);
     return ordenarPotreros(lista, f.orden);
   }, [potreros, todas, f.q, f.grupo, f.uso, f.animales, f.categoria, f.pasto, f.incompletos, f.orden.col, f.orden.dir]);
 

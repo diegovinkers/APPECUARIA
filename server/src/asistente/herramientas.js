@@ -10,7 +10,7 @@
 //   y `aTexto()` saca los datos de personas antes de mandarlo.
 import { z } from 'zod';
 import { pedir } from './llamar.js';
-import { coincide, prepararBusqueda } from './busqueda.js';
+import { filtrarBusqueda, textosPotrero } from './busqueda.js';
 
 const sinTildes = (s) =>
   String(s ?? '')
@@ -34,7 +34,17 @@ export async function leerCatalogo(ctx) {
       .filter((c) => c.activo !== false)
       .map((c) => ({ id: c.id, nombre: c.nombre, sexo: c.sexo ?? null, alias: c.alias ?? [] })),
     usos: usos.filter((u) => u.activo !== false).map((u) => ({ nombre: u.nombre, grupo: u.grupo, alias: u.alias ?? [] })),
-    tipos: tipos.filter((t) => t.activo !== false).map((t) => ({ id: t.id, clave: t.clave, nombre: t.nombre, efecto: t.efecto })),
+    tipos: tipos
+      .filter((t) => t.activo !== false)
+      .map((t) => ({
+        id: t.id,
+        clave: t.clave,
+        nombre: t.nombre,
+        efecto: t.efecto,
+        pideCausa: Boolean(t.pideCausa),
+        pideGuia: Boolean(t.pideGuia),
+        causas: (t.causas ?? []).filter((c) => c.activo !== false).map((c) => ({ id: c.id, codigo: c.codigo, nombre: c.nombre })),
+      })),
   };
 }
 
@@ -204,11 +214,9 @@ export const HERRAMIENTAS = [
       const lista = campo
         ? (await pedir(ctx, { ruta: `/campos/${campo.id}/potreros` })).map((p) => ({ ...p, campo: p.campo ?? { sigla: campo.sigla } }))
         : await pedir(ctx, { ruta: '/potreros', query: { grupo: 'estancias' } });
-      const q = prepararBusqueda(e.texto ?? '');
       let filtrados = lista.filter((p) => {
         if (p.activo === false) return false;
         const lotes = p.stock?.lotes ?? [];
-        if (q && !coincide(nombrePotrero(p), q) && !coincide(p.nombre, q) && !lotes.some((l) => coincide(l.lote, q))) return false;
         if (categoria && !lotes.some((l) => l.categoriaId === categoria.id)) return false;
         if (e.grupoUso && (p.usoActual?.grupo ?? 'OTRO') !== e.grupoUso) return false;
         const cabezas = p.stock?.cabezas ?? 0;
@@ -216,6 +224,8 @@ export const HERRAMIENTAS = [
         if (e.conAnimales === false && cabezas > 0) return false;
         return true;
       });
+      // Como en la app: busca en todo el potrero y, si no hay nada preciso, lo que se parece.
+      filtrados = filtrarBusqueda(filtrados, e.texto ?? '', textosPotrero);
       const orden = {
         cabezas: (a, b) => (b.stock?.cabezas ?? 0) - (a.stock?.cabezas ?? 0),
         cabHa: (a, b) => (b.stock?.cabHa ?? -1) - (a.stock?.cabHa ?? -1),

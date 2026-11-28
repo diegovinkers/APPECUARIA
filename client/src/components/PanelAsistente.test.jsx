@@ -10,10 +10,12 @@ const api = vi.hoisted(() => ({
   estadoAsistente: vi.fn(),
   historialAsistente: vi.fn(),
   preguntarAlAsistente: vi.fn(),
+  confirmarPropuesta: vi.fn(),
+  cancelarPropuesta: vi.fn(),
 }));
 vi.mock('../api/asistente', () => api);
 
-const { default: PanelAsistente, EJEMPLOS, etiquetaDia, mensajesDeHistorial } = await import('./PanelAsistente.jsx');
+const { default: PanelAsistente, EJEMPLOS, EJEMPLO_ACCION, conPropuesta, etiquetaDia, mensajesDeHistorial } = await import('./PanelAsistente.jsx');
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -28,7 +30,18 @@ describe('etiquetaDia y mensajesDeHistorial', () => {
   it('cada consulta da la pregunta y la respuesta (o el error)', () => {
     expect(mensajesDeHistorial([{ id: 4, pregunta: 'p', respuesta: null, error: 'falló', creadaEn: 'f' }])).toEqual([
       { clave: 'p4', rol: 'persona', texto: 'p', fecha: 'f' },
-      { clave: 'r4', rol: 'asistente', texto: '', error: 'falló' },
+      { clave: 'r4', rol: 'asistente', texto: '', error: 'falló', propuestas: [] },
+    ]);
+  });
+
+  it('conPropuesta cambia solo esa propuesta', () => {
+    const ms = [
+      { clave: 'r1', propuestas: [{ id: 1, estado: 'PENDIENTE' }, { id: 2, estado: 'PENDIENTE' }] },
+      { clave: 'r2', texto: 'x' },
+    ];
+    expect(conPropuesta(ms, { id: 2, estado: 'CONFIRMADA' })[0].propuestas).toEqual([
+      { id: 1, estado: 'PENDIENTE' },
+      { id: 2, estado: 'CONFIRMADA' },
     ]);
   });
 });
@@ -45,6 +58,8 @@ describe('el cajón del asistente', () => {
     api.estadoAsistente.mockReset().mockResolvedValue({ configurado: true, modelo: 'claude-haiku-5-5' });
     api.historialAsistente.mockReset().mockResolvedValue({ consultas: [], hayMas: false });
     api.preguntarAlAsistente.mockReset();
+    api.confirmarPropuesta.mockReset();
+    api.cancelarPropuesta.mockReset();
   });
   afterEach(() => {
     act(() => root.unmount());
@@ -148,6 +163,82 @@ describe('el cajón del asistente', () => {
     await montar();
     await act(async () => contenedor.querySelector('[data-testid="respuesta"] a').click());
     expect(onCerrar).toHaveBeenCalled();
+  });
+
+  it('fase 2: la propuesta llega como tarjeta; Confirmar la registra una sola vez', async () => {
+    const venceEn = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const propuesta = {
+      id: 7,
+      estado: 'PENDIENTE',
+      venceEn,
+      tarjeta: {
+        titulo: 'Mover 30 Terneros de 8.1 a 12',
+        renglones: ['8.1: 100 → 70 cab.', '12: vacío → 30 cab.'],
+        avisos: ['Quedan juntas dos categorías'],
+        link: '/pecuaria/potreros/12',
+      },
+    };
+    api.estadoAsistente.mockResolvedValue({ configurado: true, puedeRegistrar: true });
+    api.preguntarAlAsistente.mockImplementation(async ({ alEvento }) => {
+      alEvento({ tipo: 'propuesta', propuesta });
+      alEvento({ tipo: 'texto', texto: 'Te dejé la propuesta para confirmar.' });
+      alEvento({ tipo: 'fin' });
+    });
+    let terminar;
+    api.confirmarPropuesta.mockImplementation(() => new Promise((resolve) => (terminar = () => resolve({ ...propuesta, estado: 'CONFIRMADA' }))));
+    await montar();
+    expect(boton(EJEMPLO_ACCION)).toBeDefined();
+    escribir('Mové 30 terneros del 8.1 al 12');
+    await act(async () => enviarBoton().click());
+    const tarjeta = contenedor.querySelector('[data-testid="tarjeta-propuesta"]');
+    expect(tarjeta.textContent).toContain('Mover 30 Terneros de 8.1 a 12');
+    expect(tarjeta.textContent).toContain('12: vacío → 30 cab.');
+    expect(tarjeta.querySelector('[data-testid="avisos-propuesta"]').textContent).toContain('Quedan juntas dos categorías');
+
+    await act(async () => boton('Confirmar').click());
+    expect(boton('Registrando…').disabled).toBe(true);
+    await act(async () => boton('Registrando…').click());
+    expect(api.confirmarPropuesta).toHaveBeenCalledTimes(1);
+    expect(api.confirmarPropuesta).toHaveBeenCalledWith(7);
+    await act(async () => terminar());
+    expect(contenedor.querySelector('[data-testid="estado-propuesta"]').textContent).toBe('✓ Registrado · Ver');
+    expect(contenedor.querySelector('[data-testid="estado-propuesta"] a').getAttribute('href')).toBe('/pecuaria/potreros/12');
+    expect(boton('Confirmar')).toBeUndefined();
+  });
+
+  it('fase 2: sin permiso de registrar, no hay ejemplo de acción', async () => {
+    api.estadoAsistente.mockResolvedValue({ configurado: true, puedeRegistrar: false });
+    await montar();
+    expect(boton(EJEMPLO_ACCION)).toBeUndefined();
+    expect(contenedor.textContent).not.toContain('Confirmar');
+  });
+
+  it('fase 2: Cancelar no confirma; el historial trae cada tarjeta con su estado', async () => {
+    const hoy = new Date().toISOString();
+    const venceEn = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    api.historialAsistente.mockResolvedValueOnce({
+      consultas: [
+        {
+          id: 2,
+          pregunta: 'pasto',
+          respuesta: 'Listo.',
+          creadaEn: hoy,
+          propuestas: [
+            { id: 1, estado: 'CANCELADA', venceEn, tarjeta: { titulo: 'Pasto de 1 potrero' } },
+            { id: 2, estado: 'PENDIENTE', venceEn, tarjeta: { titulo: 'Pasto de 2 potreros' } },
+          ],
+        },
+      ],
+      hayMas: false,
+    });
+    api.cancelarPropuesta.mockResolvedValue({ id: 2, estado: 'CANCELADA', venceEn, tarjeta: { titulo: 'Pasto de 2 potreros' } });
+    await montar();
+    const tarjetas = () => [...contenedor.querySelectorAll('[data-testid="tarjeta-propuesta"]')];
+    expect(tarjetas()[0].textContent).toContain('Cancelada');
+    await act(async () => boton('Cancelar').click());
+    expect(api.cancelarPropuesta).toHaveBeenCalledWith(2);
+    expect(api.confirmarPropuesta).not.toHaveBeenCalled();
+    expect(tarjetas()[1].textContent).toContain('Cancelada');
   });
 
   it('Enter manda y Shift+Enter no', async () => {

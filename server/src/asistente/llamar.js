@@ -31,19 +31,26 @@ function direccion(app) {
 }
 
 /**
- * @param {{ app, cookie: string }} ctx la app de Express y la cookie de la request.
- * @param {{ ruta: string, query?: object }} pedido ruta bajo /api/pecuaria.
+ * @param {{ app, cookie: string, ip?: string }} ctx la app de Express, la cookie
+ *   de la request y la IP de la persona (va en X-Forwarded-For y en X-Real-IP,
+ *   que es la que lee Railway: así la auditoría guarda la IP real y no 127.0.0.1).
+ * @param {{ ruta: string, query?: object, metodo?: string, cuerpo?: object, cabeceras?: object }} pedido
+ *   ruta bajo /api/pecuaria. Sin `metodo`, GET.
  * @returns {Promise<{ estado: number, datos: any }>}
  */
-export async function llamarApi(ctx, { ruta, query }) {
+export async function llamarApi(ctx, { ruta, query, metodo = 'GET', cuerpo, cabeceras }) {
   const params = new URLSearchParams(
     Object.entries(query ?? {})
       .filter(([, v]) => v !== undefined && v !== null && v !== '')
       .map(([k, v]) => [k, String(v)]),
   ).toString();
+  const headers = { cookie: ctx.cookie ?? '', ...(ctx.ip && { 'x-forwarded-for': ctx.ip, 'x-real-ip': ctx.ip }), ...cabeceras };
+  if (cuerpo !== undefined) headers['content-type'] = 'application/json';
   const r = await fetch(`${await direccion(ctx.app)}/api/pecuaria${ruta}${params ? `?${params}` : ''}`, {
-    headers: { cookie: ctx.cookie ?? '' },
-    signal: AbortSignal.timeout(30_000),
+    method: metodo,
+    headers,
+    ...(cuerpo !== undefined && { body: JSON.stringify(cuerpo) }),
+    signal: AbortSignal.timeout(metodo === 'GET' ? 30_000 : 90_000),
   });
   let datos = null;
   try {

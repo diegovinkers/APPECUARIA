@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Icono from './Icono';
 import { TextoAsistente } from './asistenteFormato';
 import { EsqueletoLista } from './Esqueleto';
+import TarjetaPropuesta from './TarjetaPropuesta';
 import { estadoAsistente, historialAsistente, preguntarAlAsistente } from '../api/asistente';
 
 export const EJEMPLOS = [
@@ -15,6 +16,8 @@ export const EJEMPLOS = [
   '¿Qué se movió en los últimos 7 días?',
   '¿Qué procesos tienen algo atrasado?',
 ];
+// Para quien puede registrar (fase 2): uno de acción.
+export const EJEMPLO_ACCION = 'Anotá el pasto del 8.1: medio';
 
 const diaIso = (fecha) => new Date(fecha).toLocaleDateString('sv-SE', { timeZone: 'America/Montevideo' });
 
@@ -32,7 +35,7 @@ export function etiquetaDia(fecha, ahora = new Date()) {
 export function mensajesDeHistorial(consultas) {
   return consultas.flatMap((c) => [
     { clave: `p${c.id}`, rol: 'persona', texto: c.pregunta, fecha: c.creadaEn },
-    { clave: `r${c.id}`, rol: 'asistente', texto: c.respuesta ?? '', error: c.error ?? undefined },
+    { clave: `r${c.id}`, rol: 'asistente', texto: c.respuesta ?? '', error: c.error ?? undefined, propuestas: c.propuestas ?? [] },
   ]);
 }
 
@@ -41,7 +44,14 @@ function mensajeDeError(error) {
   return error.message;
 }
 
-function Burbuja({ mensaje }) {
+// Cambia una propuesta (después de Confirmar o Cancelar) en los mensajes.
+export function conPropuesta(mensajes, propuesta) {
+  return mensajes.map((m) =>
+    m.propuestas?.some((p) => p.id === propuesta.id) ? { ...m, propuestas: m.propuestas.map((p) => (p.id === propuesta.id ? { ...p, ...propuesta } : p)) } : m,
+  );
+}
+
+function Burbuja({ mensaje, onPropuesta }) {
   if (mensaje.rol === 'persona') {
     return (
       <div className="flex justify-end">
@@ -60,6 +70,9 @@ function Burbuja({ mensaje }) {
           </p>
         )}
         {mensaje.error && <p className={`text-sm text-red-700 ${mensaje.texto ? 'mt-1' : ''}`}>{mensaje.error}</p>}
+        {mensaje.propuestas?.map((p) => (
+          <TarjetaPropuesta key={p.id} propuesta={p} onCambio={onPropuesta} />
+        ))}
       </div>
     </div>
   );
@@ -200,6 +213,7 @@ export default function PanelAsistente({ abierto, onCerrar }) {
           if (e.tipo === 'buscando') cambiarUltimo(() => ({ buscando: e.texto }));
           else if (e.tipo === 'texto') cambiarUltimo((m) => ({ texto: m.texto + e.texto, buscando: undefined }));
           else if (e.tipo === 'error') cambiarUltimo(() => ({ error: e.mensaje }));
+          else if (e.tipo === 'propuesta') cambiarUltimo((m) => ({ propuestas: [...(m.propuestas ?? []), e.propuesta] }));
         },
       });
       cambiarUltimo(() => ({ enCurso: false, buscando: undefined }));
@@ -211,6 +225,8 @@ export default function PanelAsistente({ abierto, onCerrar }) {
       corte.current = null;
     }
   }
+
+  const alCambiarPropuesta = (propuesta) => setMensajes((ms) => conPropuesta(ms ?? [], propuesta));
 
   const alTeclear = (e) => {
     // Enter manda; Shift+Enter, renglón nuevo.
@@ -284,12 +300,13 @@ export default function PanelAsistente({ abierto, onCerrar }) {
               {mensajes.length === 0 && (
                 <div className="space-y-3 pt-1">
                   <p className="text-suelo-700">
-                    Preguntame por los potreros, el ganado, los movimientos, los procesos o los feedlots. Por ahora solo consulto: para registrar, usá
-                    el botón “+” (en la compu, “Registrar”).
+                    {estado?.puedeRegistrar
+                      ? 'Preguntame por los potreros, el ganado, los movimientos, los procesos o los feedlots. También te armo movimientos, ventas, pesadas o el pasto: te muestro cómo quedaría y lo registrás vos con Confirmar.'
+                      : 'Preguntame por los potreros, el ganado, los movimientos, los procesos o los feedlots.'}
                   </p>
                   {estado?.configurado && (
                     <div className="flex flex-wrap gap-2">
-                      {EJEMPLOS.map((ejemplo) => (
+                      {[...EJEMPLOS, ...(estado.puedeRegistrar ? [EJEMPLO_ACCION] : [])].map((ejemplo) => (
                         <button
                           key={ejemplo}
                           type="button"
@@ -306,7 +323,7 @@ export default function PanelAsistente({ abierto, onCerrar }) {
               {conDias.map(({ m, separador }) => (
                 <div key={m.clave} className="space-y-3">
                   {separador && <p className="pt-1 text-center text-xs font-medium text-suelo-500">{separador}</p>}
-                  <Burbuja mensaje={m} />
+                  <Burbuja mensaje={m} onPropuesta={alCambiarPropuesta} />
                 </div>
               ))}
               {estado && !estado.configurado && (

@@ -126,7 +126,8 @@ describe('Marco: barras y panel', () => {
     expect(links()).not.toContain('Usuarios');
     // El capataz no importa ni configura.
     expect(links()).not.toContain('Configuración');
-    expect(links()).toContain('Mi perfil');
+    // "Mi perfil" lleva las iniciales y el nombre en la misma fila (28/11).
+    expect(links().some((t) => t.includes('Mi perfil'))).toBe(true);
   });
 
   it('Dirección no tiene el botón + (no registra)', () => {
@@ -154,8 +155,22 @@ describe('Marco: barras y panel', () => {
     const avatar = header.querySelector('[data-testid="avatar-usuario"]');
     expect(avatar.textContent).toBe('SU');
     expect(avatar.getAttribute('href')).toBe('/profile');
+    // En el celular no va en la barra: va dentro del menú ☰ (28/11).
+    expect(avatar.className).toContain('hidden');
+    expect(avatar.className).toContain('lg:flex');
     click(avatar);
     expect(donde()).toBe('/profile');
+  });
+
+  it('en el celular, el círculo con las iniciales y el nombre van en el menú ☰, en "Mi perfil" (28/11)', () => {
+    montar();
+    click(contenedor.querySelector('header button[aria-label="Menú"]'));
+    const enMenu = contenedor.querySelector('[data-testid="avatar-menu"]');
+    expect(enMenu.textContent).toBe('SU');
+    expect(enMenu.className).toContain('lg:hidden');
+    const fila = enMenu.closest('a');
+    expect(fila.getAttribute('href')).toBe('/profile');
+    expect(fila.textContent).toContain('Mi perfil');
   });
 
   it('el botón IA abre y cierra el cajón del asistente (a la derecha); Escape lo cierra', async () => {

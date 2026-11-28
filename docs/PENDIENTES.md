@@ -5,7 +5,7 @@
 ## 1. Urgente: seguridad y datos
 
 - [ ] **Copia de seguridad automática de la base de Railway**, cifrada, a Cloudflare R2 (gratis), solo las noches con cambios. En el plan Hobby Railway no hace copias; hoy la única es la manual del 26/11 (`C:\backups-sapsa\`). **El programa está hecho y publicado (27/11); faltan los pasos de Diego en Railway y Cloudflare: `docs/COPIAS_PUESTA_EN_MARCHA.md`.** Cómo funciona: `docs/COPIAS.md`.
-- [ ] **Cambiar las contraseñas que se vieron en el chat:** la de la base local (`sapsa_app`) y la de `sapsa-db` de Render. — *Diego (Claude lo guía).*
+- [ ] **Cambiar las contraseñas que se vieron en el chat:** la de la base local (`sapsa_app`), la de `sapsa-db` de Render y la del Postgres de Railway (usuario `postgres`, se vio en una captura el 28/11 al cargar las variables de las copias). — *Diego (Claude lo guía).*
 - [ ] **Verificación en dos pasos** en Railway y en GitHub. — *Diego.*
 
 ## 2. Orden y limpieza
@@ -22,7 +22,7 @@
 - [ ] **Feedlot:** las 7 preguntas para el jefe en `docs/FEEDLOT.md`. Con eso siguen las fases 2 a 5.
 - [ ] **Precios de INAC:** el email para el User-Agent y el secreto `PRECIOS_TOKEN` en GitHub. Con eso sigue la actualización automática semanal (fase 3 de `docs/PRECIOS_INAC.md`).
 - [ ] **Movimientos y bastón:** las preguntas para el encargado en `docs/PROPUESTA_MOVIMIENTOS.md` y `docs/LOGISTICA_MOVIMIENTOS.md`.
-- [ ] **Asistente (bot), fase 1 hecha:** probarlo y dar el OK (`docs/superpowers/specs/2026-11-27-asistente-design.md`). ~~Clave de Anthropic en `server/.env`~~ (hecho, 27/11). ~~Publicado y con la clave en Railway~~ (27/11). Falta el OK de Diego y decidir: logo más chico en el celular (el selector dice "Todas ...") y el Total de ha cortado ("10.03") con Todas las estancias.
+- [ ] **Asistente (bot):** ~~fase 1 probada~~ y ~~fase 2 (movimientos con Confirmar) andando en Railway~~ (Diego, 28/11). Detalle (`docs/superpowers/specs/2026-11-27-asistente-design.md`). ~~Clave de Anthropic en `server/.env`~~ (hecho, 27/11). ~~Publicado y con la clave en Railway~~ (27/11). Queda decidir: logo más chico en el celular (el selector dice "Todas ...") y el Total de ha cortado ("10.03") con Todas las estancias.
 - [ ] **Clave de Anthropic de prueba (`sapsa-appecuaria`) vence el 27/12/2026** (30 días, espacio Default, USD 3 de saldo de la cuenta de Diego). Si el asistente sirve: crear una definitiva (espacio SAPSA, sin vencimiento o 1 año, límite de gasto, ¿tarjeta de SAPSA?) y cargarla en Railway.
 - [ ] **Logo de Pecuaria en mejor calidad** (el original grande o en SVG), para regenerar el ícono de 512 px.
 
@@ -35,7 +35,7 @@
 
 ## 5. Funcionalidades que siguen
 
-- [ ] **Asistente (bot que entiende lo que le pedís):** ~~fase 1, solo preguntas~~ (hecha 27/11, sin commitear). Fase 2 (acciones con Confirmar): servidor y pantalla hechos el 27/11, sin commitear; falta que Diego lo pruebe con frases reales y publicarlo. Fase 3: procesos, foto del bastón, WhatsApp. Después: probar las mismas preguntas con Sonnet 5.5 para comparar (`docs/superpowers/specs/2026-11-27-asistente-design.md`).
+- [ ] **Asistente (bot que entiende lo que le pedís):** ~~fase 1, solo preguntas~~ (27/11) y ~~fase 2, acciones con Confirmar~~ (publicada el 28/11, `7b2e339`; Diego confirmó que anda). Fase 3: procesos, foto del bastón, WhatsApp. Después: probar las mismas preguntas con Sonnet 5.5 para comparar (`docs/superpowers/specs/2026-11-27-asistente-design.md`).
 - [ ] **Tandas de parición** (cabeza / cuerpo / cola), cuando Diego conteste las preguntas.
 - [ ] **Pasto, pasos 2 y 3:** rendimiento por potrero y datos de afuera (`docs/superpowers/plans/2026-11-26-pasto.md`).
 - [ ] **Feedlot, fases 2 a 5** (`docs/FEEDLOT.md`).

@@ -153,15 +153,18 @@ export function iniciales(user) {
   return letras.toLocaleUpperCase('es');
 }
 
+const CIRCULO_INICIALES = 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-trigo-500 text-xs font-bold tracking-wide text-trigo-900';
+
 // El círculo con las iniciales, en la barra de arriba entre el tema y el ☰
-// (pedido de Diego, 27/11). Lleva a "Mi perfil".
+// (pedido de Diego, 27/11). Lleva a "Mi perfil". Solo en la compu: en el
+// celular va dentro del menú ☰, en la fila "Mi perfil" (28/11).
 export function AvatarUsuario({ user }) {
   return (
     <Link
       to="/profile"
       aria-label={`Mi perfil (${user.nombre || user.usuario})`}
       title={user.nombre || user.usuario}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-trigo-500 text-xs font-bold tracking-wide text-trigo-900 ring-2 ring-white/25 hover:bg-trigo-400"
+      className={`${CIRCULO_INICIALES} hidden ring-2 ring-white/25 hover:bg-trigo-400 lg:flex`}
       data-testid="avatar-usuario"
     >
       {iniciales(user)}
@@ -250,8 +253,23 @@ export function ContenidoPanel({ menu, achicado = false, onCerrar, onSalir }) {
           title={achicado ? 'Mi perfil' : undefined}
           className={`${fila} ${pathname === '/profile' ? 'bg-campo-100 font-medium text-campo-700' : 'text-suelo-700 hover:bg-suelo-200/70'}`}
         >
-          <Icono nombre="perfil" />
-          {achicado ? <span className="sr-only">Mi perfil</span> : 'Mi perfil'}
+          {/* En el celular, el círculo con las iniciales y el nombre (no están en la barra de arriba). */}
+          {user && !achicado && (
+            <span aria-hidden="true" className={`${CIRCULO_INICIALES} -my-1 lg:hidden`} data-testid="avatar-menu">
+              {iniciales(user)}
+            </span>
+          )}
+          <span className={user && !achicado ? 'hidden lg:flex' : 'flex'}>
+            <Icono nombre="perfil" />
+          </span>
+          {achicado ? (
+            <span className="sr-only">Mi perfil</span>
+          ) : (
+            <span className="flex min-w-0 flex-col">
+              Mi perfil
+              {user && <span className="truncate text-xs font-normal text-suelo-500 lg:hidden">{user.nombre || user.usuario}</span>}
+            </span>
+          )}
         </Link>
         <button type="button" onClick={onSalir} title={achicado ? 'Salir' : undefined} className={`${fila} w-full text-red-700 hover:bg-red-50`}>
           <Icono nombre="salir" />
